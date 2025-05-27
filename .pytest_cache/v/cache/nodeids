@@ -1,0 +1,10 @@
+[
+  ".venv/tests/test_utils.py::test_database_connection",
+  ".venv/tests/test_utils.py::test_dummy_llm_format_prompt",
+  ".venv/tests/test_utils.py::test_dummy_search_query_format",
+  ".venv/tests/test_utils.py::test_math",
+  "tests/test_utils.py::test_database_connection",
+  "tests/test_utils.py::test_dummy_llm_format_prompt",
+  "tests/test_utils.py::test_dummy_search_query_format",
+  "tests/test_utils.py::test_math"
+]
