@@ -4,31 +4,8 @@ import uuid
 import os
 import urllib.parse
 
-# Assuming these will be created in persistence_utils.py and llm_utils.py
-# For now, we'll define dummy functions or import them if they exist.
-# If they don't exist, I'll need to create them later.
-
-# Placeholder for persistence_utils.py functions
-def persist_session(uuid_str: str):
-    """Saves conversation_history, scratchpad, and summaries to a persistent store."""
-    # This function will be implemented in persistence_utils.py
-    pass
-
-def load_session(uuid_str: str):
-    """Loads saved state if present or calls initialize_conversation_state()."""
-    # This function will be implemented in persistence_utils.py
-    pass
-
-# Placeholder for llm_utils.py functions
-def build_prompt(history: list, scratchpad: dict, summaries: list, current_input: str) -> str:
-    """Builds a full prompt for the LLM."""
-    # This function will be implemented in llm_utils.py
-    return f"History: {history}\nScratchpad: {scratchpad}\nSummaries: {summaries}\nUser Input: {current_input}"
-
-def query_gemini(prompt: str, model: str = "gemini-pro") -> str:
-    """Queries Gemini via the LLM API."""
-    # This function will be implemented in llm_utils.py
-    return f"Gemini response to: {prompt}"
+from .persistence_utils import persist_session, load_session
+from .llm_utils import build_prompt, query_gemini, summarize_response, count_tokens
 
 
 def generate_uuid() -> str:
