@@ -1,0 +1,25 @@
+{
+    "conversation_history": [],
+    "scratchpad": {
+        "problem": "",
+        "customer_segment": "",
+        "solution_approach": "",
+        "mechanism": "",
+        "unique_benefit": "",
+        "high_level_competitive_view": "",
+        "revenue_hypotheses": "",
+        "compliance_snapshot": "",
+        "top_3_risks_and_mitigations": ""
+    },
+    "summaries": [],
+    "stage": "intake",
+    "turn_count": 0,
+    "intake_index": 0,
+    "token_usage": {
+        "session": 0,
+        "daily": 0
+    },
+    "last_summary": "",
+    "start_timestamp": "2025-05-29T03:45:15.955838+00:00",
+    "user_id": "4c06e0eb"
+}

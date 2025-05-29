@@ -1,0 +1,36 @@
+{
+    "conversation_history": [
+        {
+            "role": "assistant",
+            "text": "Recommendation 1 for problem based on: Chronic illness management",
+            "timestamp": "2025-05-29T03:45:15.973798+00:00"
+        },
+        {
+            "role": "assistant",
+            "text": "Recommendation 2 for problem based on: Chronic illness management",
+            "timestamp": "2025-05-29T03:45:15.973872+00:00"
+        }
+    ],
+    "scratchpad": {
+        "problem": "",
+        "customer_segment": "",
+        "solution_approach": "",
+        "mechanism": "",
+        "unique_benefit": "",
+        "high_level_competitive_view": "",
+        "revenue_hypotheses": "",
+        "compliance_snapshot": "",
+        "top_3_risks_and_mitigations": ""
+    },
+    "summaries": [],
+    "stage": "intake",
+    "turn_count": 0,
+    "intake_index": 0,
+    "token_usage": {
+        "session": 0,
+        "daily": 0
+    },
+    "last_summary": "",
+    "start_timestamp": "2025-05-29T03:45:15.963242+00:00",
+    "user_id": "abe07894"
+}
