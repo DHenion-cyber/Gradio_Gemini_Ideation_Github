@@ -12,10 +12,8 @@ from conversation_manager import initialize_conversation_state, run_intake_flow,
 from llm_utils import query_gemini, count_tokens # Assuming count_tokens is in llm_utils
 
 # TruLens Imports
-from trulens_eval import Tru, Feedback, TruChain
-from langchain_core.runnables import RunnableLambda
-# from trulens_eval.feedback.provider.openai import OpenAI # Commenting out problematic import
-from .gemini_feedback import GeminiFeedbackProvider # Using custom Gemini feedback
+from trulens_eval import Tru, Feedback, TruCustomApp
+from .gemini_feedback import GeminiFeedbackProvider
 
 # Ensure the logs directory exists
 LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
@@ -43,20 +41,19 @@ user_personas = [
 provider = GeminiFeedbackProvider()
 
 # 2.2 Evaluation Criteria
-helpfulness = Feedback(
-    provider.helpfulness,
-    name="Helpfulness"
-).on_input_output()
+def make_feedback(name, question):
+    return Feedback(
+        lambda inp, out: provider.ask(question, inp, out),
+        name=name
+    ).on_input_output()
 
-relevance = Feedback(
-    provider.relevance,
-    name="Relevance"
-).on_input_output()
+helpfulness = make_feedback("Helpfulness", "How helpful is this response to the user?")
+relevance = make_feedback("Relevance", "How relevant is this response to the user's intent?")
+alignment = make_feedback("Alignment", "Does this response align with the user's stated goal?")
+empowerment = make_feedback("User Empowerment", "Does this response empower or guide the user to take meaningful next steps?")
+coaching_tone = make_feedback("Coaching Tone", "Does the assistant speak in a tone that is supportive, constructive, and encouraging?")
 
-alignment = Feedback(
-    provider.crispness,  # Using crispness as a proxy for alignment clarity
-    name="Alignment"
-).on_output() # Crispness typically evaluates only the output
+feedbacks = [helpfulness, relevance, alignment, empowerment, coaching_tone]
 
 # Initialize TruLens
 tru = Tru()
@@ -64,49 +61,6 @@ tru = Tru()
 # Helper to simulate a single chatbot turn for TruLens wrapping
 # This function will mimic the core logic of how your chatbot generates a response
 # given a user input and the current session state.
-async def _simulate_chatbot_turn(user_message: str, current_session_state: Dict[str, Any]) -> str:
-    """
-    Simulates a single turn of the chatbot, generating an assistant response.
-    This function is designed to be wrapped by TruChain.
-    """
-    # Temporarily set st.session_state to the current_session_state for the duration of this call
-    # This is a mock for Streamlit's global session_state. In a real Streamlit app,
-    # st.session_state would be managed by Streamlit itself.
-    class MockStreamlitSessionState(dict):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.__dict__ = self
-
-    original_st_session_state = None
-    if 'st' in sys.modules:
-        original_st_session_state = sys.modules['st'].session_state
-    
-    mock_st = type('module', (object,), {'session_state': MockStreamlitSessionState(current_session_state)})
-    sys.modules['streamlit'] = mock_st
-
-    # Ensure conversation_history is present for generate_assistant_response
-    if "conversation_history" not in mock_st.session_state:
-        mock_st.session_state["conversation_history"] = []
-    
-    # Append user message to history for this simulated turn
-    mock_st.session_state["conversation_history"].append({
-        "role": "user",
-        "text": user_message,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
-    })
-
-    # Generate assistant response using the actual chatbot logic
-    assistant_response = generate_assistant_response(user_message)
-
-    # Restore original st.session_state if it existed
-    if original_st_session_state:
-        sys.modules['st'].session_state = original_st_session_state
-    else:
-        # Clean up mock if Streamlit wasn't originally imported
-        if 'streamlit' in sys.modules:
-            del sys.modules['streamlit']
-
-    return assistant_response
 
 # 1.2 Simulate Conversation Function
 # Define MockStreamlit class at the module level to be accessible
@@ -149,32 +103,11 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
     # Initialize conversation state for the simulation
     # This will set up a fresh session_state for each simulation
     initialize_conversation_state() # This function uses st.session_state
-    current_session_state = {k: v for k, v in st_mock.session_state.items()} # Capture initial state
 
-    # Wrap the simulated chatbot turn logic with TruChain
-    # To make _simulate_chatbot_turn compatible with TruChain's expectation of a Runnable,
-    # we can wrap it with RunnableLambda.
-    # Note: _simulate_chatbot_turn takes two arguments, user_message and current_session_state.
-    # RunnableLambda typically expects a single input dictionary.
-    # We'll need to adjust how inputs are passed or how _simulate_chatbot_turn is called.
-
-    # For simplicity, let's assume TruChain can handle an async callable directly,
-    # or we might need to adjust the input to _simulate_chatbot_turn if using RunnableLambda strictly.
-    # The error "Input should be an instance of Runnable" suggests it needs to be a Runnable.
-
-    # Let's define a wrapper that takes a dict and unpacks it for _simulate_chatbot_turn
-    async def runnable_simulate_turn(input_dict: Dict[str, Any]) -> str:
-        return await _simulate_chatbot_turn(
-            user_message=input_dict["user_message"],
-            current_session_state=input_dict["current_session_state"]
-        )
-
-    app_runnable = RunnableLambda(runnable_simulate_turn)
-
-    chatbot_chain = TruChain(
-        app_id=f"simulated_chatbot_session_{persona['name'].replace(' ', '_')}",
-        app=app_runnable, # Pass the RunnableLambda instance
-        feedbacks=[helpfulness, relevance, alignment]
+    tru_app = TruCustomApp(
+        app_id="gemini_simulated_chat",
+        app=run_chatbot,
+        feedbacks=feedbacks
     )
 
     last_bot_message = ""
@@ -182,69 +115,44 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
         print(f"\nTurn {turn_num}:")
 
         # Simulate User Turn (Odd turns)
-        if turn_num % 2 != 0:
-            if turn_num == 1:
-                user_message = persona["intro"]
-            else:
-                # For subsequent turns, simulate user evolving their intent
-                # This is a very basic simulation. A more advanced one might use an LLM
-                # to generate user responses based on previous turns and persona goal.
-                user_message = f"Building on that, how can we achieve {persona['goal']} focusing on {persona['preferred_focus']}? The assistant just said: {last_bot_message}"
-            
-            print(f"User ({persona['name']}): {user_message}")
-            
-            # For TruLens, we need to call the wrapped chain with the user input
-            # and the current state that the chatbot would operate on.
-            # The _simulate_chatbot_turn function will handle updating its internal mock state.
-            # When using TruChain, the call should be made through the wrapped chain
-            # and it will handle the recording.
-            # The input to the wrapped chain (app_runnable) should be a dictionary.
-            chain_input = {"user_message": user_message, "current_session_state": current_session_state}
-            # Since app_runnable is async, chatbot_chain.with_record will likely return a coroutine
-            # or handle the async execution internally and return the result and record.
-            # The error "not enough values to unpack (expected 2, got 0)" suggests it might be returning None
-            # or something that doesn't unpack to two values when the underlying async app is not handled correctly.
-            #
-            # TruChain's with_record is designed to work with LangChain Runnables.
-            # If the Runnable is async, with_record should ideally handle it.
-            # Let's try awaiting the call to with_record, as this is a common pattern for async operations.
-            # However, the typical signature for with_record is that it returns (result, record_future)
-            # and the record_future is then awaited if needed, or the feedback is processed later.
-            #
-            # Given the error, it's possible that `with_record` itself is not async, but the way it
-            # interacts with an async `RunnableLambda` is problematic, or the mock setup for tests
-            # is interfering.
-
-            # Let's try a slightly different approach for async apps with TruChain.
-            # The `acall` method is often used for async chains.
-            # We'll use `awith_record` which is the async version of `with_record`.
-            assistant_response, record = await chatbot_chain.awith_record(chain_input)
-            
-            # Update last_bot_message for the next turn
-            last_bot_message = assistant_response
-            
-            # Log the turn
-            session_transcript.append({
-                "turn_number": turn_num,
-                "role": "user",
-                "message": user_message,
-                "assistant_response": assistant_response,
-                "scores": {
-                    "helpfulness": record.get_feedback("Helpfulness").score,
-                    "relevance": record.get_feedback("Relevance").score,
-                    "alignment": record.get_feedback("Alignment").score
-                }
-            })
-            print(f"Assistant: {assistant_response}")
-
-        # Simulate Assistant Turn (Even turns - if applicable, though the above handles it)
-        # The above `with tru.track_dx` block already covers the assistant's response.
-        # If you had a separate function for assistant's turn, you'd call it here.
-        # For this setup, the assistant's response is generated immediately after the user's.
+        if turn_num == 1:
+            user_message = persona["intro"]
+        else:
+            # For subsequent turns, simulate user evolving their intent
+            user_message = f"Building on that, how can we achieve {persona['goal']} focusing on {persona['preferred_focus']}? The assistant just said: {last_bot_message}"
         
+        print(f"User ({persona['name']}): {user_message}")
+        
+        # Evaluate the chatbot turn with TruLens
+        # The evaluate method takes inputs and outputs as dictionaries
+        result = tru_app.evaluate(
+            inputs={"input": user_message},
+            outputs={"output": run_chatbot(user_message)} # Call run_chatbot directly for the output
+        )
+        
+        # Extract assistant response from the evaluation result
+        assistant_response = result.outputs["output"]
+        
+        # Update last_bot_message for the next turn
+        last_bot_message = assistant_response
+        
+        # Log the turn
+        scores = {f.name: f.result for f in result.feedback_results}
+        session_transcript.append({
+            "turn_number": turn_num,
+            "role": "user",
+            "message": user_message,
+            "assistant_response": assistant_response,
+            "scores": scores
+        })
+        print(f"Assistant: {assistant_response}")
+
         # Update the current_session_state for the next turn based on the mock_st.session_state
         # This is crucial for the chatbot's internal logic to evolve.
-        current_session_state = {k: v for k, v in sys.modules['streamlit'].session_state.items()}
+        # Note: With TruCustomApp, the `run_chatbot` function directly interacts with the mocked
+        # Streamlit session state, so `current_session_state` is implicitly updated.
+        # We don't need to explicitly re-capture it here unless `run_chatbot` was modifying a local copy.
+        # Given the current `run_chatbot` implementation, it modifies `sys.modules['streamlit'].session_state` directly.
 
 
     # 3. Output and Review
@@ -255,13 +163,11 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
 
     # Optional: Print average scores
     if session_transcript:
-        avg_helpfulness = sum(t["scores"]["helpfulness"] for t in session_transcript if t["scores"]["helpfulness"] is not None) / len(session_transcript)
-        avg_relevance = sum(t["scores"]["relevance"] for t in session_transcript if t["scores"]["relevance"] is not None) / len(session_transcript)
-        avg_alignment = sum(t["scores"]["alignment"] for t in session_transcript if t["scores"]["alignment"] is not None) / len(session_transcript)
         print(f"\nAverage Scores for {persona['name']}:")
-        print(f"  Helpfulness: {avg_helpfulness:.2f}")
-        print(f"  Relevance: {avg_relevance:.2f}")
-        print(f"  Alignment: {avg_alignment:.2f}")
+        for feedback_name in ["Helpfulness", "Relevance", "Alignment", "User Empowerment", "Coaching Tone"]:
+            scores_for_metric = [t["scores"].get(feedback_name) for t in session_transcript if t["scores"].get(feedback_name) is not None]
+            avg_score = sum(scores_for_metric) / len(scores_for_metric) if scores_for_metric else 0
+            print(f"  {feedback_name}: {avg_score:.2f}")
 
 async def main():
     for persona in user_personas:
