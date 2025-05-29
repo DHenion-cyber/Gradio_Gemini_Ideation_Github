@@ -65,7 +65,7 @@ def format_citations(search_results: list) -> tuple[str, str]:
     return " ".join(citations_text), "\n".join(reference_block) if reference_block else ""
 
 
-def build_prompt(user_msg: str, scratchpad: dict, search_results: list, element_focus: dict = None) -> str:
+def build_prompt(conversation_history: list, scratchpad: dict, summaries: list, user_input: str, search_results: list = None, element_focus: dict = None) -> str:
     """
     Builds a comprehensive prompt for the LLM, incorporating system preamble,
     current focus, scratchpad content, and formatted search results.
@@ -100,8 +100,22 @@ def build_prompt(user_msg: str, scratchpad: dict, search_results: list, element_
             prompt_parts.append(f"Result {i+1}: {result.get('snippet', 'No snippet available.')}")
         prompt_parts.append("------------------------------")
 
+    # Add conversation history
+    if conversation_history:
+        prompt_parts.append("\n--- Conversation History ---")
+        for turn in conversation_history:
+            prompt_parts.append(f"{turn['role'].title()}: {turn['text']}")
+        prompt_parts.append("----------------------------")
+
+    # Add summaries
+    if summaries:
+        prompt_parts.append("\n--- Summaries ---")
+        for summary in summaries:
+            prompt_parts.append(summary)
+        prompt_parts.append("-------------------")
+
     # Add the current user input
-    prompt_parts.append(f"\nUser Input: {user_msg}")
+    prompt_parts.append(f"\nUser Input: {user_input}")
 
     # Append references block at the end if present
     if references_block:
