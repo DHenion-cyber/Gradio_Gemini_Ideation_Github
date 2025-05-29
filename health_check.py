@@ -25,11 +25,11 @@ def check_module_imports():
     print("Checking module imports and function resolution...")
     modules_to_check = {
         "conversation_manager": "initialize_conversation_state",
-        "database": "get_db_connection", # Assuming this function exists
+        "database": "get_connection", # Corrected function name
         "error_handling": "log_error",
         "llm_utils": "query_gemini",
         "persistence_utils": "persist_session",
-        "search_utils": "perform_search",
+        "search_utils": "async_perplexity_search",
         "ui_components": "privacy_notice",
         "streamlit_app": None # For streamlit_app, just check import
     }
