@@ -4,8 +4,8 @@ import uuid
 import os
 import urllib.parse
 
-from .persistence_utils import save_session, load_session
-from .llm_utils import build_prompt, query_gemini, summarize_response, count_tokens
+from src.persistence_utils import save_session, load_session
+from src.llm_utils import build_prompt, query_gemini, summarize_response, count_tokens
 
 
 def generate_uuid() -> str:

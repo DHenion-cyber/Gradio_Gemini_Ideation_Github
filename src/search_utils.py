@@ -8,7 +8,7 @@ from typing import List, Dict, Optional
 
 # Assuming error_handling.py exists
 try:
-    from . import error_handling
+    from src import error_handling
 except ImportError:
     # Fallback if error_handling is not found (e.g., during standalone testing)
     class ErrorHandling: # type: ignore
@@ -20,7 +20,7 @@ except ImportError:
 
 # Import cache functions from persistence_utils
 try:
-    from .persistence_utils import get_cached_search_response, store_search_response
+    from src.persistence_utils import get_cached_search_response, store_search_response
 except ImportError:
     # Fallback for standalone execution or if persistence_utils is not in the same relative path
     print("Warning: Could not import persistence_utils. Caching will be non-functional or use a mock.")
