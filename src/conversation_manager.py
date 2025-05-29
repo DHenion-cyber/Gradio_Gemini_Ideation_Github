@@ -4,7 +4,7 @@ import uuid
 import os
 import urllib.parse
 
-from .persistence_utils import persist_session, load_session
+from .persistence_utils import save_session, load_session
 from .llm_utils import build_prompt, query_gemini, summarize_response, count_tokens
 
 
@@ -47,7 +47,7 @@ def initialize_conversation_state():
         # If no UID in URL, ensure state is initialized (redundant if called directly)
         if "user_id" not in st.session_state:
             st.session_state["user_id"] = generate_uuid()
-        persist_session(st.session_state["user_id"]) # Persist initial state
+        save_session(st.session_state["user_id"], st.session_state.to_dict()) # Persist initial state
 
 
 def run_intake_flow(user_input: str = None):
@@ -95,7 +95,7 @@ def run_intake_flow(user_input: str = None):
         return question
     else:
         st.session_state["stage"] = "ideation"
-        persist_session(st.session_state["user_id"])
+        save_session(st.session_state["user_id"], st.session_state.to_dict())
         return "Intake complete. Let's move to ideation!"
 
 
@@ -123,7 +123,7 @@ def generate_assistant_response(user_input: str) -> str:
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     })
     st.session_state["turn_count"] += 1
-    persist_session(st.session_state["user_id"])
+    save_session(st.session_state["user_id"], st.session_state.to_dict())
     return response_text
 
 def navigate_value_prop_elements() -> dict:
@@ -181,7 +181,7 @@ def generate_actionable_recommendations(element: str, context: str):
             "text": rec,
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         })
-    persist_session(st.session_state["user_id"])
+    save_session(st.session_state["user_id"], st.session_state.to_dict())
     return recommendations # Return the list of recommendations
 
 
@@ -205,7 +205,7 @@ def trim_conversation_history():
         if len(st.session_state["conversation_history"]) > 5:
             st.session_state["conversation_history"] = st.session_state["conversation_history"][5:]
             st.session_state["summaries"] = st.session_state["summaries"][1:] # Remove oldest summary if it covers these turns
-            persist_session(st.session_state["user_id"])
+            save_session(st.session_state["user_id"], st.session_state.to_dict())
 
 
 def create_turn_summary(text: str) -> str:
@@ -221,7 +221,7 @@ def create_turn_summary(text: str) -> str:
 
     st.session_state["last_summary"] = summary
     st.session_state["summaries"].append(summary)
-    persist_session(st.session_state["user_id"])
+    save_session(st.session_state["user_id"], st.session_state.to_dict())
     return summary
 
 def reconstruct_context_from_summaries() -> str:
@@ -305,7 +305,7 @@ def update_token_usage(tokens: int):
         st.session_state["stage"] = "limit_exceeded" # Set a stage to indicate limit hit
         st.error("You’ve hit today’s usage limit. Please come back tomorrow to continue refining your ideas!")
         # In a real app, you might disable input or redirect.
-    persist_session(st.session_state["user_id"])
+    save_session(st.session_state["user_id"], st.session_state.to_dict())
 
 
 def enforce_session_time():
