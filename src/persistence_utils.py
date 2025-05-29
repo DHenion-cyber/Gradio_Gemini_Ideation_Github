@@ -44,9 +44,16 @@ def ensure_db():
 # Call ensure_db on module load to make sure tables are ready
 ensure_db()
 
+def _datetime_converter(o):
+    """Helper function to convert datetime objects to ISO format strings for JSON serialization."""
+    if isinstance(o, datetime.datetime):
+        return o.isoformat()
+    raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
+
 def save_session(session_uuid: str, data_dict: Dict[str, Any]):
     """
     Saves a session to the database. Data is JSON-serialized.
+    Datetime objects are converted to ISO format strings.
     Performs an UPSERT operation (insert or replace).
 
     Args:
@@ -55,7 +62,22 @@ def save_session(session_uuid: str, data_dict: Dict[str, Any]):
     """
     conn = get_db_connection()
     cursor = conn.cursor()
-    data_json = json.dumps(data_dict)
+    try:
+        data_json = json.dumps(data_dict, default=_datetime_converter)
+    except TypeError as e:
+        print(f"Error serializing session data for {session_uuid}: {e}")
+        # Potentially log the problematic data_dict for debugging
+        # For now, we'll try to save a version with problematic fields removed or stringified
+        # This is a basic fallback, a more robust solution would be needed for complex cases
+        safe_data_dict = {}
+        for k, v in data_dict.items():
+            if isinstance(v, datetime.datetime):
+                safe_data_dict[k] = v.isoformat()
+            elif isinstance(v, (dict, list, str, int, float, bool, type(None))):
+                 safe_data_dict[k] = v
+            else:
+                 safe_data_dict[k] = str(v) # Fallback to string representation
+        data_json = json.dumps(safe_data_dict)
     last_modified = datetime.datetime.now(datetime.timezone.utc).isoformat()
     try:
         cursor.execute(
@@ -86,8 +108,19 @@ def load_session(session_uuid: str) -> Optional[Dict[str, Any]]:
         cursor.execute("SELECT data_json FROM sessions WHERE uuid = ?", (session_uuid,))
         result = cursor.fetchone()
         if result:
+            data_dict = json.loads(result[0])
+            # Convert ISO format strings back to datetime objects
+            for key, value in data_dict.items():
+                if isinstance(value, str):
+                    try:
+                        # Attempt to parse as datetime if it matches ISO format
+                        # This is a simple check; more robust parsing might be needed
+                        if len(value) > 19 and value[10] == 'T' and (value.endswith('Z') or '+' in value or '-' in value[11:]):
+                             data_dict[key] = datetime.datetime.fromisoformat(value)
+                    except ValueError:
+                        pass # Not an ISO datetime string, leave as is
             print(f"Session {session_uuid} loaded successfully.")
-            return json.loads(result[0])
+            return data_dict
         else:
             print(f"Session {session_uuid} not found.")
             return None

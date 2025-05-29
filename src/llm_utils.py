@@ -6,22 +6,22 @@ import datetime # For timestamp in error logging
 # Assuming error_handling.py and search_utils.py exist or will be created
 # For now, using placeholders for these imports.
 try:
-    from . import error_handling
+    from src import error_handling
 except ImportError:
-    class ErrorHandling:
+    class ErrorHandling: # type: ignore
         def log_error(self, message: str, e: Exception = None):
             print(f"ERROR: {message}")
             if e:
                 print(f"Exception: {e}")
-    error_handling = ErrorHandling()
+    error_handling = ErrorHandling() # type: ignore
 
 try:
-    from . import search_utils
+    from src import search_utils
 except ImportError:
-    class SearchUtils:
+    class SearchUtils: # type: ignore
         def perform_search(self, query: str):
             return [{"title": "Dummy Search Result", "url": "http://example.com/dummy", "snippet": "This is a dummy search result."}]
-    search_utils = SearchUtils()
+    search_utils = SearchUtils() # type: ignore
 
 
 def count_tokens(prompt: str, response: str) -> str or None:
