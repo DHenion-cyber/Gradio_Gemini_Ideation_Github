@@ -1,4 +1,3 @@
-import sqlite3
 import json
 import asyncio
 import httpx
@@ -11,31 +10,27 @@ from typing import List, Dict, Optional
 try:
     from . import error_handling
 except ImportError:
-    class ErrorHandling:
-        def log_error(self, message: str, e: Exception = None):
+    # Fallback if error_handling is not found (e.g., during standalone testing)
+    class ErrorHandling: # type: ignore
+        def log_error(self, message: str, e: Optional[Exception] = None):
             print(f"ERROR: {message}")
             if e:
                 print(f"Exception: {e}")
-    error_handling = ErrorHandling()
+    error_handling = ErrorHandling() # type: ignore
 
-# Database setup for caching
-CACHE_DB = "search_cache.db"
-
-def _init_db():
-    """Initializes the SQLite database for search caching."""
-    conn = sqlite3.connect(CACHE_DB)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS search_cache (
-            query_hash TEXT PRIMARY KEY,
-            response_json TEXT,
-            timestamp TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-_init_db() # Initialize database on module load
+# Import cache functions from persistence_utils
+try:
+    from .persistence_utils import get_cached_search_response, store_search_response
+except ImportError:
+    # Fallback for standalone execution or if persistence_utils is not in the same relative path
+    print("Warning: Could not import persistence_utils. Caching will be non-functional or use a mock.")
+    # Define mock functions if persistence_utils is not available
+    def get_cached_search_response(query_hash: str, max_age_hours: int = 12) -> Optional[List[Dict]]: # type: ignore
+        print(f"Mock cache lookup for {query_hash} (max_age: {max_age_hours}hrs)")
+        return None
+    def store_search_response(query_hash: str, response_data: List[Dict]): # type: ignore
+        print(f"Mock cache store for {query_hash} with data: {response_data}")
+        return
 
 def build_query(element: str, scratchpad: dict, user_msg: str) -> str:
     """
@@ -63,55 +58,14 @@ def _get_query_hash(query: str) -> str:
     """Generates a SHA256 hash for a given query string."""
     return hashlib.sha256(query.encode('utf-8')).hexdigest()
 
-def cache_lookup(query_hash: str, max_age_hours: int = 12) -> Optional[List[Dict]]:
-    """
-    Looks up a query in the cache. Returns the cached response if found and not expired,
-    otherwise returns None.
-    """
-    conn = sqlite3.connect(CACHE_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT response_json, timestamp FROM search_cache WHERE query_hash = ?", (query_hash,))
-    result = cursor.fetchone()
-    conn.close()
-
-    if result:
-        response_json, timestamp_str = result
-        cached_time = datetime.datetime.fromisoformat(timestamp_str)
-        current_time = datetime.datetime.now(datetime.timezone.utc)
-        if (current_time - cached_time).total_seconds() / 3600 < max_age_hours:
-            try:
-                return json.loads(response_json)
-            except json.JSONDecodeError as e:
-                error_handling.log_error(f"Failed to decode cached JSON for hash {query_hash}", e)
-                return None
-    return None
-
-def cache_store(query_hash: str, response_json: List[Dict]):
-    """
-    Stores a query response in the cache.
-    """
-    conn = sqlite3.connect(CACHE_DB)
-    cursor = conn.cursor()
-    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    try:
-        cursor.execute(
-            "INSERT OR REPLACE INTO search_cache (query_hash, response_json, timestamp) VALUES (?, ?, ?)",
-            (query_hash, json.dumps(response_json), timestamp)
-        )
-        conn.commit()
-    except Exception as e:
-        error_handling.log_error(f"Failed to store cache for hash {query_hash}", e)
-    finally:
-        conn.close()
-
-async def async_perplexity_search(query: str) -> List[Dict]:
+async def _original_async_perplexity_search(query: str) -> List[Dict]:
     """
     Performs an asynchronous search using the Perplexity API.
     Checks cache before making a network call and stores new responses in cache.
     Includes retry logic for transient network errors.
     """
     query_hash = _get_query_hash(query)
-    cached_response = cache_lookup(query_hash)
+    cached_response = get_cached_search_response(query_hash)
     if cached_response:
         print(f"Cache hit for query: {query}")
         return cached_response
@@ -155,7 +109,7 @@ async def async_perplexity_search(query: str) -> List[Dict]:
                     # For the purpose of this exercise, we'll assume a simple text parsing.
                     parsed_results = _parse_simple_text_search_results(assistant_response_text)
                     if parsed_results:
-                        cache_store(query_hash, parsed_results)
+                        store_search_response(query_hash, parsed_results)
                         return parsed_results
                     else:
                         error_handling.log_error(f"Failed to parse Perplexity response for query: {query}. Response: {assistant_response_text}")
@@ -245,7 +199,7 @@ async def _mockable_async_perplexity_search(query: str) -> List[Dict]:
         print(f"Using mocked Perplexity response for query: {query}")
         return _mock_response_data
     else:
-        return await async_perplexity_search(query)
+        return await _original_async_perplexity_search(query)
 
 # Override the actual function with the mockable one
 async_perplexity_search = _mockable_async_perplexity_search

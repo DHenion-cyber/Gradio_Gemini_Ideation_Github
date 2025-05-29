@@ -28,7 +28,7 @@ def check_module_imports():
         "database": "get_connection", # Corrected function name
         "error_handling": "log_error",
         "llm_utils": "query_gemini",
-        "persistence_utils": "persist_session",
+        "persistence_utils": "save_session",
         "search_utils": "async_perplexity_search",
         "ui_components": "privacy_notice",
         "streamlit_app": None # For streamlit_app, just check import
