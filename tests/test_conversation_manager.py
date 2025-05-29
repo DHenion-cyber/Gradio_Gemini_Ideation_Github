@@ -41,18 +41,20 @@ def test_build_summary_from_scratchpad():
     assert "Students" in summary
 
 def test_generate_assistant_response(monkeypatch):
-    def mock_query(prompt):
-        return "Mocked Gemini response."
-    monkeypatch.setattr("src.llm_utils.query_gemini", mock_query)
+    cm.initialize_conversation_state() # Ensure full state is initialized
+    # Mock the query_gemini function within the conversation_manager's namespace
+    monkeypatch.setattr(cm, "query_gemini", lambda prompt, **kwargs: "Mocked Gemini response.")
 
     st.session_state["scratchpad"] = {"problem": "Test", "customer_segment": "", "solution_approach": "", "mechanism": "", "unique_benefit": "", "high_level_competitive_view": "", "revenue_hypotheses": "", "compliance_snapshot": "", "top_3_risks_and_mitigations": ""}
     st.session_state["conversation_history"] = []
+    st.session_state["summaries"] = [] # Explicitly initialize summaries for this test
 
     result = cm.generate_assistant_response("What is the main issue?")
     assert "Mocked Gemini" in result
     assert st.session_state["conversation_history"][-1]["role"] == "assistant"
 
 def test_trim_conversation_history():
+    cm.initialize_conversation_state() # Ensure full state is initialized
     st.session_state["summaries"] = ["s"] * 21
     st.session_state["conversation_history"] = [{"role": "user", "text": f"msg{i}"} for i in range(100)]
     cm.trim_conversation_history()
@@ -64,13 +66,14 @@ def test_is_out_of_scope():
     assert not cm.is_out_of_scope("How do I improve engagement?")
 
 def test_update_token_usage(monkeypatch):
+    cm.initialize_conversation_state() # Ensure full state is initialized
     st.session_state["token_usage"] = {"session": 0, "daily": 90_000}
     monkeypatch.setenv("DAILY_TOKEN_CAP", "100000")
     cm.update_token_usage(5000)
     assert st.session_state["token_usage"]["daily"] == 95_000
 
 def test_enforce_session_time(monkeypatch):
-    st.session_state["start_timestamp"] = datetime.datetime.now() - datetime.timedelta(minutes=46)
+    st.session_state["start_timestamp"] = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=46) # Use offset-aware datetime
     # Should not raise error; just return a warning message in actual use
     cm.enforce_session_time()
 
@@ -90,9 +93,9 @@ def test_navigate_value_prop_elements_partial_fill():
     assert result["element_name"] != "problem"
 
 def test_generate_actionable_recommendations(monkeypatch):
-    def mock_query(prompt):
-        return "1. Try X.\n2. Consider Y."
-    monkeypatch.setattr("src.llm_utils.query_gemini", mock_query)
+    cm.initialize_conversation_state() # Ensure full state is initialized
+    # Mock the query_gemini function within the conversation_manager's namespace
+    monkeypatch.setattr(cm, "query_gemini", lambda prompt, **kwargs: "1. Try this idea.\n2. Consider that approach.")
 
     result = cm.generate_actionable_recommendations("problem", "Chronic illness management")
     assert isinstance(result, list)

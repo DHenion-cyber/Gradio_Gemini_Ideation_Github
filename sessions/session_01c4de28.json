@@ -1,0 +1,36 @@
+{
+    "conversation_history": [
+        {
+            "role": "assistant",
+            "text": "I'm having trouble with my configuration. Please ensure the GOOGLE_API_KEY is set.",
+            "timestamp": "2025-05-29T03:47:44.462069+00:00"
+        },
+        {
+            "role": "assistant",
+            "text": "Additional Recommendation 0",
+            "timestamp": "2025-05-29T03:47:44.462139+00:00"
+        }
+    ],
+    "scratchpad": {
+        "problem": "",
+        "customer_segment": "",
+        "solution_approach": "",
+        "mechanism": "",
+        "unique_benefit": "",
+        "high_level_competitive_view": "",
+        "revenue_hypotheses": "",
+        "compliance_snapshot": "",
+        "top_3_risks_and_mitigations": ""
+    },
+    "summaries": [],
+    "stage": "intake",
+    "turn_count": 0,
+    "intake_index": 0,
+    "token_usage": {
+        "session": 0,
+        "daily": 0
+    },
+    "last_summary": "",
+    "start_timestamp": "2025-05-29T03:47:44.459172+00:00",
+    "user_id": "01c4de28"
+}
