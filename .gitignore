@@ -41,3 +41,8 @@ huggingface/
 *.pid
 *.tar
 
+# Local database files
+default.sqlite
+
+
+
