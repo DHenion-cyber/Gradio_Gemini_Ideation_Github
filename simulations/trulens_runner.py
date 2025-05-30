@@ -3,16 +3,18 @@ import os
 import datetime
 import asyncio
 from typing import Dict, List, Any, Optional
+from pydantic import BaseModel # Re-add BaseModel import
 
 # Import necessary modules from the main application
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from conversation_manager import initialize_conversation_state, run_intake_flow, generate_assistant_response, navigate_value_prop_elements
-from llm_utils import query_gemini, count_tokens # Assuming count_tokens is in llm_utils
+from conversation_manager import initialize_conversation_state, generate_assistant_response
+from llm_utils import query_gemini
 
 # TruLens Imports
-from trulens_eval import Tru, Feedback, TruCustomApp
+from trulens.core import Tru, Feedback
+from trulens.apps.custom import TruCustomApp as TruApp, instrument
 from .gemini_feedback import GeminiFeedbackProvider
 
 # Ensure the logs directory exists
@@ -36,8 +38,6 @@ user_personas = [
 ]
 
 # 2.1 Configure Evaluation Environment
-# For now, using OpenAI as a proxy. If a GeminiFeedbackProvider is implemented,
-# it would replace OpenAIFeedback here.
 provider = GeminiFeedbackProvider()
 
 # 2.2 Evaluation Criteria
@@ -58,86 +58,85 @@ feedbacks = [helpfulness, relevance, alignment, empowerment, coaching_tone]
 # Initialize TruLens
 tru = Tru()
 
-# Helper to simulate a single chatbot turn for TruLens wrapping
-# This function will mimic the core logic of how your chatbot generates a response
-# given a user input and the current session state.
+# Re-introduce ChatbotAppWrapper as a Pydantic BaseModel
+@instrument
+class ChatbotAppWrapper(BaseModel):
+    # Pydantic models need fields. app_name will serve as an identifier.
+    app_name: str = "MyCustomChatbotApp"
 
-# 1.2 Simulate Conversation Function
-# Define MockStreamlit class at the module level to be accessible
+    class Config:
+        # Allow extra attributes, especially for __call__ to be set dynamically
+        # or if TruLens adds internal attributes.
+        extra = 'allow'
+
+    # Pydantic's __init__ will handle field initialization.
+    # We need to ensure the instance is callable.
+    def __call__(self, input_text: str) -> str:
+        """
+        Makes the wrapper callable, executing the chatbot logic.
+        This method will be the 'app' that TruLens evaluates.
+        """
+        if 'streamlit' not in sys.modules:
+            raise RuntimeError("Streamlit mock not found in sys.modules. Ensure it's initialized.")
+
+        st_session_state = sys.modules['streamlit'].session_state
+
+        if "conversation_history" not in st_session_state:
+            st_session_state["conversation_history"] = []
+        
+        st_session_state["conversation_history"].append({
+            "role": "user",
+            "text": input_text,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
+
+        assistant_response = generate_assistant_response(input_text)
+        return assistant_response
+
+# Instantiate the wrapper
+run_chatbot_wrapped = ChatbotAppWrapper() # Instantiate without app_name, let default apply
+
 class MockStreamlitModuleSingleton:
     _instance = None
-
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(MockStreamlitModuleSingleton, cls).__new__(cls)
             cls._instance.session_state = {}
             cls._instance.query_params = {}
         return cls._instance
-
-    def warning(self, text):
-        print(f"Streamlit Warning: {text}")
-
-    def error(self, text):
-        print(f"Streamlit Error: {text}")
-
-    # Add a to_dict method to session_state if it's a plain dict for compatibility
-    # or ensure session_state itself is an object with a to_dict method.
-    # For simplicity, if session_state is a dict, we can wrap it or add to_dict.
-    # However, initialize_conversation_state expects st.session_state to be directly usable.
+    def warning(self, text): print(f"Streamlit Warning: {text}")
+    def error(self, text): print(f"Streamlit Error: {text}")
 
 async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
-    """
-    Simulates a fixed-turn chat loop with a given persona and evaluates it with TruLens.
-    """
     print(f"\n--- Simulating chat for: {persona['name']} ---")
     session_transcript = []
-
-    # Ensure Streamlit is mocked for the entire simulation run
-    # This is important for functions like initialize_conversation_state
-    # which directly use `st.session_state`.
     if 'streamlit' not in sys.modules or not isinstance(sys.modules['streamlit'], MockStreamlitModuleSingleton):
         sys.modules['streamlit'] = MockStreamlitModuleSingleton()
     
-    st_mock = sys.modules['streamlit']
+    initialize_conversation_state()
 
-    # Initialize conversation state for the simulation
-    # This will set up a fresh session_state for each simulation
-    initialize_conversation_state() # This function uses st.session_state
-
-    tru_app = TruCustomApp(
-        app_id="gemini_simulated_chat",
-        app=run_chatbot,
+    tru_app = TruApp(
+        app_name=f"gemini_simulated_chat_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}", # Dynamic app_name
+        app=run_chatbot_wrapped, # Use the Pydantic BaseModel instance
         feedbacks=feedbacks
     )
 
     last_bot_message = ""
     for turn_num in range(1, num_turns + 1):
         print(f"\nTurn {turn_num}:")
-
-        # Simulate User Turn (Odd turns)
         if turn_num == 1:
             user_message = persona["intro"]
         else:
-            # For subsequent turns, simulate user evolving their intent
             user_message = f"Building on that, how can we achieve {persona['goal']} focusing on {persona['preferred_focus']}? The assistant just said: {last_bot_message}"
-        
         print(f"User ({persona['name']}): {user_message}")
         
-        # Evaluate the chatbot turn with TruLens
-        # The evaluate method takes inputs and outputs as dictionaries
-        result = tru_app.evaluate(
-            inputs={"input": user_message},
-            outputs={"output": run_chatbot(user_message)} # Call run_chatbot directly for the output
-        )
+        # Evaluate the chatbot turn with TruLens using with_record
+        # Explicitly pass the callable function to with_record to ensure it's not stringified.
+        assistant_response, record = tru_app.with_record(run_chatbot_wrapped, user_message)
         
-        # Extract assistant response from the evaluation result
-        assistant_response = result.outputs["output"]
-        
-        # Update last_bot_message for the next turn
+        scores = {fr.name: fr.result for fr in record.feedback_results}
         last_bot_message = assistant_response
         
-        # Log the turn
-        scores = {f.name: f.result for f in result.feedback_results}
         session_transcript.append({
             "turn_number": turn_num,
             "role": "user",
@@ -147,21 +146,11 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
         })
         print(f"Assistant: {assistant_response}")
 
-        # Update the current_session_state for the next turn based on the mock_st.session_state
-        # This is crucial for the chatbot's internal logic to evolve.
-        # Note: With TruCustomApp, the `run_chatbot` function directly interacts with the mocked
-        # Streamlit session state, so `current_session_state` is implicitly updated.
-        # We don't need to explicitly re-capture it here unless `run_chatbot` was modifying a local copy.
-        # Given the current `run_chatbot` implementation, it modifies `sys.modules['streamlit'].session_state` directly.
-
-
-    # 3. Output and Review
     log_filename = os.path.join(LOGS_DIR, f"{persona['name'].replace(' ', '_')}_chat.json")
     with open(log_filename, "w") as f:
         json.dump(session_transcript, f, indent=4)
     print(f"Simulation transcript and scores saved to {log_filename}")
 
-    # Optional: Print average scores
     if session_transcript:
         print(f"\nAverage Scores for {persona['name']}:")
         for feedback_name in ["Helpfulness", "Relevance", "Alignment", "User Empowerment", "Coaching Tone"]:
@@ -174,11 +163,6 @@ async def main():
         await simulate_chat(persona)
 
 if __name__ == "__main__":
-    # This is needed because Streamlit's session_state is not available outside a Streamlit app.
-    # We are mocking it for the health check and simulation.
-    # For actual Streamlit app, this mock would not be needed.
-    # Ensure Streamlit is mocked if running as main
     if 'streamlit' not in sys.modules or not isinstance(sys.modules['streamlit'], MockStreamlitModuleSingleton):
         sys.modules['streamlit'] = MockStreamlitModuleSingleton()
-    
     asyncio.run(main())
