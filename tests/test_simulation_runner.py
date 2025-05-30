@@ -8,7 +8,7 @@ from unittest.mock import patch, MagicMock
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from simulations.trulens_runner import simulate_chat, user_personas, LOGS_DIR
+from simulations.trulens_runner import simulate_chat, user_personas, LOGS_DIR, run_chatbot_wrapped
 from src.conversation_manager import initialize_conversation_state
 
 class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
@@ -46,38 +46,66 @@ class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
         if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) in sys.path:
             sys.path.remove(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-    @patch('src.llm_utils.query_gemini')
-    @patch('trulens_eval.TruChain.with_record')
-    async def test_simulate_chat_and_logging(self, mock_tru_chain_with_record, mock_query_gemini):
-        # Mock Gemini responses
-        mock_query_gemini.side_effect = [
-            "Hello! I'm your assistant. How can I help?", # Initial assistant response
-            "Here are some ideas for chronic disease management.", # Assistant response for turn 2
-            "That's a great question. Let's explore that further.", # Assistant response for turn 3
-            "Indeed, remote monitoring is key.", # Assistant response for turn 4
-            "AI can certainly personalize mental health support.", # Assistant response for turn 5
-            "Consider these ethical implications.", # Assistant response for turn 6
-            "Further research areas include data privacy.", # Assistant response for turn 7
-            "The market for digital health is growing.", # Assistant response for turn 8
-            "Regulatory hurdles are common.", # Assistant response for turn 9
-            "Final thoughts on implementation." # Assistant response for turn 10
+    @patch('src.conversation_manager.generate_assistant_response') # Patch generate_assistant_response directly
+    @patch('simulations.trulens_runner.TruApp') # Patch TruApp in trulens_runner
+    @patch('simulations.trulens_runner.query_gemini') # Patch query_gemini in trulens_runner
+    async def test_simulate_chat_and_logging(self, mock_query_gemini, MockTruCustomApp, mock_generate_assistant_response):
+        # Mock generate_assistant_response responses
+        mock_generate_assistant_response.side_effect = [
+"Hello! I'm your assistant. How can I help?", # Initial assistant response
+"Here are some ideas for chronic disease management.", # Assistant response for turn 2
+"That's a great question. Let's explore that further.", # Assistant response for turn 3
+"Indeed, remote monitoring is key.", # Assistant response for turn 4
+"AI can certainly personalize mental health support.", # Assistant response for turn 5
+"Consider these ethical implications.", # Assistant response for turn 6
+"Further research areas include data privacy.", # Assistant response for turn 7
+"The market for digital health is growing.", # Assistant response for turn 8
+"Regulatory hurdles are common.", # Assistant response for turn 9
+"Final thoughts on implementation." # Assistant response for turn 10
         ]
 
-        # Mock TruLens feedback scores
-        mock_record = MagicMock()
-        mock_record.get_feedback.side_effect = [
-            MagicMock(score=0.8), MagicMock(score=0.9), MagicMock(score=0.7), # Turn 1 scores
-            MagicMock(score=0.7), MagicMock(score=0.8), MagicMock(score=0.9), # Turn 2 scores
-            MagicMock(score=0.9), MagicMock(score=0.7), MagicMock(score=0.8), # Turn 3 scores
-            MagicMock(score=0.8), MagicMock(score=0.9), MagicMock(score=0.7), # Turn 4 scores
-            MagicMock(score=0.7), MagicMock(score=0.8), MagicMock(score=0.9), # Turn 5 scores
-            MagicMock(score=0.9), MagicMock(score=0.7), MagicMock(score=0.8), # Turn 6 scores
-            MagicMock(score=0.8), MagicMock(score=0.9), MagicMock(score=0.7), # Turn 7 scores
-            MagicMock(score=0.7), MagicMock(score=0.8), MagicMock(score=0.9), # Turn 8 scores
-            MagicMock(score=0.9), MagicMock(score=0.7), MagicMock(score=0.8), # Turn 9 scores
-            MagicMock(score=0.8), MagicMock(score=0.9), MagicMock(score=0.7)  # Turn 10 scores
-        ]
-        mock_tru_chain_with_record.return_value.__enter__.return_value = mock_record
+        # Mock TruCustomApp.with_record
+        mock_tru_app_instance = MagicMock()
+        MockTruCustomApp.return_value = mock_tru_app_instance
+
+        def mock_with_record_side_effect(func, user_message):
+            # Simulate the assistant response from the patched generate_assistant_response
+            assistant_response = mock_generate_assistant_response(user_message) # Use the patched generate_assistant_response
+
+            mock_record = MagicMock()
+            feedback_data = [
+                ("Helpfulness", 0.8), ("Relevance", 0.9), ("Alignment", 0.7),
+                ("User Empowerment", 0.8), ("Coaching Tone", 0.9),
+                ("Helpfulness", 0.7), ("Relevance", 0.8), ("Alignment", 0.9),
+                ("User Empowerment", 0.7), ("Coaching Tone", 0.8),
+                ("Helpfulness", 0.9), ("Relevance", 0.7), ("Alignment", 0.8),
+                ("User Empowerment", 0.9), ("Coaching Tone", 0.7),
+                ("Helpfulness", 0.8), ("Relevance", 0.9), ("Alignment", 0.7),
+                ("User Empowerment", 0.8), ("Coaching Tone", 0.9),
+                ("Helpfulness", 0.7), ("Relevance", 0.8), ("Alignment", 0.9),
+                ("User Empowerment", 0.7), ("Coaching Tone", 0.8),
+                ("Helpfulness", 0.9), ("Relevance", 0.7), ("Alignment", 0.8),
+                ("User Empowerment", 0.9), ("Coaching Tone", 0.7),
+                ("Helpfulness", 0.8), ("Relevance", 0.9), ("Alignment", 0.7),
+                ("User Empowerment", 0.8), ("Coaching Tone", 0.9),
+                ("Helpfulness", 0.7), ("Relevance", 0.8), ("Alignment", 0.9),
+                ("User Empowerment", 0.7), ("Coaching Tone", 0.8),
+                ("Helpfulness", 0.9), ("Relevance", 0.7), ("Alignment", 0.8),
+                ("User Empowerment", 0.9), ("Coaching Tone", 0.7),
+                ("Helpfulness", 0.8), ("Relevance", 0.9), ("Alignment", 0.7),
+                ("User Empowerment", 0.8), ("Coaching Tone", 0.9),
+                ("Helpfulness", 0.7), ("Relevance", 0.8), ("Alignment", 0.9),
+                ("User Empowerment", 0.7), ("Coaching Tone", 0.8),
+            ]
+            mock_record.feedback_results = []
+            for name_val, result_val in feedback_data:
+                fr_mock = MagicMock()
+                fr_mock.name = name_val
+                fr_mock.result = result_val
+                mock_record.feedback_results.append(fr_mock)
+            return assistant_response, mock_record
+
+        mock_tru_app_instance.with_record.side_effect = mock_with_record_side_effect
 
         # Select one persona for testing
         persona = user_personas[0] # Startup Clinician
@@ -101,24 +129,26 @@ class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
             self.assertIn("message", turn)
             self.assertIn("assistant_response", turn)
             self.assertIn("scores", turn)
-            self.assertIn("helpfulness", turn["scores"])
-            self.assertIn("relevance", turn["scores"])
-            self.assertIn("alignment", turn["scores"])
-            self.assertIsNotNone(turn["scores"]["helpfulness"])
-            self.assertIsNotNone(turn["scores"]["relevance"])
-            self.assertIsNotNone(turn["scores"]["alignment"])
+            self.assertIn("Helpfulness", turn["scores"])
+            self.assertIn("Relevance", turn["scores"])
+            self.assertIn("Alignment", turn["scores"])
+            self.assertIn("User Empowerment", turn["scores"])
+            self.assertIn("Coaching Tone", turn["scores"])
+            self.assertIsNotNone(turn["scores"]["Helpfulness"])
+            self.assertIsNotNone(turn["scores"]["Relevance"])
+            self.assertIsNotNone(turn["scores"]["Alignment"])
+            self.assertIsNotNone(turn["scores"]["User Empowerment"])
+            self.assertIsNotNone(turn["scores"]["Coaching Tone"])
             
             # Check roles for odd/even turns
-            if (i + 1) % 2 != 0: # User turn
-                self.assertEqual(turn["role"], "user")
-            else: # Assistant turn (response to user's previous message)
-                self.assertEqual(turn["role"], "user") # The log records the user's message and the assistant's response in the same entry.
+            # The log records the user's message and the assistant's response in the same entry.
+            self.assertEqual(turn["role"], "user")
 
         # Verify that query_gemini was called for each assistant response
-        self.assertEqual(mock_query_gemini.call_count, 10) # 10 turns, each calls query_gemini
+        self.assertEqual(mock_generate_assistant_response.call_count, 10) # 10 turns, each calls generate_assistant_response
 
-        # Verify that TruChain.with_record was called for each turn
-        self.assertEqual(mock_tru_chain_with_record.call_count, 10)
+        # Verify that TruCustomApp.evaluate was called for each turn
+        self.assertEqual(mock_tru_app_instance.with_record.call_count, 10)
 
 if __name__ == '__main__':
     unittest.main()
