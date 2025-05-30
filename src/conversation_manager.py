@@ -310,8 +310,21 @@ def update_token_usage(tokens: int):
     """
     Updates session and daily token usage. Enforces a daily token cap.
     """
-    st.session_state["token_usage"]["session"] += tokens
-    st.session_state["token_usage"]["daily"] += tokens
+    # Only update if not already over daily cap
+    daily_cap_str = os.environ.get("DAILY_TOKEN_CAP", "100000")
+    try:
+        daily_cap = int(daily_cap_str)
+    except ValueError:
+        daily_cap = 100000 # Fallback if env var is invalid
+
+    if st.session_state["token_usage"]["daily"] + tokens <= daily_cap:
+        st.session_state["token_usage"]["session"] += tokens
+        st.session_state["token_usage"]["daily"] += tokens
+    else:
+        # If adding tokens would exceed the cap, set to cap and trigger limit_exceeded stage
+        st.session_state["token_usage"]["daily"] = daily_cap
+        st.session_state["stage"] = "limit_exceeded"
+        st.error("You’ve hit today’s usage limit. Please come back tomorrow to continue refining your ideas!")
 
     daily_cap_str = os.environ.get("DAILY_TOKEN_CAP", "100000") # Default cap
     try:
