@@ -4,3 +4,5 @@ python-dotenv
 requests
 pytest
 httpx
+trulens
+llama-index # Explicitly add llama-index back

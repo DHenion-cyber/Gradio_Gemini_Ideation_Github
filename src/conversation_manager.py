@@ -42,10 +42,28 @@ def initialize_conversation_state():
     # Check for ?uid=... in URL and load session if present
     query_params = st.query_params
     if "uid" in query_params:
-        load_session(query_params["uid"])
+        loaded_data = load_session(query_params["uid"])
+        if loaded_data:
+            # Clear existing state before updating to avoid merging issues with complex objects
+            # or ensure that st.session_state is a dict-like object that can be updated.
+            # For MagicMock, update should work as expected.
+            # If st.session_state could be something else, more care is needed.
+            # A simple way for tests is to ensure it's a clearable dict-like mock.
+            # For now, let's assume st.session_state (the MagicMock) supports update.
+            st.session_state.update(loaded_data)
+            # Ensure user_id from loaded session is used, or generate if missing
+            if "user_id" not in st.session_state or not st.session_state["user_id"]:
+                 st.session_state["user_id"] = query_params["uid"] # or generate_uuid() if preferred
+            print(f"Session state updated from loaded session {query_params['uid']}")
+        else:
+            # Session not found or error loading, ensure fresh initialization and save
+            if "user_id" not in st.session_state: # Should already be set by initial part of function
+                 st.session_state["user_id"] = generate_uuid()
+            save_session(st.session_state["user_id"], st.session_state.to_dict())
+            print(f"New session {st.session_state['user_id']} initialized and saved as {query_params['uid']} was not found.")
     else:
-        # If no UID in URL, ensure state is initialized (redundant if called directly)
-        if "user_id" not in st.session_state:
+        # If no UID in URL, ensure state is initialized (user_id should be set by now)
+        if "user_id" not in st.session_state: # Fallback, should be set
             st.session_state["user_id"] = generate_uuid()
         save_session(st.session_state["user_id"], st.session_state.to_dict()) # Persist initial state
 
