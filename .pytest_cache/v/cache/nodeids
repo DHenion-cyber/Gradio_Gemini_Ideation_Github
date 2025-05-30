@@ -3,6 +3,8 @@
   ".venv/tests/test_utils.py::test_dummy_llm_format_prompt",
   ".venv/tests/test_utils.py::test_dummy_search_query_format",
   ".venv/tests/test_utils.py::test_math",
+  "tests/test_auxiliary_behavior.py::TestAuxiliaryBehavior::test_export_to_csv",
+  "tests/test_auxiliary_behavior.py::TestAuxiliaryBehavior::test_export_to_pdf",
   "tests/test_conversation_manager.py::test_build_summary_from_scratchpad",
   "tests/test_conversation_manager.py::test_enforce_session_time",
   "tests/test_conversation_manager.py::test_generate_actionable_recommendations",
