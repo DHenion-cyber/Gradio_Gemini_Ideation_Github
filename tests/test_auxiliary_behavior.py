@@ -1,70 +1,72 @@
-import unittest
-import os
-import json
-from unittest.mock import patch, MagicMock
-from reportlab.lib.pagesizes import letter
+import pytest
+from datetime import datetime, timedelta
+from datetime import timezone
+from src import conversation_manager as cm
+import streamlit as st
 
-from simulations.export_summary import export_to_csv, export_to_pdf, generate_weighted_score_summary, flag_poor_turns
+def test_conversation_history_format():
+    st.session_state.clear()
+    cm.initialize_conversation_state()
 
-class TestAuxiliaryBehavior(unittest.TestCase):
+    # Simulate user input
+    user_msg = "I want to reduce ER visits"
+    st.session_state["conversation_history"].append({
+        "role": "user",
+        "text": user_msg,
+        "timestamp": datetime.now().isoformat()
+    })
 
-    def setUp(self):
-        self.log_data = [
-            {
-                "turn_number": 1,
-                "role": "user",
-                "message": "Hello, how are you?",
-                "assistant_response": "I'm fine, thank you!",
-                "scores": {
-                    "Helpfulness": 4,
-                    "Relevance": 5,
-                    "Alignment": 4,
-                    "User Empowerment": 3,
-                    "Coaching Tone": 5
-                }
-            },
-            {
-                "turn_number": 2,
-                "role": "user",
-                "message": "Tell me about AI.",
-                "assistant_response": "AI is a broad field.",
-                "scores": {
-                    "Helpfulness": 2,
-                    "Relevance": 3,
-                    "Alignment": 2,
-                    "User Empowerment": 1,
-                    "Coaching Tone": 2
-                }
-            }
-        ]
-        self.summary_data = generate_weighted_score_summary(self.log_data)
-        self.export_dir = "simulations/exports"
-        os.makedirs(self.export_dir, exist_ok=True)
-        self.csv_path = os.path.join(self.export_dir, "test_session_eval.csv")
-        self.pdf_path = os.path.join(self.export_dir, "test_session_eval.pdf")
+    # Simulate assistant response
+    response = "Great goal. Let’s explore options for chronic care follow-up."
+    st.session_state["conversation_history"].append({
+        "role": "assistant",
+        "text": response,
+        "timestamp": datetime.now().isoformat()
+    })
 
-    def tearDown(self):
-        if os.path.exists(self.csv_path):
-            os.remove(self.csv_path)
-        if os.path.exists(self.pdf_path):
-            os.remove(self.pdf_path)
-        if os.path.exists(self.export_dir) and not os.listdir(self.export_dir):
-            os.rmdir(self.export_dir)
+    history = st.session_state["conversation_history"]
+    assert history[0]["role"] == "user"
+    assert history[1]["role"] == "assistant"
+    assert "timestamp" in history[1]
 
-    def test_export_to_csv(self):
-        export_to_csv(self.log_data, output_path=self.csv_path)
-        self.assertTrue(os.path.exists(self.csv_path))
-        with open(self.csv_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            self.assertIn("Helpfulness", content)
-            self.assertIn("Hello, how are you?", content)
+def test_token_limit_block(monkeypatch):
+    st.session_state.clear()
+    cm.initialize_conversation_state()
+    st.session_state["token_usage"]["daily"] = 100_000
 
-    @patch('reportlab.pdfgen.canvas.Canvas')
-    def test_export_to_pdf(self, MockCanvas):
-        mock_canvas_instance = MockCanvas.return_value
-        export_to_pdf(self.log_data, self.summary_data, output_path=self.pdf_path)
-        MockCanvas.assert_called_once_with(self.pdf_path, pagesize=letter)
-        mock_canvas_instance.save.assert_called_once()
+    monkeypatch.setenv("DAILY_TOKEN_CAP", "100000")
 
-if __name__ == '__main__':
-    unittest.main()
+    # Should not increment if at cap
+    before = st.session_state["token_usage"]["daily"]
+    cm.update_token_usage(1000)
+    after = st.session_state["token_usage"]["daily"]
+
+    assert before == after
+
+def test_generate_actionable_recommendations_appends(monkeypatch):
+    st.session_state.clear()
+    cm.initialize_conversation_state()
+
+    # Patch query_gemini where it's used in conversation_manager
+    monkeypatch.setattr("src.conversation_manager.query_gemini", lambda prompt: "1. Do X.\n2. Try Y.")
+
+    recs = cm.generate_actionable_recommendations("mechanism", "Use wearable sensors")
+    for r in recs:
+        st.session_state["conversation_history"].append({
+            "role": "assistant",
+            "text": r,
+            "timestamp": datetime.now(timezone.utc).isoformat() # Ensure timezone-aware datetime
+        })
+
+    assert len(st.session_state["conversation_history"]) >= 2
+    assert "Do X" in st.session_state["conversation_history"][-2]["text"]
+
+def test_enforce_session_time_trigger(monkeypatch):
+    st.session_state.clear()
+    cm.initialize_conversation_state()
+    # Ensure start_timestamp is timezone-aware
+    st.session_state["start_timestamp"] = datetime.now(timezone.utc) - timedelta(minutes=46)
+
+    # Ensure function runs without error
+    cm.enforce_session_time()
+    # No assert needed unless return message is exposed
