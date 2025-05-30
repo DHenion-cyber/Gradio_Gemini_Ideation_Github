@@ -1,4 +1,3 @@
 {
-  "tests/test_simulation_runner.py::TestSimulationRunner": true,
-  "tests/test_simulation_runner.py": true
+  "tests/test_simulation_runner.py::TestSimulationRunner": true
 }
