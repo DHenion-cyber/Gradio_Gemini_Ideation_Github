@@ -44,5 +44,10 @@ huggingface/
 # Local database files
 default.sqlite
 
+# Local configuration files
+chatbot_sessions.sqlite
+
+
+
 
 
