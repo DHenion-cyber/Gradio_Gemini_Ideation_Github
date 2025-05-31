@@ -48,6 +48,11 @@ default.sqlite
 # Local configuration files
 chatbot_sessions.sqlite
 
+.pytest_cache/
+__pycache__/
+*.pyc
+
+
 
 
 
