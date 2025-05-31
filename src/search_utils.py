@@ -195,7 +195,13 @@ def perform_search(query: str) -> List[Dict]:
     Synchronously performs a search using the Perplexity API by running the
     async _mockable_async_perplexity_search function.
     """
-    return asyncio.run(_mockable_async_perplexity_search(query))
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        # If an event loop is already running, run the coroutine on it
+        return loop.run_until_complete(_mockable_async_perplexity_search(query))
+    else:
+        # Otherwise, start a new event loop
+        return asyncio.run(_mockable_async_perplexity_search(query))
 
 def mock_perplexity_response(data: Optional[List[Dict]]):
     """
