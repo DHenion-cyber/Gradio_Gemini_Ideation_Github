@@ -3,6 +3,7 @@ import os
 import datetime
 import asyncio
 import sys
+import concurrent.futures # Import concurrent.futures
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 
@@ -87,6 +88,7 @@ class ChatbotAppWrapper(BaseModel):
     class Config:
         extra = 'allow'
 
+    @instrument
     def __call__(self, input_text: str) -> str:
         st_session_state = sys.modules['streamlit'].session_state
 
@@ -128,7 +130,10 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
         
         assistant_response, record = tru_app.with_record(run_chatbot_wrapped, user_message)
         
-        scores = {fr.name: fr.result for fr in record.feedback_results}
+        scores = {}
+        for fr_future in concurrent.futures.as_completed(record.feedback_results):
+            fr = fr_future.result() # Get the result from the completed Future
+            scores[fr.name] = fr.result
         last_bot_message = assistant_response
         
         session_transcript.append({
