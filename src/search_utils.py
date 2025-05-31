@@ -190,6 +190,13 @@ def parse_perplexity_response(raw_response: List[Dict]) -> List[Dict]:
 # Unit-Test Hooks
 _mock_response_data = None
 
+def perform_search(query: str) -> List[Dict]:
+    """
+    Synchronously performs a search using the Perplexity API by running the
+    async _mockable_async_perplexity_search function.
+    """
+    return asyncio.run(_mockable_async_perplexity_search(query))
+
 def mock_perplexity_response(data: Optional[List[Dict]]):
     """
     Sets a mock response for async_perplexity_search for testing purposes.

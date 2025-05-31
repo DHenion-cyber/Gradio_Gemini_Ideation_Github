@@ -6,7 +6,8 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.conversation_manager import initialize_conversation_state, run_intake_flow
-from src.ui_components import apply_responsive_css, privacy_notice
+from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations
+from src.llm_utils import format_citations
 
 # Initialize conversation state
 initialize_conversation_state()
@@ -51,5 +52,14 @@ elif st.session_state["stage"] == "ideation":
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 from conversation_manager import generate_assistant_response
-                assistant_response = generate_assistant_response(user_input)
-                st.markdown(assistant_response)
+                assistant_response, search_results = generate_assistant_response(user_input)
+                
+                # Format citations and render response
+                citations_data = []
+                if search_results:
+                    # Assuming format_citations returns a tuple: (inline_citations_str, references_block_str)
+                    # We need to parse search_results into the format expected by render_response_with_citations
+                    # which is a list of dictionaries with 'text' and 'url'.
+                    citations_data = [{"text": res.get('title', f"Result {i+1}"), "url": res.get('url', '#')} for i, res in enumerate(search_results)]
+                
+                render_response_with_citations(assistant_response, citations_data)
