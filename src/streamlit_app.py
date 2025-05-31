@@ -37,10 +37,38 @@ elif st.session_state["stage"] == "ideation":
     st.subheader("Ideation Phase")
     st.write("You are now in the ideation phase. Let's brainstorm!")
 
+    from conversation_manager import navigate_value_prop_elements, generate_assistant_response
+
     # Display conversation history
     for message in st.session_state["conversation_history"]:
         with st.chat_message(message["role"]):
             st.markdown(message["text"])
+
+    # Value Proposition Navigation UI
+    st.markdown("---")
+    st.subheader("Value Proposition Elements")
+    current_element_info = navigate_value_prop_elements()
+    
+    if current_element_info["element_name"]:
+        st.info(current_element_info["prompt_text"])
+        st.caption(current_element_info["follow_up"])
+        
+        element_input_key = f"element_input_{current_element_info['element_name']}"
+        user_element_response = st.text_area(
+            f"Refine '{current_element_info['element_name'].replace('_', ' ').title()}'",
+            value=st.session_state["scratchpad"].get(current_element_info["element_name"], ""),
+            key=element_input_key
+        )
+        
+        if st.button(f"Save {current_element_info['element_name'].replace('_', ' ').title()}", key=f"save_element_{current_element_info['element_name']}"):
+            st.session_state["scratchpad"][current_element_info["element_name"]] = user_element_response
+            st.success(f"'{current_element_info['element_name'].replace('_', ' ').title()}' updated!")
+            st.rerun()
+    else:
+        st.success(current_element_info["prompt_text"])
+        st.info(current_element_info["follow_up"])
+        
+    st.markdown("---")
 
     # Chat input for user messages
     user_input = st.chat_input("Type your message here...")
@@ -51,15 +79,12 @@ elif st.session_state["stage"] == "ideation":
         # Generate and display assistant response
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                from conversation_manager import generate_assistant_response
                 assistant_response, search_results = generate_assistant_response(user_input)
                 
                 # Format citations and render response
                 citations_data = []
                 if search_results:
-                    # Assuming format_citations returns a tuple: (inline_citations_str, references_block_str)
-                    # We need to parse search_results into the format expected by render_response_with_citations
-                    # which is a list of dictionaries with 'text' and 'url'.
                     citations_data = [{"text": res.get('title', f"Result {i+1}"), "url": res.get('url', '#')} for i, res in enumerate(search_results)]
                 
                 render_response_with_citations(assistant_response, citations_data)
+        st.rerun() # Rerun to update conversation history and potentially next element
