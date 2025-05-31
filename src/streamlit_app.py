@@ -6,7 +6,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.conversation_manager import initialize_conversation_state, run_intake_flow
-from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations
+from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations, progress_bar
 from src.llm_utils import format_citations
 
 # Initialize conversation state
@@ -20,6 +20,12 @@ apply_responsive_css()
 
 # Display privacy notice
 privacy_notice()
+
+# Display token usage and session time
+st.sidebar.subheader("Session Metrics")
+st.sidebar.write(f"Tokens Used (Session): {st.session_state['token_usage']['session']}")
+st.sidebar.write(f"Tokens Used (Daily): {st.session_state['token_usage']['daily']}")
+progress_bar(st.session_state["turn_count"])
 
 # Main application logic
 if st.session_state["stage"] == "intake":
@@ -37,7 +43,7 @@ elif st.session_state["stage"] == "ideation":
     st.subheader("Ideation Phase")
     st.write("You are now in the ideation phase. Let's brainstorm!")
 
-    from conversation_manager import navigate_value_prop_elements, generate_assistant_response, generate_actionable_recommendations
+    from conversation_manager import navigate_value_prop_elements, generate_assistant_response, generate_actionable_recommendations, is_out_of_scope
 
     # Display conversation history
     for message in st.session_state["conversation_history"]:
@@ -88,18 +94,22 @@ elif st.session_state["stage"] == "ideation":
     # Chat input for user messages
     user_input = st.chat_input("Type your message here...")
     if user_input:
-        # Append user message to conversation history
-        st.session_state["conversation_history"].append({"role": "user", "text": user_input})
+        # Check for out-of-scope input
+        if is_out_of_scope(user_input):
+            st.warning("Your input seems to be out of scope. Please refrain from entering personal health information, market sizing, or financial projections.")
+        else:
+            # Append user message to conversation history
+            st.session_state["conversation_history"].append({"role": "user", "text": user_input})
 
-        # Generate and display assistant response
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                assistant_response, search_results = generate_assistant_response(user_input)
-                
-                # Format citations and render response
-                citations_data = []
-                if search_results:
-                    citations_data = [{"text": res.get('title', f"Result {i+1}"), "url": res.get('url', '#')} for i, res in enumerate(search_results)]
-                
-                render_response_with_citations(assistant_response, citations_data)
+            # Generate and display assistant response
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    assistant_response, search_results = generate_assistant_response(user_input)
+                    
+                    # Format citations and render response
+                    citations_data = []
+                    if search_results:
+                        citations_data = [{"text": res.get('title', f"Result {i+1}"), "url": res.get('url', '#')} for i, res in enumerate(search_results)]
+                    
+                    render_response_with_citations(assistant_response, citations_data)
         st.rerun() # Rerun to update conversation history and potentially next element
