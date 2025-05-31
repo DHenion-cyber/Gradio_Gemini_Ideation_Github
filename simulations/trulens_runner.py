@@ -2,15 +2,33 @@ import json
 import os
 import datetime
 import asyncio
+import sys
 from typing import Dict, List, Any, Optional
-from pydantic import BaseModel # Re-add BaseModel import
+from pydantic import BaseModel
+
+# Mock Streamlit for non-Streamlit execution
+class MockStreamlitModuleSingleton:
+    _instance = None
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(MockStreamlitModuleSingleton, cls).__new__(cls)
+            cls._instance.session_state = {}
+            cls._instance.query_params = {}
+        return cls._instance
+    def warning(self, text): print(f"Streamlit Warning: {text}")
+    def error(self, text): print(f"Streamlit Error: {text}")
+
+# Ensure mock Streamlit is in sys.modules BEFORE any imports that might use it
+if 'streamlit' not in sys.modules or not isinstance(sys.modules['streamlit'], MockStreamlitModuleSingleton):
+    sys.modules['streamlit'] = MockStreamlitModuleSingleton()
 
 # Import necessary modules from the main application
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add the project root directory to sys.path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(project_root)
 
-from conversation_manager import initialize_conversation_state, generate_assistant_response
-from llm_utils import query_gemini
+from src.conversation_manager import initialize_conversation_state, generate_assistant_response
+from src.llm_utils import query_gemini
 
 # TruLens Imports
 from trulens.core import Tru, Feedback
@@ -58,27 +76,18 @@ feedbacks = [helpfulness, relevance, alignment, empowerment, coaching_tone]
 # Initialize TruLens
 tru = Tru()
 
+# Start TruLens dashboard
+tru.run_dashboard()
+
 # Re-introduce ChatbotAppWrapper as a Pydantic BaseModel
 @instrument
 class ChatbotAppWrapper(BaseModel):
-    # Pydantic models need fields. app_name will serve as an identifier.
     app_name: str = "MyCustomChatbotApp"
 
     class Config:
-        # Allow extra attributes, especially for __call__ to be set dynamically
-        # or if TruLens adds internal attributes.
         extra = 'allow'
 
-    # Pydantic's __init__ will handle field initialization.
-    # We need to ensure the instance is callable.
     def __call__(self, input_text: str) -> str:
-        """
-        Makes the wrapper callable, executing the chatbot logic.
-        This method will be the 'app' that TruLens evaluates.
-        """
-        if 'streamlit' not in sys.modules:
-            raise RuntimeError("Streamlit mock not found in sys.modules. Ensure it's initialized.")
-
         st_session_state = sys.modules['streamlit'].session_state
 
         if "conversation_history" not in st_session_state:
@@ -94,30 +103,17 @@ class ChatbotAppWrapper(BaseModel):
         return assistant_response
 
 # Instantiate the wrapper
-run_chatbot_wrapped = ChatbotAppWrapper() # Instantiate without app_name, let default apply
-
-class MockStreamlitModuleSingleton:
-    _instance = None
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(MockStreamlitModuleSingleton, cls).__new__(cls)
-            cls._instance.session_state = {}
-            cls._instance.query_params = {}
-        return cls._instance
-    def warning(self, text): print(f"Streamlit Warning: {text}")
-    def error(self, text): print(f"Streamlit Error: {text}")
+run_chatbot_wrapped = ChatbotAppWrapper()
 
 async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
     print(f"\n--- Simulating chat for: {persona['name']} ---")
     session_transcript = []
-    if 'streamlit' not in sys.modules or not isinstance(sys.modules['streamlit'], MockStreamlitModuleSingleton):
-        sys.modules['streamlit'] = MockStreamlitModuleSingleton()
     
     initialize_conversation_state()
 
     tru_app = TruApp(
-        app_name=f"gemini_simulated_chat_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}", # Dynamic app_name
-        app=run_chatbot_wrapped, # Use the Pydantic BaseModel instance
+        app_name=f"gemini_simulated_chat_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}",
+        app=run_chatbot_wrapped,
         feedbacks=feedbacks
     )
 
@@ -130,8 +126,6 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
             user_message = f"Building on that, how can we achieve {persona['goal']} focusing on {persona['preferred_focus']}? The assistant just said: {last_bot_message}"
         print(f"User ({persona['name']}): {user_message}")
         
-        # Evaluate the chatbot turn with TruLens using with_record
-        # Explicitly pass the callable function to with_record to ensure it's not stringified.
         assistant_response, record = tru_app.with_record(run_chatbot_wrapped, user_message)
         
         scores = {fr.name: fr.result for fr in record.feedback_results}
@@ -163,6 +157,4 @@ async def main():
         await simulate_chat(persona)
 
 if __name__ == "__main__":
-    if 'streamlit' not in sys.modules or not isinstance(sys.modules['streamlit'], MockStreamlitModuleSingleton):
-        sys.modules['streamlit'] = MockStreamlitModuleSingleton()
     asyncio.run(main())
