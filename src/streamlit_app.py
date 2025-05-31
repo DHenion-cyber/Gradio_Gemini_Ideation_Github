@@ -43,7 +43,7 @@ elif st.session_state["stage"] == "ideation":
     st.subheader("Ideation Phase")
     st.write("You are now in the ideation phase. Let's brainstorm!")
 
-    from conversation_manager import navigate_value_prop_elements, generate_assistant_response, generate_actionable_recommendations, is_out_of_scope
+    from conversation_manager import navigate_value_prop_elements, generate_assistant_response, generate_actionable_recommendations, is_out_of_scope, generate_final_summary_report, build_summary_from_scratchpad
 
     # Display conversation history
     for message in st.session_state["conversation_history"]:
@@ -88,6 +88,16 @@ elif st.session_state["stage"] == "ideation":
             recommendations = generate_actionable_recommendations(element_for_recommendation, context_for_recommendation)
             for i, rec in enumerate(recommendations):
                 st.markdown(f"**Recommendation {i+1}:** {rec}")
+    
+    st.markdown("---")
+
+    # Summary Report Generation and Download
+    st.subheader("Session Summary")
+    if st.button("Generate Final Summary Report"):
+        final_report = generate_final_summary_report()
+        st.text_area("Final Summary Report", value=final_report, height=300)
+        from src.ui_components import download_summary_button
+        download_summary_button(st.session_state["scratchpad"])
     
     st.markdown("---")
 
