@@ -34,7 +34,7 @@ from src.llm_utils import query_gemini
 # TruLens Imports
 from trulens.core import Tru, Feedback
 from trulens.apps.custom import TruCustomApp as TruApp, instrument
-from .gemini_feedback import GeminiFeedbackProvider
+from simulations.gemini_feedback import GeminiFeedbackProvider
 
 # Ensure the logs directory exists
 LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
@@ -131,9 +131,17 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
         assistant_response, record = tru_app.with_record(run_chatbot_wrapped, user_message)
         
         scores = {}
-        for fr_future in concurrent.futures.as_completed(record.feedback_results):
-            fr = fr_future.result() # Get the result from the completed Future
-            scores[fr.name] = fr.result
+        # Get feedback results
+        feedback_results = record.feedback_results
+        if feedback_results:
+            # Check if they are already computed or need to be awaited
+            if hasattr(feedback_results[0], '__await__'):
+                # They are awaitables, so await them
+                feedback_results = await asyncio.gather(*feedback_results)
+            
+            for fr in feedback_results:
+                if hasattr(fr, 'name') and hasattr(fr, 'result'):
+                    scores[fr.name] = fr.result
         last_bot_message = assistant_response
         
         session_transcript.append({

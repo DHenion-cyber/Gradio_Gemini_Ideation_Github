@@ -102,7 +102,13 @@ class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
                 fr_mock = MagicMock()
                 fr_mock.name = name_val
                 fr_mock.result = result_val
-                mock_record.feedback_results.append(fr_mock)
+                
+                # Make the fr_mock itself awaitable by wrapping it in an async function
+                async def _awaitable_fr_mock(mock_obj):
+                    return mock_obj
+                
+                # Append the coroutine object
+                mock_record.feedback_results.append(_awaitable_fr_mock(fr_mock))
             return assistant_response, mock_record
 
         mock_tru_app_instance.with_record.side_effect = mock_with_record_side_effect
