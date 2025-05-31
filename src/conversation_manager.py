@@ -59,13 +59,13 @@ def initialize_conversation_state():
             # Session not found or error loading, ensure fresh initialization and save
             if "user_id" not in st.session_state: # Should already be set by initial part of function
                  st.session_state["user_id"] = generate_uuid()
-            save_session(st.session_state["user_id"], st.session_state.to_dict())
+            save_session(st.session_state["user_id"], dict(st.session_state))
             print(f"New session {st.session_state['user_id']} initialized and saved as {query_params['uid']} was not found.")
     else:
         # If no UID in URL, ensure state is initialized (user_id should be set by now)
         if "user_id" not in st.session_state: # Fallback, should be set
             st.session_state["user_id"] = generate_uuid()
-        save_session(st.session_state["user_id"], st.session_state.to_dict()) # Persist initial state
+        save_session(st.session_state["user_id"], dict(st.session_state)) # Persist initial state
 
 
 def run_intake_flow(user_input: str = None):
@@ -141,7 +141,7 @@ def generate_assistant_response(user_input: str) -> str:
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     })
     st.session_state["turn_count"] += 1
-    save_session(st.session_state["user_id"], st.session_state.to_dict())
+    save_session(st.session_state["user_id"], dict(st.session_state))
     return response_text
 
 def navigate_value_prop_elements() -> dict:

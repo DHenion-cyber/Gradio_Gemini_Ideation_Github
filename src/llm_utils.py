@@ -2,6 +2,7 @@ import google.generativeai as genai
 import os
 import streamlit as st
 import datetime # For timestamp in error logging
+from trulens.apps.custom import instrument # Import instrument
 
 # Assuming error_handling.py and search_utils.py exist or will be created
 # For now, using placeholders for these imports.
@@ -130,7 +131,8 @@ def format_prompt(prompt: str) -> str:
     """
     return prompt
 
-def query_gemini(prompt: str, model: str = "gemini-pro", temperature: float = 0.7, top_p: float = 0.95, max_output_tokens: int = 1024) -> str:
+@instrument # Add this decorator
+def query_gemini(prompt: str, model: str = "gemini-1.5-flash-latest", temperature: float = 0.7, top_p: float = 0.95, max_output_tokens: int = 1024) -> str:
     """
     Queries the Gemini LLM with the given prompt and returns the response text.
     Includes default parameter configuration and error handling.
@@ -152,7 +154,11 @@ def query_gemini(prompt: str, model: str = "gemini-pro", temperature: float = 0.
                 max_output_tokens=max_output_tokens
             )
         )
-        response_text = response.text
+        
+        if response.candidates:
+            response_text = response.text
+        else:
+            response_text = "No response text generated."
 
         # Update token usage
         token_limit_message = count_tokens(prompt, response_text)
