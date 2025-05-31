@@ -1,6 +1,6 @@
 import streamlit as st
-from src.conversation_manager import initialize_conversation_state, run_intake_flow
-from src.ui_components import apply_responsive_css, privacy_notice
+from conversation_manager import initialize_conversation_state, run_intake_flow
+from ui_components import apply_responsive_css, privacy_notice
 
 # Initialize conversation state
 initialize_conversation_state()
