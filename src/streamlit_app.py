@@ -102,24 +102,26 @@ elif st.session_state["stage"] == "ideation":
     st.markdown("---")
 
     # Chat input for user messages
-    user_input = st.chat_input("Type your message here...")
-    if user_input:
-        # Check for out-of-scope input
-        if is_out_of_scope(user_input):
-            st.warning("Your input seems to be out of scope. Please refrain from entering personal health information, market sizing, or financial projections.")
-        else:
-            # Append user message to conversation history
-            st.session_state["conversation_history"].append({"role": "user", "text": user_input})
+    # Chat input for user messages
+    if st.session_state["stage"] == "ideation":
+        user_input = st.chat_input("Type your message here...", placeholder="Ask me anything about digital health innovation!")
+        if user_input:
+            # Check for out-of-scope input
+            if is_out_of_scope(user_input):
+                st.warning("Your input seems to be out of scope. Please refrain from entering personal health information, market sizing, or financial projections.")
+            else:
+                # Append user message to conversation history
+                st.session_state["conversation_history"].append({"role": "user", "text": user_input})
 
-            # Generate and display assistant response
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    assistant_response, search_results = generate_assistant_response(user_input)
-                    
-                    # Format citations and render response
-                    citations_data = []
-                    if search_results:
-                        citations_data = [{"text": res.get('title', f"Result {i+1}"), "url": res.get('url', '#')} for i, res in enumerate(search_results)]
-                    
-                    render_response_with_citations(assistant_response, citations_data)
-        st.rerun() # Rerun to update conversation history and potentially next element
+                # Generate and display assistant response
+                with st.chat_message("assistant"):
+                    with st.spinner("Thinking..."):
+                        assistant_response, search_results = generate_assistant_response(user_input)
+                        
+                        # Format citations and render response
+                        citations_data = []
+                        if search_results:
+                            citations_data = [{"text": res.get('title', f"Result {i+1}"), "url": res.get('url', '#')} for i, res in enumerate(search_results)]
+                        
+                        render_response_with_citations(assistant_response, citations_data)
+            st.rerun() # Rerun to update conversation history and potentially next element
