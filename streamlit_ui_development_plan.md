@@ -1,6 +1,16 @@
 # Streamlit UI Development Plan
 
-This plan outlines the staged development of the Streamlit UI for the chatbot, with retesting of Trulens evaluations and Pytest after each implementation step to maintain existing functionality.
+This plan outlines the staged development of the Streamlit UI for the chatbot. After each implementation step, we will retest Trulens evaluations and Pytest to maintain existing functionality, and then launch the Streamlit UI to debug any errors.
+
+**Current Codebase State:**
+Modifications to the Streamlit UI may lead to `pytest` and `TruLens` test failures. We will address these as they arise. The immediate critical issue is a `ModuleNotFoundError` for `src.ui_components` when launching Streamlit.
+
+**Tool Usage Strategy:**
+*   **Supabase MCP:** For comprehensive effort and goal tracking (note: direct interaction with Supabase MCP for tracking is not within my current capabilities, but I acknowledge its intended use by the user).
+*   **Context7 MCP & Brave Search:** For documentation research.
+*   **Detailed Debugging Log:** Maintain a log of debugging plans and progress (implicitly through my thought process and responses).
+
+## Phase 1: Core UI Structure and Basic Components
 
 ## Phase 1: Core UI Structure and Basic Components
 
@@ -27,14 +37,17 @@ This plan outlines the staged development of the Streamlit UI for the chatbot, w
 ### Step 3.1: Display Conversation History
 *   **Implementation:** Render the existing conversation history from the session state, distinguishing between user and assistant messages.
 *   **Retest:** Run `pytest`. Run Trulens evaluations.
+*   **Launch UI:** Run `streamlit run src/streamlit_app.py` and debug any loading errors.
 
 ### Step 3.2: Implement User Input and Response Generation
 *   **Implementation:** Add a Streamlit text input for user messages. Connect this input to `generate_assistant_response()`, which involves `llm_utils.build_prompt` and `llm_utils.query_gemini`. Display the assistant's response.
 *   **Retest:** Run `pytest`. Run Trulens evaluations.
+*   **Launch UI:** Run `streamlit run src/streamlit_app.py` and debug any loading errors.
 
 ### Step 3.3: Integrate Response Rendering with Citations
 *   **Implementation:** Use `ui_components.render_response_with_citations()` and `llm_utils.format_citations()` to display LLM responses with clickable inline citations.
 *   **Retest:** Run `pytest`. Run Trulens evaluations.
+*   **Launch UI:** Run `streamlit run src/streamlit_app.py` and debug any loading errors.
 
 ## Phase 4: Advanced Chat Features and Monitoring
 
