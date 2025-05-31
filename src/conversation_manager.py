@@ -6,6 +6,7 @@ import urllib.parse
 
 from .persistence_utils import save_session, load_session
 from .llm_utils import build_prompt, query_gemini, summarize_response, count_tokens
+from . import search_utils
 
 
 def generate_uuid() -> str:
@@ -117,17 +118,22 @@ def run_intake_flow(user_input: str = None):
         return "Intake complete. Let's move to ideation!"
 
 
-def generate_assistant_response(user_input: str) -> str:
+def generate_assistant_response(user_input: str) -> tuple[str, list]:
     """
     Generates an assistant response using the LLM, builds the prompt,
     queries Gemini, and stores the result in conversation history.
+    Returns the response text and the search results.
     """
+    # Perform search
+    search_results = search_utils.perform_search(user_input)
+
     # Build the full prompt
     full_prompt = build_prompt(
         conversation_history=st.session_state["conversation_history"],
         scratchpad=st.session_state["scratchpad"],
         summaries=st.session_state["summaries"],
         user_input=user_input,
+        search_results=search_results, # Pass search results to build_prompt
         element_focus=None
     )
 
@@ -142,7 +148,7 @@ def generate_assistant_response(user_input: str) -> str:
     })
     st.session_state["turn_count"] += 1
     save_session(st.session_state["user_id"], dict(st.session_state))
-    return response_text
+    return response_text, search_results
 
 def navigate_value_prop_elements() -> dict:
     """
