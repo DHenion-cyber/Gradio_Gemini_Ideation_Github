@@ -1,6 +1,7 @@
 import streamlit as st
-from conversation_manager import initialize_conversation_state, run_intake_flow
-from ui_components import apply_responsive_css, privacy_notice
+
+from src.conversation_manager import initialize_conversation_state, run_intake_flow
+from src.ui_components import apply_responsive_css, privacy_notice
 
 # Initialize conversation state
 initialize_conversation_state()
@@ -29,5 +30,11 @@ if st.session_state["stage"] == "intake":
 elif st.session_state["stage"] == "ideation":
     st.subheader("Ideation Phase")
     st.write("You are now in the ideation phase. Let's brainstorm!")
-    # Placeholder for chat input and history in ideation phase
+
+    # Display conversation history
+    for message in st.session_state["conversation_history"]:
+        with st.chat_message(message["role"]):
+            st.markdown(message["text"])
+
+    # Placeholder for chat input in ideation phase
     # This will be implemented in a later step.
