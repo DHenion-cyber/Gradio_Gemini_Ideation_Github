@@ -49,8 +49,9 @@ def test_generate_assistant_response(monkeypatch):
     st.session_state["conversation_history"] = []
     st.session_state["summaries"] = [] # Explicitly initialize summaries for this test
 
-    result = cm.generate_assistant_response("What is the main issue?")
-    assert "Mocked Gemini" in result
+    response_text, search_results = cm.generate_assistant_response("What is the main issue?")
+    assert "Mocked Gemini" in response_text
+    assert isinstance(search_results, list)
     assert st.session_state["conversation_history"][-1]["role"] == "assistant"
 
 def test_trim_conversation_history():
