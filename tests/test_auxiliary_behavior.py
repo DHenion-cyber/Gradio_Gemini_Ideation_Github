@@ -36,6 +36,9 @@ def test_token_limit_block(monkeypatch):
 
     monkeypatch.setenv("DAILY_TOKEN_CAP", "100000")
 
+    # Mock st.error to prevent Streamlit runtime issues in tests
+    monkeypatch.setattr(st, "error", lambda *args, **kwargs: None)
+
     # Should not increment if at cap
     before = st.session_state["token_usage"]["daily"]
     cm.update_token_usage(1000)
@@ -66,6 +69,9 @@ def test_enforce_session_time_trigger(monkeypatch):
     cm.initialize_conversation_state()
     # Ensure start_timestamp is timezone-aware
     st.session_state["start_timestamp"] = datetime.now(timezone.utc) - timedelta(minutes=46)
+
+    # Mock st.warning to prevent Streamlit runtime issues in tests
+    monkeypatch.setattr(st, "warning", lambda *args, **kwargs: None)
 
     # Ensure function runs without error
     cm.enforce_session_time()

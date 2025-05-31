@@ -178,3 +178,6 @@ def summarize_response(text: str) -> str:
     # Use a slightly lower temperature for summarization to get more concise results
     summary = query_gemini(summary_prompt, temperature=0.5, max_output_tokens=100)
     return summary
+
+# Alias for backward compatibility or clearer naming in some contexts
+get_llm_response = query_gemini

@@ -74,6 +74,8 @@ def test_update_token_usage(monkeypatch):
 
 def test_enforce_session_time(monkeypatch):
     st.session_state["start_timestamp"] = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=46) # Use offset-aware datetime
+    # Mock st.warning to prevent Streamlit runtime issues in tests
+    monkeypatch.setattr(st, "warning", lambda *args, **kwargs: None)
     # Should not raise error; just return a warning message in actual use
     cm.enforce_session_time()
 
