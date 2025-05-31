@@ -1,4 +1,9 @@
 import streamlit as st
+import sys
+import os
+
+# Add the project root to the Python path to enable absolute imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.conversation_manager import initialize_conversation_state, run_intake_flow
 from src.ui_components import apply_responsive_css, privacy_notice
@@ -36,5 +41,15 @@ elif st.session_state["stage"] == "ideation":
         with st.chat_message(message["role"]):
             st.markdown(message["text"])
 
-    # Placeholder for chat input in ideation phase
-    # This will be implemented in a later step.
+    # Chat input for user messages
+    user_input = st.chat_input("Type your message here...")
+    if user_input:
+        # Append user message to conversation history
+        st.session_state["conversation_history"].append({"role": "user", "text": user_input})
+
+        # Generate and display assistant response
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                from conversation_manager import generate_assistant_response
+                assistant_response = generate_assistant_response(user_input)
+                st.markdown(assistant_response)

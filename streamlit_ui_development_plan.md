@@ -42,7 +42,7 @@ Modifications to the Streamlit UI may lead to `pytest` and `TruLens` test failur
 ### Step 3.2: Implement User Input and Response Generation
 *   **Implementation:** Add a Streamlit text input for user messages. Connect this input to `generate_assistant_response()`, which involves `llm_utils.build_prompt` and `llm_utils.query_gemini`. Display the assistant's response.
 *   **Retest:** Run `pytest`. Run Trulens evaluations.
-*   **Launch UI:** Run `streamlit run src/streamlit_app.py` and debug any loading errors.
+*   **Launch UI:** Run `python -m streamlit run src/streamlit_app.py` and debug any loading errors.
 
 ### Step 3.3: Integrate Response Rendering with Citations
 *   **Implementation:** Use `ui_components.render_response_with_citations()` and `llm_utils.format_citations()` to display LLM responses with clickable inline citations.
