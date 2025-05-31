@@ -37,7 +37,7 @@ elif st.session_state["stage"] == "ideation":
     st.subheader("Ideation Phase")
     st.write("You are now in the ideation phase. Let's brainstorm!")
 
-    from conversation_manager import navigate_value_prop_elements, generate_assistant_response
+    from conversation_manager import navigate_value_prop_elements, generate_assistant_response, generate_actionable_recommendations
 
     # Display conversation history
     for message in st.session_state["conversation_history"]:
@@ -68,6 +68,21 @@ elif st.session_state["stage"] == "ideation":
         st.success(current_element_info["prompt_text"])
         st.info(current_element_info["follow_up"])
         
+    st.markdown("---")
+
+    # Actionable Recommendations
+    st.subheader("Actionable Recommendations")
+    if st.button("Generate Recommendations"):
+        # For demonstration, we'll use a placeholder element and context.
+        # In a real app, this would be dynamically determined based on conversation.
+        element_for_recommendation = st.session_state["scratchpad"].get("problem", "general ideation")
+        context_for_recommendation = st.session_state["conversation_history"][-1]["text"] if st.session_state["conversation_history"] else "no specific context"
+        
+        with st.spinner("Generating recommendations..."):
+            recommendations = generate_actionable_recommendations(element_for_recommendation, context_for_recommendation)
+            for i, rec in enumerate(recommendations):
+                st.markdown(f"**Recommendation {i+1}:** {rec}")
+    
     st.markdown("---")
 
     # Chat input for user messages
