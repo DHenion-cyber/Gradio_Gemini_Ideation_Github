@@ -60,14 +60,21 @@ def download_summary_button(scratchpad):
 
 def privacy_notice():
     """
-    Displays a collapsible warning about not entering personal health information.
+    Displays a small, fixed privacy notice box in the top right of the screen.
     """
-    with st.expander("Privacy Notice"):
-        st.warning("⚠️ Do not enter personal health information or any other sensitive data.")
+    st.markdown(
+        """
+        <div class="privacy-notice-box">
+            ⚠️ Do not enter personal health information or any other sensitive data.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 def apply_responsive_css():
     """
-    Applies custom CSS for responsive design, including scroll-snap for chat histories.
+    Applies custom CSS for responsive design, including scroll-snap for chat histories
+    and styling for the privacy notice.
     """
     st.markdown(
         """
@@ -79,6 +86,19 @@ def apply_responsive_css():
             max-height: 70vh; /* Adjust as needed */
             overflow-y: auto;
             scroll-snap-type: y mandatory;
+        }
+        .privacy-notice-box {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: #fff3cd; /* Light yellow for warning */
+            color: #856404; /* Dark yellow text */
+            border: 1px solid #ffeeba;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 0.8em;
+            z-index: 1000; /* Ensure it's on top */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         </style>
         """,
