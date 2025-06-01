@@ -40,7 +40,9 @@ def test_build_summary_from_scratchpad():
     assert "Problem Statement" in summary
     assert "Students" in summary
 
-def test_generate_assistant_response(monkeypatch):
+@pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_generate_assistant_response(monkeypatch):
     cm.initialize_conversation_state() # Ensure full state is initialized
     # Mock the query_gemini function within the conversation_manager's namespace
     monkeypatch.setattr(cm, "query_gemini", lambda prompt, **kwargs: "Mocked Gemini response.")
@@ -49,7 +51,7 @@ def test_generate_assistant_response(monkeypatch):
     st.session_state["conversation_history"] = []
     st.session_state["summaries"] = [] # Explicitly initialize summaries for this test
 
-    response_text, search_results = cm.generate_assistant_response("What is the main issue?")
+    response_text, search_results = await cm.generate_assistant_response("What is the main issue?")
     assert "Mocked Gemini" in response_text
     assert isinstance(search_results, list)
     assert st.session_state["conversation_history"][-1]["role"] == "assistant"

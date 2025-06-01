@@ -70,7 +70,9 @@ class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
 
         def mock_with_record_side_effect(func, user_message):
             # Simulate the assistant response from the patched generate_assistant_response
-            assistant_response = mock_generate_assistant_response(user_message) # Use the patched generate_assistant_response
+            async def _get_assistant_response():
+                return await mock_generate_assistant_response(user_message)
+            assistant_response_coroutine = _get_assistant_response()
 
             mock_record = MagicMock()
             feedback_data = [
@@ -102,14 +104,9 @@ class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
                 fr_mock = MagicMock()
                 fr_mock.name = name_val
                 fr_mock.result = result_val
-                
-                # Make the fr_mock itself awaitable by wrapping it in an async function
-                async def _awaitable_fr_mock(mock_obj):
-                    return mock_obj
-                
-                # Append the coroutine object
-                mock_record.feedback_results.append(_awaitable_fr_mock(fr_mock))
-            return assistant_response, mock_record
+                mock_record.feedback_results.append(fr_mock) # Append the mock directly, not an awaitable
+
+            return assistant_response_coroutine, mock_record
 
         mock_tru_app_instance.with_record.side_effect = mock_with_record_side_effect
 
