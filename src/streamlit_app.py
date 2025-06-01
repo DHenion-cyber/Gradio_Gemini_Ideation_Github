@@ -75,10 +75,6 @@ try:
             logging.info("Intake complete. Transitioning to ideation stage. Rerunning.")
             st.success("Intake complete. Let's move to ideation!")
             st.rerun() # Rerun to transition to ideation stage
-    elif st.session_state["stage"] == "ideation":
-        logging.info("Entering ideation stage.")
-        st.subheader("Ideation Phase")
-        st.write("You are now in the ideation phase. Let's brainstorm!")
 
         from src.conversation_manager import navigate_value_prop_elements, generate_assistant_response, generate_actionable_recommendations, is_out_of_scope, generate_final_summary_report, build_summary_from_scratchpad
 except Exception as e:
@@ -91,30 +87,26 @@ except Exception as e:
 
 if st.session_state["stage"] == "ideation":
     logging.info("Entering ideation stage.")
-    st.subheader("Ideation Phase")
-    st.write("You are now in the ideation phase. Let's brainstorm!")
+    st.subheader("Intake questions")
+    st.write("This phase is now complete!")
+    st.subheader("Value Proposition")
+    st.write("Let's begin!")
 
     from src.conversation_manager import navigate_value_prop_elements, generate_assistant_response, generate_actionable_recommendations, is_out_of_scope, generate_final_summary_report, build_summary_from_scratchpad
 
     # Display conversation history
-    for message in st.session_state["conversation_history"]:
-        with st.chat_message(message["role"]):
-            st.markdown(message["text"])
 
     # Value Proposition Navigation UI
-    st.markdown("---")
-    st.subheader("Value Proposition Elements")
     logging.info("Calling navigate_value_prop_elements.")
     current_element_info = navigate_value_prop_elements()
     logging.info(f"navigate_value_prop_elements returned: {current_element_info['element_name']}")
     
     if current_element_info["element_name"]:
-        st.info(current_element_info["prompt_text"])
-        st.caption(current_element_info["follow_up"])
+        st.markdown("[question]")
         
         element_input_key = f"element_input_{current_element_info['element_name']}"
         user_element_response = st.text_area(
-            f"Refine '{current_element_info['element_name'].replace('_', ' ').title()}'",
+            "[user input text box]",
             value=st.session_state["scratchpad"].get(current_element_info["element_name"], ""),
             key=element_input_key
         )
@@ -128,8 +120,6 @@ if st.session_state["stage"] == "ideation":
     else:
         st.success(current_element_info["prompt_text"])
         st.info(current_element_info["follow_up"])
-        
-    st.markdown("---")
 
     # Actionable Recommendations
     st.subheader("Actionable Recommendations")
