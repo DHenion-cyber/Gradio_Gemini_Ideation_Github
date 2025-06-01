@@ -75,7 +75,7 @@ def get_intake_questions() -> list[str]:
     Returns the list of intake questions.
     """
     return [
-        "Hello! I’m trained to help you explore ideas for digital health innovation! Please describe any particular experience or familiarity you have within the health landscape. This may come from positions on your resume/cv, training you've recieved, or experiences you've encountered.", 
+        "Hello! I’m trained to help you explore ideas for digital health innovation! Please describe any experience or familiarity you have within the health landscape. This may come from positions on your resume, training you've recieved, or experiences you've had.", 
         "Are there problems that you’re particularly interested in addressing?",
         "Some people naturally focus on patient impact, where others naturally focus more on processes, efficiency, finances, etc. Do you find yourself naturally oriented towards one of the following areas?\n- Patient Impact\n- Quality (may not be directly patients)\n- Finance/savings\n- Efficiency\n- New Technology",
         "Do you already have some ideas or topics you want to explore?",
