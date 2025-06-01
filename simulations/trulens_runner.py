@@ -89,7 +89,7 @@ class ChatbotAppWrapper(BaseModel):
         extra = 'allow'
 
     @instrument
-    def __call__(self, input_text: str) -> str:
+    async def __call__(self, input_text: str) -> str:
         st_session_state = sys.modules['streamlit'].session_state
 
         if "conversation_history" not in st_session_state:
@@ -101,7 +101,7 @@ class ChatbotAppWrapper(BaseModel):
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
         })
 
-        assistant_response = generate_assistant_response(input_text)
+        assistant_response = await generate_assistant_response(input_text)
         return assistant_response
 
 # Instantiate the wrapper
@@ -128,7 +128,8 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
             user_message = f"Building on that, how can we achieve {persona['goal']} focusing on {persona['preferred_focus']}? The assistant just said: {last_bot_message}"
         print(f"User ({persona['name']}): {user_message}")
         
-        assistant_response, record = tru_app.with_record(run_chatbot_wrapped, user_message)
+        app_output, record = tru_app.with_record(run_chatbot_wrapped, user_message)
+        assistant_response = await app_output
         
         scores = {}
         # Get feedback results
