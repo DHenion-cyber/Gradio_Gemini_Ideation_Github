@@ -9,8 +9,19 @@ from src.conversation_manager import initialize_conversation_state, run_intake_f
 from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations, progress_bar
 from src.llm_utils import format_citations
 
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 # Initialize conversation state
-initialize_conversation_state()
+try:
+    initialize_conversation_state()
+    logging.info("Conversation state initialized successfully.")
+except Exception as e:
+    logging.error(f"Error initializing conversation state: {e}")
+    st.error(f"An error occurred during initialization: {e}")
+    st.stop() # Stop Streamlit execution if initialization fails
 
 st.set_page_config(page_title="Chatbot UI", layout="wide")
 st.title("Welcome to the Chatbot")
@@ -28,22 +39,27 @@ st.sidebar.write(f"Tokens Used (Daily): {st.session_state['token_usage']['daily'
 progress_bar(st.session_state["turn_count"])
 
 # Main application logic
-if st.session_state["stage"] == "intake":
-    st.subheader("Let's get started!")
-    current_question = run_intake_flow()
-    if current_question != "Intake complete. Let's move to ideation!":
-        user_response = st.text_input(current_question, key=f"intake_q_{st.session_state['intake_index']}")
-        if user_response:
-            run_intake_flow(user_response)
-            st.rerun() # Rerun to display the next question or transition
-    else:
-        st.success(current_question)
-        st.rerun() # Rerun to transition to ideation stage
-elif st.session_state["stage"] == "ideation":
-    st.subheader("Ideation Phase")
-    st.write("You are now in the ideation phase. Let's brainstorm!")
+try:
+    if st.session_state["stage"] == "intake":
+        st.subheader("Let's get started!")
+        current_question = run_intake_flow()
+        if current_question != "Intake complete. Let's move to ideation!":
+            user_response = st.text_input(current_question, key=f"intake_q_{st.session_state['intake_index']}")
+            if user_response:
+                run_intake_flow(user_response)
+                st.rerun() # Rerun to display the next question or transition
+        else:
+            st.success(current_question)
+            st.rerun() # Rerun to transition to ideation stage
+    elif st.session_state["stage"] == "ideation":
+        st.subheader("Ideation Phase")
+        st.write("You are now in the ideation phase. Let's brainstorm!")
 
-    from conversation_manager import navigate_value_prop_elements, generate_assistant_response, generate_actionable_recommendations, is_out_of_scope, generate_final_summary_report, build_summary_from_scratchpad
+        from conversation_manager import navigate_value_prop_elements, generate_assistant_response, generate_actionable_recommendations, is_out_of_scope, generate_final_summary_report, build_summary_from_scratchpad
+except Exception as e:
+    logging.error(f"Error in main application logic: {e}")
+    st.error(f"An error occurred: {e}")
+    st.stop() # Stop Streamlit execution if an error occurs
 
     # Display conversation history
     for message in st.session_state["conversation_history"]:
