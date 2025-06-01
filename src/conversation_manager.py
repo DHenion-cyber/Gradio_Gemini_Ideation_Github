@@ -3,6 +3,7 @@ import datetime
 import uuid
 import os
 import urllib.parse
+import asyncio
 
 from .persistence_utils import save_session, load_session
 from .llm_utils import build_prompt, query_gemini, summarize_response, count_tokens
@@ -118,14 +119,15 @@ def run_intake_flow(user_input: str = None):
         return "Intake complete. Let's move to ideation!"
 
 
-def generate_assistant_response(user_input: str) -> tuple[str, list]:
+async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     """
     Generates an assistant response using the LLM, builds the prompt,
     queries Gemini, and stores the result in conversation history.
     Returns the response text and the search results.
     """
+    print(f"DEBUG: In generate_assistant_response. Event loop running: {asyncio.get_event_loop().is_running()}")
     # Perform search
-    search_results = search_utils.perform_search(user_input)
+    search_results = await search_utils.perform_search(user_input)
 
     # Build the full prompt
     full_prompt = build_prompt(
