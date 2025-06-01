@@ -1,8 +1,11 @@
 import google.generativeai as genai
 import os
+from dotenv import load_dotenv # Import load_dotenv
 import streamlit as st
 import datetime # For timestamp in error logging
 from trulens.apps.custom import instrument # Import instrument
+
+load_dotenv() # Load environment variables from .env file
 
 # Assuming error_handling.py and search_utils.py exist or will be created
 # For now, using placeholders for these imports.

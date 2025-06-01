@@ -21,10 +21,12 @@ class GeminiFeedbackProvider:
         """
         response = self.model.generate_content(full_prompt) # Use synchronous version
         try:
-            # Attempt to parse the response as an integer score
-            score = int(response.text.strip())
+            # Extract text from the response, handling multiple parts if necessary
+            response_text = "".join([part.text for part in response.parts])
+            score = int(response_text.strip())
             return score
         except ValueError:
             # If parsing fails, return a default or log an error
-            print(f"Warning: Could not parse Gemini feedback response '{response.text.strip()}' to int. Returning 0.")
+            response_text = "".join([part.text for part in response.parts]) # Re-extract for logging
+            print(f"Warning: Could not parse Gemini feedback response '{response_text.strip()}' to int. Returning 0.")
             return 0
