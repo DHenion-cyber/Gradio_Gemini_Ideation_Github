@@ -138,17 +138,19 @@ try:
         logging.info(f"DEBUG: navigate_value_prop_elements returned: {current_element_info['element_name']}")
         
         if current_element_info["element_name"]:
-            st.info(current_element_info["prompt_text"])
-            st.caption(current_element_info["follow_up"])
-            
-            element_input_key = f"element_input_{current_element_info['element_name']}"
-            user_element_response = st.text_area(
-                "", # Removed "[user input text box]"
-                value=st.session_state["scratchpad"].get(current_element_info["element_name"], ""),
-                key=element_input_key
-            )
-            
-            if st.button(f"Save {current_element_info['element_name'].replace('_', ' ').title()}", key=f"save_element_{current_element_info['element_name']}"):
+            with st.form(key=f"value_prop_form_{current_element_info['element_name']}"):
+                st.info(current_element_info["prompt_text"])
+                st.caption(current_element_info["follow_up"])
+                
+                element_input_key = f"element_input_{current_element_info['element_name']}"
+                user_element_response = st.text_area(
+                    "", # Removed "[user input text box]"
+                    value=st.session_state["scratchpad"].get(current_element_info["element_name"], ""),
+                    key=element_input_key
+                )
+                submitted = st.form_submit_button(label="Submit")
+    
+            if submitted:
                 logging.info(f"DEBUG: Saving element: {current_element_info['element_name']}")
                 st.session_state["scratchpad"][current_element_info["element_name"]] = user_element_response
                 st.success(f"'{current_element_info['element_name'].replace('_', ' ').title()}' updated!")
