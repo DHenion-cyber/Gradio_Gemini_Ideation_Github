@@ -70,53 +70,55 @@ def initialize_conversation_state():
         save_session(st.session_state["user_id"], dict(st.session_state)) # Persist initial state
 
 
-def run_intake_flow(user_input: str = None):
+def get_intake_questions() -> list[str]:
     """
-    Manages the intake flow, presenting questions one at a time and storing responses.
+    Returns the list of intake questions.
     """
-    intake_questions = [
-        "Hello! I’m trained to help you explore ideas for digital health innovation! I’d like to start by getting to know a little about your expertise, experience, and interests. What areas of the health landscape interest you most? (i.e., wellness, research, education, nursing, acute care, prosthetics, etc.) Feel free to paste job roles you’ve had.",
+    return [
+        "Hello! I’m trained to help you explore ideas for digital health innovation! Please describe any particular experience or familiarity you have within the health landscape. This may come from positions on your resume/cv, training you've recieved, or experiences you've encountered.", 
         "Are there problems that you’re particularly interested in addressing?",
-        "Many people find themselves naturally oriented towards one of the following areas. Do you?\n- Patient Impact\n- Quality (may not be directly patients)\n- Finance/savings\n- Efficiency\n- New Technology",
-        "Do you already have any ideas, or would you like help brainstorming?",
-        "What would a successful outcome from this session look like to you?"
+        "Some people naturally focus on patient impact, where others naturally focus more on processes, efficiency, finances, etc. Do you find yourself naturally oriented towards one of the following areas?\n- Patient Impact\n- Quality (may not be directly patients)\n- Finance/savings\n- Efficiency\n- New Technology",
+        "Do you already have some ideas or topics you want to explore?",
+        "Are there any potential business qualities that matter to you? For example, some people are interested in smaller scale innovations that could be launched quickly with minimum funding while others may be more interested in exploring big ideas with longer timelines and external funding."
     ]
 
-    if user_input:
-        # Append user response to conversation history
-        st.session_state["conversation_history"].append({
-            "role": "user",
-            "text": user_input,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
-        })
+def run_intake_flow(user_input: str):
+    """
+    Processes user input for the intake flow and advances the intake_index.
+    This function should be called *only* when user_input is provided.
+    """
+    intake_questions = get_intake_questions()
 
-        # Store intake answers in scratchpad where relevant
-        current_intake_index = st.session_state["intake_index"] - 1 # User input corresponds to the *previous* question
-        if current_intake_index == 0: # First question about expertise/interests
-            # This doesn't directly map to a scratchpad field, but could inform "customer_segment" or "problem" later
-            pass
-        elif current_intake_index == 1: # Problems interested in
-            st.session_state["scratchpad"]["problem"] = user_input
-        elif current_intake_index == 2: # Areas of orientation (Patient Impact, Quality, etc.)
-            # This doesn't directly map to a scratchpad field, but could inform "unique_benefit" or "solution_approach"
-            pass
-        elif current_intake_index == 3: # Existing ideas or brainstorming
-            # This doesn't directly map to a scratchpad field
-            pass
-        elif current_intake_index == 4: # Successful outcome
-            # This doesn't directly map to a scratchpad field
-            pass
+    # Append user response to conversation history
+    st.session_state["conversation_history"].append({
+        "role": "user",
+        "text": user_input,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    })
 
-    if st.session_state["intake_index"] < len(intake_questions):
-        question = intake_questions[st.session_state["intake_index"]]
-        st.session_state["intake_index"] += 1
-        # In a real Streamlit app, you'd display this question to the user
-        # For this function, we'll just return the question text for now.
-        return question
-    else:
+    # Store intake answers in scratchpad where relevant
+    # intake_index is incremented *after* processing, so current_intake_index refers to the question just answered
+    current_intake_index = st.session_state["intake_index"]
+    if current_intake_index == 0: # First question about expertise/interests
+        # This is a general introductory question, no direct scratchpad mapping needed yet.
+        pass
+    elif current_intake_index == 1: # Problems interested in
+        st.session_state["scratchpad"]["problem"] = user_input
+    elif current_intake_index == 2: # Areas of orientation (Patient Impact, Quality, etc.)
+        st.session_state["scratchpad"]["solution_approach"] = user_input # Maps to solution approach based on user's focus
+    elif current_intake_index == 3: # Existing ideas or brainstorming
+        # This can inform solution_approach or mechanism, depending on the user's input.
+        # For now, we'll keep it as pass, as it's more about intent.
+        pass
+    elif current_intake_index == 4: # Business qualities
+        st.session_state["scratchpad"]["revenue_hypotheses"] = user_input # Maps to revenue hypotheses based on business qualities
+
+    st.session_state["intake_index"] += 1
+
+    if st.session_state["intake_index"] >= len(intake_questions):
         st.session_state["stage"] = "ideation"
-        save_session(st.session_state["user_id"], st.session_state.to_dict())
-        return "Intake complete. Let's move to ideation!"
+    
+    save_session(st.session_state["user_id"], st.session_state.to_dict())
 
 
 async def generate_assistant_response(user_input: str) -> tuple[str, list]:
