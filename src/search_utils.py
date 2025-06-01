@@ -85,7 +85,8 @@ async def _original_async_perplexity_search(query: str) -> List[Dict]:
 
     headers = {
         "Authorization": f"Bearer {perplexity_api_key}",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "Content-Type": "application/json"
     }
     url = "https://api.perplexity.ai/chat/completions" # Assuming this is the correct endpoint for search-like functionality
     # Perplexity API is primarily for chat completions, so we'll simulate a search
@@ -95,7 +96,7 @@ async def _original_async_perplexity_search(query: str) -> List[Dict]:
         {"role": "user", "content": f"Search query: {query}"}
     ]
     payload = {
-        "model": "sonar-small-online", # Or another suitable online model
+        "model": "llama-3.1-sonar-small-128k-online", # Updated to a valid online model
         "messages": messages
     }
 
@@ -145,21 +146,38 @@ def _parse_simple_text_search_results(text: str) -> List[Dict]:
     results = []
     lines = text.split('\n')
     current_result = {}
+    
+    # Regex patterns for extraction
+    import re
+    title_pattern = re.compile(r"^\d+\.\s*\*\*(.*?)\*\*")
+    field_pattern = re.compile(r"^- \*\*(Title|URL|Snippet):\*\*\s*(.*)")
+
     for line in lines:
         line = line.strip()
-        if line.lower().startswith("title:"):
+        if not line:
+            continue
+
+        # Check for start of a new result (e.g., "1. **Title**")
+        match_title_start = title_pattern.match(line)
+        if match_title_start:
             if current_result: # Save previous result if exists
                 results.append(current_result)
-            current_result = {"title": line[len("title:"):].strip()}
-        elif line.lower().startswith("url:"):
-            current_result["url"] = line[len("url:"):].strip()
-        elif line.lower().startswith("snippet:"):
-            current_result["snippet"] = line[len("snippet:"):].strip()
-        elif line and not current_result: # If line exists but no current result, assume it's a snippet for the first result
-            if not results and not current_result.get("snippet"):
-                current_result["snippet"] = line # First line could be a general intro
-            elif current_result.get("snippet"):
-                current_result["snippet"] += " " + line # Append to snippet
+            current_result = {"title": match_title_start.group(1).strip()}
+            continue # Move to next line after processing title
+
+        # Check for specific fields like - **Title:**, - **URL:**, - **Snippet:**
+        match_field = field_pattern.match(line)
+        if match_field:
+            field_name = match_field.group(1).lower()
+            field_value = match_field.group(2).strip()
+            current_result[field_name] = field_value
+            continue
+
+        # If it's not a new result start or a specific field, it might be a continuation of the snippet
+        if current_result and "snippet" in current_result:
+            # Append to snippet if it's not a new result marker or another field
+            current_result["snippet"] += " " + line.strip()
+
     if current_result:
         results.append(current_result)
     return results
