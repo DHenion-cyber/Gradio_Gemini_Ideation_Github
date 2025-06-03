@@ -9,3 +9,5 @@ CANONICAL_KEYS = [
     "competitive_moat",
 ]
 EMPTY_SCRATCHPAD = {k: "" for k in CANONICAL_KEYS}
+
+MAX_PERPLEXITY_CALLS = 3

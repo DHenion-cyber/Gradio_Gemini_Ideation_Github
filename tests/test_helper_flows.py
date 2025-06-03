@@ -14,26 +14,23 @@ from src.constants import EMPTY_SCRATCHPAD # Changed to EMPTY_SCRATCHPAD
 # Helper to set up a mock session state
 @pytest.fixture(autouse=True)
 def mock_st_session_state(monkeypatch):
-    mock_session_state_obj = MagicMock()
-    
-    # Initialize attributes directly on the mock object
-    mock_session_state_obj.scratchpad = EMPTY_SCRATCHPAD.copy() # Changed to EMPTY_SCRATCHPAD
-    mock_session_state_obj.perplexity_calls = 0
-    mock_session_state_obj.token_usage = {"session": 0, "daily": 0}
-    
-    # Mock the .get() method for compatibility if used by tested code
-    def mock_get(key, default=None):
-        if key == "scratchpad":
-            return mock_session_state_obj.scratchpad
-        elif key == "perplexity_calls":
-            return mock_session_state_obj.perplexity_calls
-        elif key == "token_usage":
-            return mock_session_state_obj.token_usage
-        elif hasattr(mock_session_state_obj, key):
-            return getattr(mock_session_state_obj, key)
-        return default
-    
-    mock_session_state_obj.get = MagicMock(side_effect=mock_get)
+    # Create a mock object that behaves like a dictionary and allows attribute access
+    class MockSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError:
+                raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    mock_session_state_obj = MockSessionState()
+
+    # Initialize dictionary keys
+    mock_session_state_obj["scratchpad"] = EMPTY_SCRATCHPAD.copy()
+    mock_session_state_obj["perplexity_calls"] = 0
+    mock_session_state_obj["token_usage"] = {"session": 0, "daily": 0}
 
     # Patch streamlit.session_state with our configured mock object
     monkeypatch.setattr(st, 'session_state', mock_session_state_obj)
