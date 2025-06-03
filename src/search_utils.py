@@ -234,7 +234,7 @@ def search_perplexity(query: str) -> str:
     perplexity_api_key = os.environ.get("PERPLEXITY_API_KEY")
     if not perplexity_api_key:
         error_handling.log_error("PERPLEXITY_API_KEY environment variable not set. Returning stub response.")
-        return "STUB_RESPONSE: Perplexity API key missing."
+        return "STUB_RESPONSE"
 
     # Increment calls ONLY if a search is actually going to be performed
     st.session_state["perplexity_calls"] = st.session_state.get("perplexity_calls", 0) + 1
@@ -250,14 +250,21 @@ def search_perplexity(query: str) -> str:
 
     if search_results:
         # Format the results into a string. This is a simplified representation.
-        # In a real scenario, you might want to return a more structured object
-        # or integrate with a display component.
-        formatted_results = []
-        for i, result in enumerate(search_results):
-            formatted_results.append(f"Result {i+1}: {result.get('title', 'N/A')}\nURL: {result.get('url', 'N/A')}\nSnippet: {result.get('snippet', 'N/A')}\n")
-        return "\n".join(formatted_results)
+        return parse_perplexity_response(search_results)
     else:
         return "No relevant results found."
+
+def format_result(result: List[Dict]) -> str:
+    """
+    Formats the list of search result dictionaries into a human-readable string.
+    """
+    if not result:
+        return "No relevant results found."
+
+    formatted_results = []
+    for i, res in enumerate(result):
+        formatted_results.append(f"Result {i+1}: {res.get('title', 'N/A')}\nURL: {res.get('url', 'N/A')}\nSnippet: {res.get('snippet', 'N/A')}\n")
+    return "\n".join(formatted_results)
 
 def mock_perplexity_response(data: Optional[List[Dict]]):
     """
