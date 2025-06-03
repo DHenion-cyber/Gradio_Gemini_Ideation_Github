@@ -23,6 +23,11 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
             r"\b(?:solution|idea|product) is\s+(.+?)(?:\.|$)",
             r"\bwe propose\s+(.+?)(?:\.|$)",
         ],
+        "differentiator": [
+            r"\b(?:differentiator|unique selling point|usp|key difference|secret sauce) is\s+(.+?)(?:\.|$)",
+            r"\b(?:sets us apart|makes us different) by\s+(.+?)(?:\.|$)",
+            r"\bour key differentiator is\s+(.+?)(?:\.|$)",
+        ],
         "revenue_model": [
             r"\b(?:revenue model|how we make money|pricing|pay|charge)\s+(?:is|will be)\s+(.+?)(?:\.|$)",
             r"\bwill pay a\s+(.+? fee)",
