@@ -18,7 +18,7 @@ def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
     - If no keyword match, transitions to development if maturity >= 20.
     """
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    st.session_state.scratchpad = updated_scratchpad # Ensure session state is updated
+    st.session_state["scratchpad"] = updated_scratchpad # Ensure session state is updated
 
     maturity_score, weakest_components = calculate_maturity(updated_scratchpad)
     
@@ -52,7 +52,7 @@ def handle_development(user_message: str, scratchpad: dict) -> tuple[str, str]:
     - Exits when maturity >= 60 → summary.
     """
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    st.session_state.scratchpad = updated_scratchpad # Ensure session state is updated
+    st.session_state["scratchpad"] = updated_scratchpad # Ensure session state is updated
 
     maturity_score, weakest_components = calculate_maturity(updated_scratchpad)
 
@@ -76,7 +76,7 @@ def handle_summary(user_message: str, scratchpad: dict) -> tuple[str, str]:
     # user_message in summary phase might be a confirmation or not directly for extraction
     # For now, we'll still run update_scratchpad in case there's a final thought.
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    st.session_state.scratchpad = updated_scratchpad
+    st.session_state["scratchpad"] = updated_scratchpad
 
     # Create a structured snapshot of the scratchpad
     # Filter out empty/None values for a cleaner summary
@@ -127,7 +127,7 @@ def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:
 
 
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    st.session_state.scratchpad = updated_scratchpad # Ensure session state is updated
+    st.session_state["scratchpad"] = updated_scratchpad # Ensure session state is updated
     
     maturity_score, weakest_components = calculate_maturity(updated_scratchpad)
 
