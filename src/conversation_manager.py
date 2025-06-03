@@ -15,7 +15,7 @@ def generate_uuid() -> str:
     """Generates a short random string for user_id."""
     return str(uuid.uuid4())[:8] # Using first 8 characters for a short slug
 
-def initialize_conversation_state():
+def initialize_conversation_state(new_chat: bool = False):
     """
     Initializes the conversation state in st.session_state with default values.
     This function sets up the necessary keys for managing the conversation flow,
@@ -24,16 +24,28 @@ def initialize_conversation_state():
     st.session_state["stage"] = "intake"
     st.session_state["turn_count"] = 0
     st.session_state["intake_index"] = 0
-    st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy())
-    st.session_state["conversation_history"] = []
-    st.session_state["summaries"] = []
-    st.session_state["token_usage"] = {"session": 0, "daily": 0}
-    st.session_state["last_summary"] = ""
-    st.session_state["start_timestamp"] = datetime.datetime.now(datetime.timezone.utc)
-    st.session_state["user_id"] = generate_uuid()
-    st.session_state.setdefault("maturity_score", 0) # Added maturity_score
-    st.session_state.setdefault("perplexity_calls", 0) # Added perplexity_calls
-    st.session_state.setdefault("phase", "exploration") # Added phase
+    if new_chat:
+        st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy()
+        st.session_state["conversation_history"] = []
+        st.session_state["summaries"] = []
+        st.session_state["token_usage"] = {"session": 0, "daily": 0}
+        st.session_state["last_summary"] = ""
+        st.session_state["start_timestamp"] = datetime.datetime.now(datetime.timezone.utc)
+        st.session_state["user_id"] = generate_uuid()
+        st.session_state["maturity_score"] = 0
+        st.session_state["perplexity_calls"] = 0
+        st.session_state["phase"] = "exploration"
+    else:
+        st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy())
+        st.session_state.setdefault("conversation_history", [])
+        st.session_state.setdefault("summaries", [])
+        st.session_state.setdefault("token_usage", {"session": 0, "daily": 0})
+        st.session_state.setdefault("last_summary", "")
+        st.session_state.setdefault("start_timestamp", datetime.datetime.now(datetime.timezone.utc))
+        st.session_state.setdefault("user_id", generate_uuid())
+        st.session_state.setdefault("maturity_score", 0)
+        st.session_state.setdefault("perplexity_calls", 0)
+        st.session_state.setdefault("phase", "exploration")
 
     # Check for ?uid=... in URL and load session if present
     query_params = st.query_params
