@@ -9,7 +9,6 @@ from src.conversation_phases import (
     handle_refinement
 )
 from src.utils.idea_maturity import calculate_maturity, RUBRIC
-from src.utils.scratchpad_extractor import update_scratchpad
 from src.constants import INITIAL_SCRATCHPAD
 
 # Helper to set up a mock session state

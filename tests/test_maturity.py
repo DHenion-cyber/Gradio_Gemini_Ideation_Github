@@ -1,4 +1,3 @@
-import pytest
 from src.utils.idea_maturity import calculate_maturity, RUBRIC
 
 def test_score_progresses():

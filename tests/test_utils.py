@@ -1,6 +1,5 @@
 # tests/test_utils.py
 
-import pytest
 from src import llm_utils, search_utils, database
 
 def test_dummy_llm_format_prompt():

@@ -3,9 +3,13 @@ import os
 import datetime
 import asyncio
 import sys
-import concurrent.futures # Import concurrent.futures
-from typing import Dict, List, Any, Optional
-from pydantic import BaseModel
+
+# Add the project root directory to sys.path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(project_root)
+
+from typing import Dict  # noqa: E402
+from pydantic import BaseModel  # noqa: E402
 
 # Mock Streamlit for non-Streamlit execution
 class MockStreamlitModuleSingleton:
@@ -24,17 +28,12 @@ if 'streamlit' not in sys.modules or not isinstance(sys.modules['streamlit'], Mo
     sys.modules['streamlit'] = MockStreamlitModuleSingleton()
 
 # Import necessary modules from the main application
-# Add the project root directory to sys.path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.append(project_root)
-
-from src.conversation_manager import initialize_conversation_state, generate_assistant_response
-from src.llm_utils import query_gemini
+from src.conversation_manager import initialize_conversation_state, generate_assistant_response  # noqa: E402
 
 # TruLens Imports
-from trulens.core import Tru, Feedback
-from trulens.apps.custom import TruCustomApp as TruApp, instrument
-from simulations.gemini_feedback import GeminiFeedbackProvider
+from trulens.core import Tru, Feedback  # noqa: E402
+from trulens.apps.custom import TruCustomApp as TruApp, instrument  # noqa: E402
+from simulations.gemini_feedback import GeminiFeedbackProvider  # noqa: E402
 
 # Ensure the logs directory exists
 LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")

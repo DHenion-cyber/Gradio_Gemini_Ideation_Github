@@ -1,6 +1,4 @@
 import streamlit as st
-from . import search_utils # Assuming search_perplexity will be here or accessible via search_utils
-from .constants import MAX_PERPLEXITY_CALLS # If MAX_PERPLEXITY_CALLS is used here
 from .utils.idea_maturity import calculate_maturity
 from .utils.scratchpad_extractor import update_scratchpad
 import json
