@@ -24,7 +24,6 @@ Thumbs.db
 # Test output
 htmlcov/
 coverage.xml
-pytest_cache/
 
 # Streamlit-specific
 .streamlit/secrets.toml
