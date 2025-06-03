@@ -3,6 +3,8 @@ import httpx
 import hashlib
 import os
 from typing import List, Dict, Optional
+import streamlit as st
+from .constants import MAX_PERPLEXITY_CALLS
 
 # Assuming error_handling.py exists
 try:
@@ -216,6 +218,46 @@ async def perform_search(query: str) -> List[Dict]:
     # Otherwise, start a new event loop
     # This function should be awaited, not run_until_complete or asyncio.run
     return await _mockable_async_perplexity_search(query)
+
+def search_perplexity(query: str) -> str:
+    """
+    Performs a search using the Perplexity API and handles research cap enforcement.
+    """
+    # Check research cap FIRST
+    # Assume st.session_state["perplexity_calls"] is initialized elsewhere (e.g., streamlit_app.py)
+    # If not initialized, default to 0 for the check.
+    current_calls = st.session_state.get("perplexity_calls", 0)
+    if current_calls >= MAX_PERPLEXITY_CALLS:
+        return "RESEARCH_CAP_REACHED"
+
+    # Check API key BEFORE incrementing calls or attempting search
+    perplexity_api_key = os.environ.get("PERPLEXITY_API_KEY")
+    if not perplexity_api_key:
+        error_handling.log_error("PERPLEXITY_API_KEY environment variable not set. Returning stub response.")
+        return "STUB_RESPONSE: Perplexity API key missing."
+
+    # Increment calls ONLY if a search is actually going to be performed
+    st.session_state["perplexity_calls"] = st.session_state.get("perplexity_calls", 0) + 1
+
+    # Synchronously run the async search function
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    search_results = loop.run_until_complete(perform_search(query))
+
+    if search_results:
+        # Format the results into a string. This is a simplified representation.
+        # In a real scenario, you might want to return a more structured object
+        # or integrate with a display component.
+        formatted_results = []
+        for i, result in enumerate(search_results):
+            formatted_results.append(f"Result {i+1}: {result.get('title', 'N/A')}\nURL: {result.get('url', 'N/A')}\nSnippet: {result.get('snippet', 'N/A')}\n")
+        return "\n".join(formatted_results)
+    else:
+        return "No relevant results found."
 
 def mock_perplexity_response(data: Optional[List[Dict]]):
     """

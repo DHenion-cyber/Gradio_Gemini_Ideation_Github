@@ -98,10 +98,26 @@ def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:
     - Loops; if user types 'new idea' reset phase to 'exploration'.
     """
     if "new idea" in user_message.lower(): # More flexible check
-        st.session_state.scratchpad = EMPTY_SCRATCHPAD.copy() # Use attribute access
-        st.session_state.perplexity_calls = 0 # Reset search count
+        st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy() # Use dictionary access
+        st.session_state["perplexity_calls"] = 0 # Reset search count
         assistant_reply = "Okay, let's start exploring a new idea! What's on your mind?"
         return assistant_reply, "exploration"
+
+    # Placeholder for external fact needing (TODO → implement)
+    # For now, let's assume a specific trigger for search, e.g., "research"
+    if "research" in user_message.lower():
+        from .search_utils import search_perplexity
+        result = search_perplexity(user_message)
+        if result == "RESEARCH_CAP_REACHED":
+            return (
+                "I’ve reached the three‑search limit this session. "
+                "Feel free to explore with another tool and paste findings here.",
+                "refinement"
+            )
+        else:
+            assistant_reply = f"Here are some research findings: {result}\nWhat would you like to do next?"
+            return assistant_reply, "refinement"
+
 
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
     st.session_state.scratchpad = updated_scratchpad # Ensure session state is updated

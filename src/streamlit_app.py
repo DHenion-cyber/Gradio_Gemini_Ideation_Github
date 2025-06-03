@@ -11,6 +11,7 @@ from src.conversation_manager import (
      # Kept for commented out sections
 )
 from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations, progress_bar
+from ui.sidebar import create_sidebar
 
 import logging
 
@@ -38,6 +39,9 @@ apply_responsive_css()
 
 # Display privacy notice
 privacy_notice()
+
+# Create the sidebar content
+create_sidebar()
 
 # Display token usage and session time
 st.sidebar.subheader("Session Metrics")
