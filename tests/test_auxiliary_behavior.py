@@ -1,4 +1,3 @@
-import pytest
 from datetime import datetime, timedelta
 from datetime import timezone
 from src import conversation_manager as cm

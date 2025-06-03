@@ -2,7 +2,6 @@ import google.generativeai as genai
 import os
 from dotenv import load_dotenv # Import load_dotenv
 import streamlit as st
-import datetime # For timestamp in error logging
 from trulens.apps.custom import instrument # Import instrument
 from typing import Optional
 
@@ -111,7 +110,7 @@ When weaknesses arise, state them plainly, followed by at least one mitigation o
     references_block = ""
     if search_results:
         citations_inline, references_block = format_citations(search_results)
-        prompt_parts.append(f"\n--- Search Results Context ---")
+        prompt_parts.append("\n--- Search Results Context ---")
         for i, result in enumerate(search_results):
             prompt_parts.append(f"Result {i+1}: {result.get('snippet', 'No snippet available.')}")
         prompt_parts.append("------------------------------")

@@ -8,10 +8,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from src.conversation_manager import (
     initialize_conversation_state, run_intake_flow, get_intake_questions,
     is_out_of_scope, route_conversation, # route_conversation is key for the new flow
-    generate_actionable_recommendations, generate_final_summary_report # Kept for commented out sections
+     # Kept for commented out sections
 )
 from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations, progress_bar
-from src.llm_utils import format_citations # Though citations might not be directly fed from route_conversation
 
 import logging
 

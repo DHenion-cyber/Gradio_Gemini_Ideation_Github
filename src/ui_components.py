@@ -1,6 +1,5 @@
 import streamlit as st
 import time
-import re
 
 def progress_bar(turn_count):
     """

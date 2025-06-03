@@ -1,5 +1,4 @@
 import unittest
-import asyncio
 import json
 import os
 from unittest.mock import patch, MagicMock
@@ -8,8 +7,7 @@ from unittest.mock import patch, MagicMock
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from simulations.trulens_runner import simulate_chat, user_personas, LOGS_DIR, run_chatbot_wrapped
-from src.conversation_manager import initialize_conversation_state
+from simulations.trulens_runner import simulate_chat, user_personas, LOGS_DIR
 
 class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
 
@@ -48,8 +46,7 @@ class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
 
     @patch('src.conversation_manager.generate_assistant_response') # Patch generate_assistant_response directly
     @patch('simulations.trulens_runner.TruApp') # Patch TruApp in trulens_runner
-    @patch('simulations.trulens_runner.query_gemini') # Patch query_gemini in trulens_runner
-    async def test_simulate_chat_and_logging(self, mock_query_gemini, MockTruCustomApp, mock_generate_assistant_response):
+    async def test_simulate_chat_and_logging(self, MockTruCustomApp, mock_generate_assistant_response):
         # Mock generate_assistant_response responses
         mock_generate_assistant_response.side_effect = [
 "Hello! I'm your assistant. How can I help?", # Initial assistant response
@@ -147,7 +144,7 @@ class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
             # The log records the user's message and the assistant's response in the same entry.
             self.assertEqual(turn["role"], "user")
 
-        # Verify that query_gemini was called for each assistant response
+        # Verify that generate_assistant_response was called for each assistant response
         self.assertEqual(mock_generate_assistant_response.call_count, 10) # 10 turns, each calls generate_assistant_response
 
         # Verify that TruCustomApp.evaluate was called for each turn

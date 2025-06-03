@@ -1,7 +1,6 @@
 import json
 import os
 import csv
-from typing import Dict, Any
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
@@ -27,7 +26,7 @@ def generate_weighted_score_summary(log_data):
                 counts[key] += 1
                 weighted_total += score * weight
                 total_weight += weight
-            except:
+            except Exception:
                 continue
 
     avg_scores = {

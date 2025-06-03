@@ -1,5 +1,4 @@
 import datetime
-import os
 
 def log_error(message: str, e: Exception = None):
     """

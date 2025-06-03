@@ -100,7 +100,7 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
                 # and the key is a known extraction target, update it.
                 if key_update in keys_to_extract_with_llm and key_update in extraction_patterns:
                     updated_scratchpad[key_update] = value_update
-        except Exception as e:
+        except Exception:
             # print(f"Error during LLM extraction: {e}") # Keep this print for actual debugging if needed
             pass # Silently pass exceptions during LLM extraction for now in tests
 

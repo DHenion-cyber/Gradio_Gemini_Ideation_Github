@@ -1,4 +1,3 @@
-import pytest
 from src.utils.scratchpad_extractor import update_scratchpad
 
 def test_revenue_model_extraction_from_licence_fee():
