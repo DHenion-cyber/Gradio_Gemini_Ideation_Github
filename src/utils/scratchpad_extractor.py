@@ -5,8 +5,6 @@ from ..constants import CANONICAL_KEYS
 
 # Define synonyms for legacy keys that map to canonical keys
 SYNONYMS = {
-    "solution_approach": "solution",
-    "unique_benefit": "differentiator",
     "high_level_competitive_view": "competitive_moat",
     "barriers_to_entry": "competitive_moat",
     "mechanism": "solution",
