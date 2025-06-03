@@ -20,11 +20,12 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Initialize conversation state
-if "conversation_initialized" not in st.session_state:
+if "conversation_initialized" not in st.session_state or st.session_state.get("new_chat_triggered"):
     try:
-        initialize_conversation_state()
+        initialize_conversation_state(new_chat=True)
         st.session_state["conversation_initialized"] = True
-        logging.info("Conversation state initialized successfully.")
+        st.session_state["new_chat_triggered"] = False # Reset the flag
+        logging.info("Conversation state initialized successfully (new chat).")
     except Exception as e:
         logging.error(f"Error initializing conversation state: {e}")
         st.error(f"An error occurred during initialization: {e}")
@@ -146,12 +147,16 @@ try:
         user_input = st.chat_input(placeholder="Ask me anything about digital health innovation!")
         if user_input:
             logging.info(f"DEBUG: User input received: {user_input}")
-            if is_out_of_scope(user_input):
+            if user_input.lower() == "/new idea":
+                initialize_conversation_state(new_chat=True)
+                st.session_state["new_chat_triggered"] = False # Reset the flag
+                st.rerun()
+            elif is_out_of_scope(user_input):
                 logging.info("DEBUG: Input identified as out of scope.")
                 st.warning("Your input seems to be out of scope. Please refrain from entering personal health information, market sizing, or financial projections.")
                 # Display the out-of-scope warning as an assistant message in history
                 st.session_state["conversation_history"].append({
-                    "role": "assistant", 
+                    "role": "assistant",
                     "text": "Your input seems to be out of scope. Please refrain from entering personal health information, market sizing, or financial projections."
                 })
                 st.rerun() # Rerun to show the warning in chat
