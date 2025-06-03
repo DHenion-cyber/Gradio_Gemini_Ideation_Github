@@ -142,6 +142,7 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
         scratchpad=st.session_state["scratchpad"],
         summaries=st.session_state["summaries"],
         user_input=user_input,
+        phase=st.session_state["phase"], # Pass the current phase
         search_results=search_results, # Pass search results to build_prompt
         element_focus=None
     )
