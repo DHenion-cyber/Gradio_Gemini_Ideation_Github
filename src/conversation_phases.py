@@ -2,6 +2,7 @@ import streamlit as st
 from .utils.idea_maturity import calculate_maturity
 from .utils.scratchpad_extractor import update_scratchpad
 import json
+from constants import EMPTY_SCRATCHPAD
 
 # TODO: Define actual logic for each phase handler in subsequent prompts.
 
@@ -96,8 +97,8 @@ def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:
     - Writes to scratchpad via extractor.
     - Loops; if user types 'new idea' reset phase to 'exploration'.
     """
-    if "new idea" in user_message.lower():
-        st.session_state.scratchpad = {} # Reset scratchpad for new idea
+    if user_message.lower().startswith("/new idea"):
+        st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy()
         st.session_state.perplexity_calls = 0 # Reset search count
         assistant_reply = "Okay, let's start exploring a new idea! What's on your mind?"
         return assistant_reply, "exploration"

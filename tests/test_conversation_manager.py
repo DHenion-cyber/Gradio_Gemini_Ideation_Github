@@ -1,21 +1,29 @@
 import pytest
 import datetime
 from src import conversation_manager as cm
+from src.constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS # Import for tests
 import streamlit as st
+from unittest.mock import patch # Added for save_session mocking
 
 @pytest.fixture(autouse=True)
 def reset_session_state():
     st.session_state.clear()
+    # Mock st.query_params before it's accessed at the module level in conversation_manager
+    if not hasattr(st, 'query_params'):
+        st.query_params = {}
+    cm.initialize_conversation_state() # Re-initialize with defaults
+    # Ensure user_id is explicitly set for tests that might rely on it before full init
+    st.session_state["user_id"] = cm.generate_uuid()
     yield
     st.session_state.clear()
 
 def test_initialize_conversation_state():
-    cm.initialize_conversation_state()
+    # initialize_conversation_state is called by the fixture
     state = st.session_state
     assert state["stage"] == "intake"
     assert state["turn_count"] == 0
     assert isinstance(state["scratchpad"], dict)
-    assert "problem" in state["scratchpad"]
+    assert state["scratchpad"] == EMPTY_SCRATCHPAD # Check against EMPTY_SCRATCHPAD
     assert isinstance(state["conversation_history"], list)
     assert isinstance(state["user_id"], str)
     assert state["token_usage"]["daily"] == 0
@@ -25,33 +33,39 @@ def test_generate_uuid_uniqueness():
     assert len(ids) == 100
 
 def test_build_summary_from_scratchpad():
-    scratchpad = {
-        "problem": "Test Problem",
-        "customer_segment": "Students",
-        "solution_approach": "AI assistant",
-        "mechanism": "Chatbot",
-        "unique_benefit": "Faster support",
-        "high_level_competitive_view": "None known",
-        "revenue_hypotheses": "SaaS subscription",
-        "compliance_snapshot": "No PHI",
-        "top_3_risks_and_mitigations": "Low adoption - pilot first"
-    }
+    scratchpad = EMPTY_SCRATCHPAD.copy()
+    scratchpad["problem"] = "Test Problem"
+    scratchpad["customer_segment"] = "Students"
+    scratchpad["solution"] = "AI assistant"
+    scratchpad["differentiator"] = "Faster support"
+    scratchpad["impact_metrics"] = "Reduced study time"
+    scratchpad["revenue_model"] = "SaaS subscription"
+    scratchpad["channels"] = "University partnerships"
+    scratchpad["competitive_moat"] = "Proprietary algorithm"
+
     summary = cm.build_summary_from_scratchpad(scratchpad)
-    assert "Problem Statement" in summary
-    assert "Students" in summary
+    assert "Problem Statement:\nTest Problem" in summary
+    assert "\nCustomer Segment:\nStudents" in summary
+    assert "\nSolution:\nAI assistant" in summary
+    assert "\nDifferentiator:\nFaster support" in summary
+    assert "\nImpact Metrics:\nReduced study time" in summary
+    assert "\nRevenue Model:\nSaaS subscription" in summary
+    assert "\nChannels:\nUniversity partnerships" in summary
+    assert "\nCompetitive Moat:\nProprietary algorithm" in summary
 
 @pytest.mark.asyncio
-@pytest.mark.asyncio
-async def test_generate_assistant_response(monkeypatch):
-    cm.initialize_conversation_state() # Ensure full state is initialized
-    # Mock the query_gemini function within the conversation_manager's namespace
+@patch('src.conversation_manager.save_session') # Mock save_session
+@patch('src.search_utils.perform_search') # Mock perform_search
+async def test_generate_assistant_response(mock_perform_search, mock_save_session, monkeypatch):
+    mock_perform_search.return_value = ["Search result 1"]
     monkeypatch.setattr(cm, "query_gemini", lambda prompt, **kwargs: "Mocked Gemini response.")
 
-    st.session_state["scratchpad"] = {"problem": "Test", "customer_segment": "", "solution_approach": "", "mechanism": "", "unique_benefit": "", "high_level_competitive_view": "", "revenue_hypotheses": "", "compliance_snapshot": "", "top_3_risks_and_mitigations": ""}
+    st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy() # Use EMPTY_SCRATCHPAD
     st.session_state["conversation_history"] = []
-    st.session_state["summaries"] = [] # Explicitly initialize summaries for this test
+    st.session_state["summaries"] = []
+    st.session_state["phase"] = "exploration" # Ensure phase is set
 
-    response_text, search_results = await cm.generate_assistant_response("What is the main issue?")
+    response_text, search_results = await cm.generate_assistant_response("User input")
     assert "Mocked Gemini" in response_text
     assert isinstance(search_results, list)
     assert st.session_state["conversation_history"][-1]["role"] == "assistant"
