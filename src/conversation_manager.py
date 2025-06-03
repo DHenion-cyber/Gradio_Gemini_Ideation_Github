@@ -10,6 +10,7 @@ from .llm_utils import build_prompt, query_gemini, summarize_response, count_tok
 from . import search_utils
 from .utils.idea_maturity import calculate_maturity # Added import
 from . import conversation_phases # Added for phase routing
+from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
 from .constants import MAX_PERPLEXITY_CALLS # Moved to constants.py
 
 def generate_uuid() -> str:
@@ -171,18 +172,21 @@ def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
     Returns:
         A tuple containing the assistant's reply and the next phase.
     """
+    # Update scratchpad at the top of route_conversation before phase helpers
+    st.session_state["scratchpad"] = update_scratchpad(user_message, st.session_state["scratchpad"])
+
     current_phase = st.session_state.get("phase", "exploration")  # Default to exploration
     assistant_reply = "An unexpected error occurred." # Default reply
     next_phase = current_phase # Default next_phase
 
     if current_phase == "exploration":
-        assistant_reply, next_phase = conversation_phases.handle_exploration(user_message, scratchpad)
+        assistant_reply, next_phase = conversation_phases.handle_exploration(user_message, st.session_state["scratchpad"])
     elif current_phase == "development":
-        assistant_reply, next_phase = conversation_phases.handle_development(user_message, scratchpad)
+        assistant_reply, next_phase = conversation_phases.handle_development(user_message, st.session_state["scratchpad"])
     elif current_phase == "refinement":
-        assistant_reply, next_phase = conversation_phases.handle_refinement(user_message, scratchpad)
+        assistant_reply, next_phase = conversation_phases.handle_refinement(user_message, st.session_state["scratchpad"])
     elif current_phase == "summary":
-        assistant_reply, next_phase = conversation_phases.handle_summary(user_message, scratchpad)
+        assistant_reply, next_phase = conversation_phases.handle_summary(user_message, st.session_state["scratchpad"])
     else:
         # Fallback for unknown phase
         assistant_reply = f"Debug: Unknown phase '{current_phase}'. Resetting to exploration."

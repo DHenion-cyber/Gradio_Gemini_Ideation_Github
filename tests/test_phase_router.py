@@ -77,7 +77,7 @@ def test_route_to_exploration(mock_handle_exploration, mock_save_session):
     user_message = "Tell me more about exploration."
     assistant_reply, next_phase = route_conversation(user_message, st.session_state.scratchpad)
     
-    mock_handle_exploration.assert_called_once_with(user_message, st.session_state.scratchpad)
+    mock_handle_exploration.assert_called_once_with(user_message, st.session_state["scratchpad"])
     assert assistant_reply == "Exploration reply"
     assert next_phase == "exploration"
     assert st.session_state.phase == "exploration"
@@ -94,7 +94,7 @@ def test_route_to_development(mock_handle_development, mock_save_session):
     user_message = "Let's develop this feature."
     assistant_reply, next_phase = route_conversation(user_message, st.session_state.scratchpad)
     
-    mock_handle_development.assert_called_once_with(user_message, st.session_state.scratchpad)
+    mock_handle_development.assert_called_once_with(user_message, st.session_state["scratchpad"])
     assert assistant_reply == "Development reply"
     assert next_phase == "development"
     assert st.session_state.phase == "development"
@@ -111,7 +111,7 @@ def test_route_to_refinement(mock_handle_refinement, mock_save_session):
     user_message = "Let's refine this idea."
     assistant_reply, next_phase = route_conversation(user_message, st.session_state.scratchpad)
     
-    mock_handle_refinement.assert_called_once_with(user_message, st.session_state.scratchpad)
+    mock_handle_refinement.assert_called_once_with(user_message, st.session_state["scratchpad"])
     assert assistant_reply == "Refinement reply"
     assert next_phase == "refinement"
     assert st.session_state.phase == "refinement"
@@ -128,7 +128,7 @@ def test_route_to_summary(mock_handle_summary, mock_save_session):
     user_message = "Let's summarize."
     assistant_reply, next_phase = route_conversation(user_message, st.session_state.scratchpad)
     
-    mock_handle_summary.assert_called_once_with(user_message, st.session_state.scratchpad)
+    mock_handle_summary.assert_called_once_with(user_message, st.session_state["scratchpad"])
     assert assistant_reply == "Summary reply"
     assert next_phase == "summary"
     assert st.session_state.phase == "summary"
