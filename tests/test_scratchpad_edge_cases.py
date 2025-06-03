@@ -6,7 +6,7 @@ def test_summary_builder_incomplete_fields():
     incomplete_scratchpad.update({
         "problem": "High readmission rates",
         "customer_segment": "", # Explicitly empty
-        "solution": "Remote monitoring", # Was solution_approach
+        "solution": "Remote monitoring",
         # Other canonical keys remain empty as per EMPTY_SCRATCHPAD
     })
 

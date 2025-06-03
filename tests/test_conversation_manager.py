@@ -1,7 +1,7 @@
 import pytest
 import datetime
 from src import conversation_manager as cm
-from src.constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS # Import for tests
+from src.constants import EMPTY_SCRATCHPAD # Import for tests
 import streamlit as st
 from unittest.mock import patch # Added for save_session mocking
 

@@ -12,6 +12,7 @@ from src.conversation_manager import (
 )
 from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations, progress_bar
 from ui.sidebar import create_sidebar
+from ui.summary_panel import display_summary_panel
 
 import logging
 
@@ -138,8 +139,8 @@ try:
         # These can be integrated into the phase logic later if needed.
         # st.subheader("Actionable Recommendations")
         # ...
-        # st.subheader("Session Summary")
-        # ...
+        if current_phase == "summary":
+            display_summary_panel()
 
         # Chat input for user messages
         user_input = st.chat_input(placeholder="Ask me anything about digital health innovation!")
