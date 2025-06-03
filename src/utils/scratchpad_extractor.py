@@ -42,6 +42,8 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
             r"\bour key differentiator is\s+(.+?)(?:\.|$)",
         ],
         "impact_metrics": [
+            r"\bimpact\b.*(\d+%|\$|days|hours|readmission|adhere)",
+            r"\bKPI(s)?\b",
             r"\b(?:impact metrics|key performance indicators|kpis|measures success) (?:are|will be)\s+(.+?)(?:\.|$)",
             r"\bwe will measure success by\s+(.+?)(?:\.|$)",
             r"total addressable market is worth\s+(.+?)(?:\.|$)", # More specific for testing
@@ -54,6 +56,8 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
             r"\ba\s+(.+? fee)",
         ],
         "channels": [
+            r"\bchannel(s)?\b.*(reach|distribution|sales|marketing)",
+            r"\bgo[- ]?to[- ]?market\b",
             r"\b(?:channels|distribution|reach customers) (?:are|will be)\s+(.+?)(?:\.|$)",
             r"\bwe will reach customers through\s+(.+?)(?:\.|$)",
         ],

@@ -2,9 +2,10 @@ import streamlit as st
 from .utils.idea_maturity import calculate_maturity
 from .utils.scratchpad_extractor import update_scratchpad
 import json
-from .constants import EMPTY_SCRATCHPAD
+from .constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS
 
-# TODO: Define actual logic for each phase handler in subsequent prompts.
+# TODO: implement feature
+pass
 
 # Define some keywords that suggest a desire to move to development
 IDEA_KEYWORDS = ["build", "develop", "create", "make", "app", "software", "tool", "platform", "project"]
@@ -37,7 +38,7 @@ def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
     if not assistant_reply: # Only if keyword didn't set a reply
         if maturity_score >= 20:
             next_phase = "development"
-            assistant_reply = f"Great progress! Your idea for '{updated_scratchpad.get('solution', 'this concept')}' has reached a maturity of {maturity_score}/100. Let's move to the development phase. What's next?"
+            assistant_reply = f"Great progress! Your idea for '{updated_scratchpad.get(CANONICAL_KEYS[2], 'this concept')}' has reached a maturity of {maturity_score}/100. Let's move to the development phase. What's next?"
         else:
             # next_phase remains "exploration"
             assistant_reply = f"Exploring further based on: '{user_message}'. Current idea maturity: {maturity_score}/100. Let's focus on strengthening: {', '.join(weakest_components)}."
@@ -55,12 +56,12 @@ def handle_development(user_message: str, scratchpad: dict) -> tuple[str, str]:
 
     maturity_score, weakest_components = calculate_maturity(updated_scratchpad)
 
-    assistant_reply = f"Developing '{updated_scratchpad.get('solution', 'this concept')}'. Current maturity: {maturity_score}/100."
+    assistant_reply = f"Developing '{updated_scratchpad.get(CANONICAL_KEYS[2], 'this concept')}'. Current maturity: {maturity_score}/100."
     next_phase = "development"
 
     if maturity_score >= 60:
         next_phase = "summary"
-        assistant_reply = f"Excellent! The idea '{updated_scratchpad.get('solution', 'this concept')}' has a strong maturity of {maturity_score}/100. Let's generate a summary."
+        assistant_reply = f"Excellent! The idea '{updated_scratchpad.get(CANONICAL_KEYS[2], 'this concept')}' has a strong maturity of {maturity_score}/100. Let's generate a summary."
     else:
         assistant_reply += f" We can still improve: {', '.join(weakest_components)}."
         
@@ -91,17 +92,6 @@ def handle_summary(user_message: str, scratchpad: dict) -> tuple[str, str]:
     next_phase = "refinement"
     return assistant_reply, next_phase
 
-def handle_research(user_message: str, scratchpad: dict) -> tuple[str, str]:
-    """
-    Handles the 'research' phase of the conversation.
-    - Placeholder for research logic.
-    """
-    updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    st.session_state.scratchpad = updated_scratchpad
-    
-    assistant_reply = f"Conducting research based on: '{user_message}'. What else would you like to know?"
-    next_phase = "research" # Stay in research phase for now
-    return assistant_reply, next_phase
 
 def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:
     """
@@ -141,3 +131,5 @@ def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:
          assistant_reply += f" We could still focus on: {', '.join(weakest_components)}."
     next_phase = "refinement"
     return assistant_reply, next_phase
+
+handle_research = handle_refinement
