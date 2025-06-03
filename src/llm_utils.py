@@ -4,6 +4,7 @@ from dotenv import load_dotenv # Import load_dotenv
 import streamlit as st
 import datetime # For timestamp in error logging
 from trulens.apps.custom import instrument # Import instrument
+from typing import Optional
 
 load_dotenv() # Load environment variables from .env file
 
@@ -28,7 +29,7 @@ except ImportError:
     search_utils = SearchUtils() # type: ignore
 
 
-def count_tokens(prompt: str, response: str) -> str or None:
+def count_tokens(prompt: str, response: str) -> Optional[str]:
     """
     Updates session and daily token usage based on prompt and response length.
     Returns a message if the daily limit is reached, otherwise None.
