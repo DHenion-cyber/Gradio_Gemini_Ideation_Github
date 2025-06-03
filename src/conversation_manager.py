@@ -8,7 +8,9 @@ import asyncio
 from .persistence_utils import save_session, load_session
 from .llm_utils import build_prompt, query_gemini, summarize_response, count_tokens
 from . import search_utils
+from .utils.idea_maturity import calculate_maturity # Added import
 
+MAX_PERPLEXITY_CALLS = 3 # Added constant
 
 def generate_uuid() -> str:
     """Generates a short random string for user_id."""
@@ -40,6 +42,9 @@ def initialize_conversation_state():
     st.session_state["last_summary"] = ""
     st.session_state["start_timestamp"] = datetime.datetime.now(datetime.timezone.utc)
     st.session_state["user_id"] = generate_uuid()
+    st.session_state.setdefault("maturity_score", 0) # Added maturity_score
+    st.session_state.setdefault("perplexity_calls", 0) # Added perplexity_calls
+    st.session_state.setdefault("phase", "exploration") # Added phase
 
     # Check for ?uid=... in URL and load session if present
     query_params = st.query_params
@@ -154,39 +159,7 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     save_session(st.session_state["user_id"], dict(st.session_state))
     return response_text, search_results
 
-def navigate_value_prop_elements() -> dict:
-    """
-    Returns the next incomplete field in scratchpad with prompt text and follow-up.
-    Injects "Is this on target?" every 10 turns or major pivot.
-    """
-    value_prop_fields = [
-        "problem", "customer_segment", "solution_approach", "mechanism",
-        "unique_benefit", "high_level_competitive_view", "revenue_hypotheses",
-        "compliance_snapshot", "top_3_risks_and_mitigations"
-    ]
-
-    next_element = None
-    for field in value_prop_fields:
-        if not st.session_state["scratchpad"].get(field):
-            next_element = field
-            break
-
-    if next_element:
-        prompt_text = f"Let's refine the '{next_element}' element of your idea. What are your thoughts on this?"
-        follow_up = "Does this seem accurate, or would you like to explore this element from a different perspective?"
-    else:
-        prompt_text = "All value proposition elements are complete. Would you like to review or refine any of them?"
-        follow_up = "We can revisit any element or generate a final summary report."
-
-    # Inject "Is this on target?" every 10 turns
-    if st.session_state["turn_count"] > 0 and st.session_state["turn_count"] % 10 == 0:
-        prompt_text += "\n\nIs this on target?"
-
-    return {
-        "element_name": next_element,
-        "prompt_text": prompt_text,
-        "follow_up": follow_up
-    }
+# Deleted navigate_value_prop_elements function
 
 def generate_actionable_recommendations(element: str, context: str):
     """
