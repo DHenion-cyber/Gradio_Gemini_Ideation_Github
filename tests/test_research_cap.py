@@ -128,5 +128,5 @@ def test_search_perplexity_stub_if_no_key(monkeypatch):
     result = search_perplexity("test query")
 
     # Assert it returns the stub message and does not increment calls
-    assert result == "STUB_RESPONSE: Perplexity API key missing."
+    assert result == "STUB_RESPONSE"
     assert mock_session_state["perplexity_calls"] == 0 # Should not increment if key is missing and it's a stub

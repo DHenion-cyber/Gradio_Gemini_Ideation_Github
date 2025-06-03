@@ -110,15 +110,20 @@ def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:
     if "research" in user_message.lower():
         from .search_utils import search_perplexity
         result = search_perplexity(user_message)
-        if result == "RESEARCH_CAP_REACHED":
-            return (
-                "I’ve reached the three‑search limit this session. "
-                "Feel free to explore with another tool and paste findings here.",
-                "refinement"
+        from .search_utils import format_result # Import format_result
+        if result == "STUB_RESPONSE":
+            assistant_reply = (
+                "Live web search isn’t configured. "
+                "You can paste external findings here and I’ll integrate them."
+            )
+        elif result == "RESEARCH_CAP_REACHED":
+            assistant_reply = (
+                "I’ve reached the three‑search limit. "
+                "Feel free to explore externally and bring info back!"
             )
         else:
-            assistant_reply = f"Here are some research findings: {result}\nWhat would you like to do next?"
-            return assistant_reply, "refinement"
+            assistant_reply = format_result(result)
+        return assistant_reply, "refinement"
 
 
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
