@@ -1,17 +1,14 @@
 from src import conversation_manager as cm
+from src.constants import EMPTY_SCRATCHPAD
 
 def test_summary_builder_incomplete_fields():
-    incomplete_scratchpad = {
+    incomplete_scratchpad = EMPTY_SCRATCHPAD.copy()
+    incomplete_scratchpad.update({
         "problem": "High readmission rates",
-        "customer_segment": "",
-        "solution_approach": "Remote monitoring",
-        "mechanism": "",
-        "unique_benefit": "",
-        "high_level_competitive_view": "",
-        "revenue_hypotheses": "",
-        "compliance_snapshot": "",
-        "top_3_risks_and_mitigations": ""
-    }
+        "customer_segment": "", # Explicitly empty
+        "solution": "Remote monitoring", # Was solution_approach
+        # Other canonical keys remain empty as per EMPTY_SCRATCHPAD
+    })
 
     summary = cm.build_summary_from_scratchpad(incomplete_scratchpad)
     assert "Problem Statement" in summary

@@ -9,6 +9,7 @@ from .llm_utils import build_prompt, query_gemini
 from . import search_utils
 from . import conversation_phases # Added for phase routing
 from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
+from constants import EMPTY_SCRATCHPAD # Import EMPTY_SCRATCHPAD
 
 def generate_uuid() -> str:
     """Generates a short random string for user_id."""
@@ -23,17 +24,7 @@ def initialize_conversation_state():
     st.session_state["stage"] = "intake"
     st.session_state["turn_count"] = 0
     st.session_state["intake_index"] = 0
-    st.session_state["scratchpad"] = {
-        "problem": "",
-        "customer_segment": "",
-        "solution_approach": "",
-        "mechanism": "",
-        "unique_benefit": "",
-        "high_level_competitive_view": "",
-        "revenue_hypotheses": "",
-        "compliance_snapshot": "",
-        "top_3_risks_and_mitigations": ""
-    }
+    st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy())
     st.session_state["conversation_history"] = []
     st.session_state["summaries"] = []
     st.session_state["token_usage"] = {"session": 0, "daily": 0}
@@ -108,13 +99,13 @@ def run_intake_flow(user_input: str):
     elif current_intake_index == 1: # Problems interested in
         st.session_state["scratchpad"]["problem"] = user_input
     elif current_intake_index == 2: # Areas of orientation (Patient Impact, Quality, etc.)
-        st.session_state["scratchpad"]["solution_approach"] = user_input # Maps to solution approach based on user's focus
+        st.session_state["scratchpad"]["solution"] = user_input # Mapped to canonical 'solution'
     elif current_intake_index == 3: # Existing ideas or brainstorming
-        # This can inform solution_approach or mechanism, depending on the user's input.
+        # This can inform solution or other canonical keys.
         # For now, we'll keep it as pass, as it's more about intent.
         pass
     elif current_intake_index == 4: # Business qualities
-        st.session_state["scratchpad"]["revenue_hypotheses"] = user_input # Maps to revenue hypotheses based on business qualities
+        st.session_state["scratchpad"]["revenue_model"] = user_input # Mapped to canonical 'revenue_model'
 
     st.session_state["intake_index"] += 1
 
@@ -294,14 +285,13 @@ def build_summary_from_scratchpad(scratchpad: dict) -> str:
     """
     summary_report = []
     summary_report.append("Problem Statement:\n" + scratchpad.get("problem", "N/A"))
-    summary_report.append("\nTarget User:\n" + scratchpad.get("customer_segment", "N/A"))
-    summary_report.append("\nSolution Approach:\n" + scratchpad.get("solution_approach", "N/A"))
-    summary_report.append("\nMechanism:\n" + scratchpad.get("mechanism", "N/A"))
-    summary_report.append("\nUnique Benefit:\n" + scratchpad.get("unique_benefit", "N/A"))
-    summary_report.append("\nHigh-Level Competitive View:\n" + scratchpad.get("high_level_competitive_view", "N/A"))
-    summary_report.append("\nRevenue Hypotheses:\n" + scratchpad.get("revenue_hypotheses", "N/A"))
-    summary_report.append("\nCompliance Snapshot:\n" + scratchpad.get("compliance_snapshot", "N/A"))
-    summary_report.append("\nTop 3 Risks and Mitigations:\n" + scratchpad.get("top_3_risks_and_mitigations", "N/A"))
+    summary_report.append("\nCustomer Segment:\n" + scratchpad.get("customer_segment", "N/A"))
+    summary_report.append("\nSolution:\n" + scratchpad.get("solution", "N/A"))
+    summary_report.append("\nDifferentiator:\n" + scratchpad.get("differentiator", "N/A"))
+    summary_report.append("\nImpact Metrics:\n" + scratchpad.get("impact_metrics", "N/A"))
+    summary_report.append("\nRevenue Model:\n" + scratchpad.get("revenue_model", "N/A"))
+    summary_report.append("\nChannels:\n" + scratchpad.get("channels", "N/A"))
+    summary_report.append("\nCompetitive Moat:\n" + scratchpad.get("competitive_moat", "N/A"))
     return "\n".join(summary_report)
 
 def generate_final_summary_report() -> str:

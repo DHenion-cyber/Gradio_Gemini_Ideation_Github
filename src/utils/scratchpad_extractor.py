@@ -1,6 +1,21 @@
 import re
-import json # Added import for json
+import json
 from src.llm_utils import get_llm_response
+from constants import CANONICAL_KEYS
+
+# Define synonyms for legacy keys that map to canonical keys
+SYNONYMS = {
+    "solution_approach": "solution",
+    "unique_benefit": "differentiator",
+    "high_level_competitive_view": "competitive_moat",
+    "barriers_to_entry": "competitive_moat",
+    "mechanism": "solution",
+    "revenue_hypotheses": "revenue_model",
+    "compliance_snapshot": "problem", # Placeholder, might need refinement
+    "top_3_risks_and_mitigations": "problem", # Placeholder, might need refinement
+    "value_proposition": "differentiator",
+    "market_size": "impact_metrics",
+}
 
 def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
     """
@@ -9,7 +24,7 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
     """
     updated_scratchpad = scratchpad.copy()
 
-    # Define keys for extraction and their corresponding regex patterns/heuristics
+    # Define regex patterns for canonical keys
     extraction_patterns = {
         "problem": [
             r"\b(?:problem|issue|challenge|difficulty) is\s+(.+?)(?:\.|$)",
@@ -28,25 +43,30 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
             r"\b(?:sets us apart|makes us different) by\s+(.+?)(?:\.|$)",
             r"\bour key differentiator is\s+(.+?)(?:\.|$)",
         ],
+        "impact_metrics": [
+            r"\b(?:impact metrics|key performance indicators|kpis|measures success) (?:are|will be)\s+(.+?)(?:\.|$)",
+            r"\bwe will measure success by\s+(.+?)(?:\.|$)",
+        ],
         "revenue_model": [
             r"\b(?:revenue model|how we make money|pricing|pay|charge)\s+(?:is|will be)\s+(.+?)(?:\.|$)",
             r"\bwill pay a\s+(.+? fee)",
             r"\blicence fee of\s+(.+?)(?:\.|$)",
             r"\ba\s+(.+? fee)",
         ],
-        "value_proposition": [
-            r"\b(?:value proposition|benefit)\s+(?:is|will be)\s+(.+?)(?:\.|$)",
-            r"\bwe offer\s+(.+?)\s+to",
+        "channels": [
+            r"\b(?:channels|distribution|reach customers) (?:are|will be)\s+(.+?)(?:\.|$)",
+            r"\bwe will reach customers through\s+(.+?)(?:\.|$)",
         ],
-        "market_size": [
-            r"\b(?:market size|total addressable market|TAM) is\s+(.+?)(?:\.|$)",
-            r"\bworth\s+(.+?)\s+billion",
+        "competitive_moat": [
+            r"\b(?:competitive moat|barrier to entry|sustainable advantage) (?:is|will be)\s+(.+?)(?:\.|$)",
+            r"\b(?:our advantage|what protects us) is\s+(.+?)(?:\.|$)",
         ],
     }
 
     # First pass: Regex and simple heuristics
     for key, patterns in extraction_patterns.items():
-        if key not in updated_scratchpad or not updated_scratchpad[key]: # Only try to extract if key is not already filled
+        # Ensure we only process canonical keys that are part of our defined patterns
+        if key in CANONICAL_KEYS and (key not in updated_scratchpad or not updated_scratchpad[key]):
             for pattern in patterns:
                 match = re.search(pattern, user_message, re.IGNORECASE)
                 if match:
@@ -57,10 +77,30 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
                     updated_scratchpad[key] = extracted_value
                     break # Move to next key once a match is found
 
+    # Handle legacy synonyms: move content from old keys to new canonical keys
+    # Iterate over a copy of keys if modifying the dictionary during iteration
+    scratchpad_keys_copy = list(updated_scratchpad.keys())
+    for old_key in scratchpad_keys_copy:
+        if old_key in SYNONYMS:
+            new_key = SYNONYMS[old_key]
+            if updated_scratchpad[old_key]: # If there's content in the old key
+                if new_key not in updated_scratchpad or not updated_scratchpad[new_key]:
+                    # If new key is empty or not present, move content
+                    updated_scratchpad[new_key] = updated_scratchpad.pop(old_key)
+                else:
+                    # If new key already has content, append old content (or decide on a merge strategy)
+                    # For now, let's append if new_key already has content.
+                    # updated_scratchpad[new_key] += f"; {updated_scratchpad.pop(old_key)}"
+                    # Or, simpler: just pop the old key if the new one is already filled, to avoid duplication.
+                    updated_scratchpad.pop(old_key) # Remove old key if new key is already populated
+            elif old_key in updated_scratchpad : # if old key exists but is empty
+                 updated_scratchpad.pop(old_key)
+
+
     # Second pass: LLM fallback for remaining or more complex extractions
-    # Only call LLM if there are still empty or partially filled relevant fields
+    # Only call LLM if there are still empty or partially filled relevant canonical fields
     keys_to_extract_with_llm = [
-        key for key in extraction_patterns.keys()
+        key for key in CANONICAL_KEYS
         if key not in updated_scratchpad or not updated_scratchpad[key]
     ]
 
@@ -95,10 +135,10 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
                         llm_extracted_data[key_fallback] = match.group(1).strip()
 
 
-            for key_update, value_update in llm_extracted_data.items(): # Renamed to avoid clash
+            for key_update, value_update in llm_extracted_data.items():
                 # If the LLM was tasked to find this key (because regex didn't initially),
-                # and the key is a known extraction target, update it.
-                if key_update in keys_to_extract_with_llm and key_update in extraction_patterns:
+                # and the key is a canonical key, update it.
+                if key_update in keys_to_extract_with_llm and key_update in CANONICAL_KEYS:
                     updated_scratchpad[key_update] = value_update
         except Exception:
             # print(f"Error during LLM extraction: {e}") # Keep this print for actual debugging if needed

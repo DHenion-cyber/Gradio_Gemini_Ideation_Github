@@ -1,14 +1,7 @@
+from constants import CANONICAL_KEYS
+
 RUBRIC = {
-    "elements": {
-        "problem": {"weight": 15},
-        "customer_segment": {"weight": 15},
-        "solution": {"weight": 15},
-        "differentiator": {"weight": 15},
-        "impact_metrics": {"weight": 15},
-        "revenue_model": {"weight": 15},
-        "channels": {"weight": 15},
-        "competitive_moat": {"weight": 15} # Max 8 elements * 15 = 120, but cap at 100
-    },
+    "elements": {k: {"weight": 12.5} for k in CANONICAL_KEYS}, # 8 keys * 12.5 = 100
     "scoring_cap": 100
 }
 
@@ -31,10 +24,10 @@ def calculate_maturity(scratchpad: dict) -> tuple[int, list[str]]:
     score = 0
     present_elements_scores = {}
 
-    for element, details in RUBRIC["elements"].items():
+    for element in CANONICAL_KEYS:
         if scratchpad.get(element):  # Check if element is present and not empty
             # For now, presence gives full weight. Quality weighting can be added later.
-            element_score = details["weight"]
+            element_score = RUBRIC["elements"][element]["weight"]
             score += element_score
             present_elements_scores[element] = element_score
         else:
@@ -47,13 +40,11 @@ def calculate_maturity(scratchpad: dict) -> tuple[int, list[str]]:
     # Sort elements by their score (ascending), then by name (for tie-breaking)
     sorted_elements = sorted(present_elements_scores.items(), key=lambda item: (item[1], item[0]))
     
-    weakest_components = [element for element, score_val in sorted_elements[:2] if score_val < RUBRIC["elements"][element]["weight"]]
+    weakest_components = [element for element, score_val in sorted_elements if score_val < RUBRIC["elements"][element]["weight"]]
     
-    # If all elements are perfectly scored, weakest_components might be empty or less than 2.
-    # In such cases, we can return the two lowest scored (even if perfectly scored) or an empty list if not applicable.
-    # For now, let's ensure we always try to return two, even if they are "weak" only in a relative sense.
-    if len(weakest_components) < 2:
-        weakest_components = [item[0] for item in sorted_elements[:2]]
+    # If all elements are perfectly scored, weakest_components might be empty.
+    # Ensure we return at most two weakest components.
+    weakest_components = weakest_components[:2]
 
 
     # Placeholder for confidence check and Gemini call
@@ -118,9 +109,9 @@ if __name__ == '__main__':
 
     print("\n--- Test Case 6: One element present ---")
     scratchpad6 = {"problem": "Test Problem"}
-    for key in list(RUBRIC["elements"].keys()):
+    for key in CANONICAL_KEYS:
         if key != "problem":
             scratchpad6[key] = ""
     score6, weakest6 = calculate_maturity(scratchpad6)
     print(f"Scratchpad: {scratchpad6}")
-    print(f"Score: {score6}, Weakest: {weakest6}") # Expected: Score 15. Weakest: e.g. ['channels', 'competitive_moat']
+    print(f"Score: {score6}, Weakest: {weakest6}") # Expected: Score 12.5. Weakest: e.g. ['channels', 'competitive_moat']

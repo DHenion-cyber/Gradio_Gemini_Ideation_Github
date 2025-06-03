@@ -9,7 +9,7 @@ from src.conversation_phases import (
     handle_refinement
 )
 from src.utils.idea_maturity import calculate_maturity, RUBRIC
-from src.constants import INITIAL_SCRATCHPAD
+from src.constants import EMPTY_SCRATCHPAD # Changed to EMPTY_SCRATCHPAD
 
 # Helper to set up a mock session state
 @pytest.fixture(autouse=True)
@@ -17,7 +17,7 @@ def mock_st_session_state(monkeypatch):
     mock_session_state_obj = MagicMock()
     
     # Initialize attributes directly on the mock object
-    mock_session_state_obj.scratchpad = INITIAL_SCRATCHPAD.copy()
+    mock_session_state_obj.scratchpad = EMPTY_SCRATCHPAD.copy() # Changed to EMPTY_SCRATCHPAD
     mock_session_state_obj.perplexity_calls = 0
     mock_session_state_obj.token_usage = {"session": 0, "daily": 0}
     
@@ -44,7 +44,7 @@ def mock_st_session_state(monkeypatch):
 
 def get_scratchpad_with_maturity(target_maturity: int) -> dict:
     """Helper to create a scratchpad that achieves a target maturity score."""
-    scratchpad = INITIAL_SCRATCHPAD.copy()
+    scratchpad = EMPTY_SCRATCHPAD.copy() # Changed to EMPTY_SCRATCHPAD
     achieved_score = 0
     
     # Fill elements one by one until target_maturity is met or exceeded
@@ -93,7 +93,7 @@ def test_exploration_to_development_transition():
 
 def test_exploration_stays_if_below_threshold():
     """Test that exploration phase stays if maturity < 20."""
-    scratchpad_very_low_maturity = INITIAL_SCRATCHPAD.copy() # Score 0
+    scratchpad_very_low_maturity = EMPTY_SCRATCHPAD.copy() # Score 0, Changed to EMPTY_SCRATCHPAD
     st.session_state.scratchpad = scratchpad_very_low_maturity
     
     user_message_minimal = "I have an idea." # Unlikely to fill any specific element strongly
@@ -192,19 +192,19 @@ def test_refinement_to_exploration_on_new_idea():
     
     assert next_phase == "exploration"
     assert "exploring a new idea" in assistant_reply.lower()
-    assert st.session_state.scratchpad == {} # Scratchpad should be reset
+    assert st.session_state.scratchpad == EMPTY_SCRATCHPAD.copy() # Scratchpad should be reset to EMPTY_SCRATCHPAD
     assert st.session_state.perplexity_calls == 0 # Perplexity calls reset
 
 @patch('src.conversation_phases.update_scratchpad')
 def test_scratchpad_updated_in_exploration(mock_update_scratchpad):
     """Ensure update_scratchpad is called in exploration."""
     mock_update_scratchpad.return_value = {"problem": "test problem from mock"}
-    st.session_state.scratchpad = INITIAL_SCRATCHPAD.copy()
+    st.session_state.scratchpad = EMPTY_SCRATCHPAD.copy() # Changed to EMPTY_SCRATCHPAD
     user_message = "The problem is complex."
     
     handle_exploration(user_message, st.session_state.scratchpad)
     
-    mock_update_scratchpad.assert_called_once_with(user_message, INITIAL_SCRATCHPAD.copy())
+    mock_update_scratchpad.assert_called_once_with(user_message, EMPTY_SCRATCHPAD.copy()) # Changed to EMPTY_SCRATCHPAD
     assert st.session_state.scratchpad == {"problem": "test problem from mock"}
 
 @patch('src.conversation_phases.update_scratchpad')
@@ -256,4 +256,4 @@ def test_scratchpad_not_updated_in_refinement_for_new_idea(mock_update_scratchpa
     handle_refinement(user_message, st.session_state.scratchpad)
     
     mock_update_scratchpad.assert_not_called()
-    assert st.session_state.scratchpad == {} # Verifies reset
+    assert st.session_state.scratchpad == EMPTY_SCRATCHPAD.copy() # Verifies reset to EMPTY_SCRATCHPAD
