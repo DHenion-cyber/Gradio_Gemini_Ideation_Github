@@ -9,8 +9,8 @@ from .persistence_utils import save_session, load_session
 from .llm_utils import build_prompt, query_gemini, summarize_response, count_tokens
 from . import search_utils
 from .utils.idea_maturity import calculate_maturity # Added import
-
-MAX_PERPLEXITY_CALLS = 3 # Added constant
+from . import conversation_phases # Added for phase routing
+from .constants import MAX_PERPLEXITY_CALLS # Moved to constants.py
 
 def generate_uuid() -> str:
     """Generates a short random string for user_id."""
@@ -159,6 +159,50 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     save_session(st.session_state["user_id"], dict(st.session_state))
     return response_text, search_results
 
+def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
+    """
+    Routes the conversation to the appropriate handler based on the current phase.
+
+    Args:
+        user_message: The user's latest message.
+        scratchpad: The current scratchpad data.
+
+    Returns:
+        A tuple containing the assistant's reply and the next phase.
+    """
+    current_phase = st.session_state.get("phase", "exploration")  # Default to exploration
+    assistant_reply = "An unexpected error occurred." # Default reply
+    next_phase = current_phase # Default next_phase
+
+    if current_phase == "exploration":
+        assistant_reply, next_phase = conversation_phases.handle_exploration(user_message, scratchpad)
+    elif current_phase == "development":
+        assistant_reply, next_phase = conversation_phases.handle_development(user_message, scratchpad)
+    elif current_phase == "refinement":
+        assistant_reply, next_phase = conversation_phases.handle_refinement(user_message, scratchpad)
+    elif current_phase == "summary":
+        assistant_reply, next_phase = conversation_phases.handle_summary(user_message, scratchpad)
+    else:
+        # Fallback for unknown phase
+        assistant_reply = f"Debug: Unknown phase '{current_phase}'. Resetting to exploration."
+        next_phase = "exploration"
+        st.session_state["phase"] = "exploration" # Explicitly reset
+
+    # Update phase in session state after getting the reply and next_phase
+    st.session_state["phase"] = next_phase
+    
+    # Note: The research cap (MAX_PERPLEXITY_CALLS) logic is intended to be
+    # implemented within the specific phase handler functions in 
+    # conversation_phases.py if they call search_utils.search_perplexity.
+    # Example placeholder for this is in conversation_phases.handle_exploration.
+
+    # Append user message and assistant reply to conversation history
+    # This might be handled by the calling function (e.g., in streamlit_app.py)
+    # or could be centralized here if route_conversation is the primary entry point
+    # for generating all non-intake replies. For now, assuming the calling function handles history.
+
+    save_session(st.session_state["user_id"], dict(st.session_state)) # Persist state changes
+    return assistant_reply, next_phase
 # Deleted navigate_value_prop_elements function
 
 def generate_actionable_recommendations(element: str, context: str):

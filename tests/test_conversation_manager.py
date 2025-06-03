@@ -82,21 +82,6 @@ def test_enforce_session_time(monkeypatch):
     # Should not raise error; just return a warning message in actual use
     cm.enforce_session_time()
 
-def test_navigate_value_prop_elements_all_empty():
-    cm.initialize_conversation_state()
-    result = cm.navigate_value_prop_elements()
-    assert isinstance(result, dict)
-    assert "element_name" in result
-    assert "prompt_text" in result
-    assert "follow_up" in result
-    assert result["element_name"] in cm.st.session_state["scratchpad"]
-
-def test_navigate_value_prop_elements_partial_fill():
-    cm.initialize_conversation_state()
-    cm.st.session_state["scratchpad"]["problem"] = "Defined already"
-    result = cm.navigate_value_prop_elements()
-    assert result["element_name"] != "problem"
-
 def test_generate_actionable_recommendations(monkeypatch):
     cm.initialize_conversation_state() # Ensure full state is initialized
     # Mock the query_gemini function within the conversation_manager's namespace

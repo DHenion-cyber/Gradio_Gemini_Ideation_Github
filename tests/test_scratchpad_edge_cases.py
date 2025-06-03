@@ -2,20 +2,6 @@ import pytest
 from src import conversation_manager as cm
 import streamlit as st
 
-def test_navigate_empty_scratchpad():
-    st.session_state.clear()
-    cm.initialize_conversation_state()
-
-    # Ensure all fields are blank
-    for key in st.session_state["scratchpad"]:
-        st.session_state["scratchpad"][key] = ""
-
-    result = cm.navigate_value_prop_elements()
-    assert isinstance(result, dict)
-    assert result["element_name"] in st.session_state["scratchpad"]
-    assert result["prompt_text"]
-    assert result["follow_up"]
-
 def test_summary_builder_incomplete_fields():
     incomplete_scratchpad = {
         "problem": "High readmission rates",
