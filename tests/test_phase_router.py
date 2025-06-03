@@ -19,9 +19,27 @@ def mock_initialize_session_state():
     st.session_state.perplexity_calls = 0
 
     # Configure .get() to read from the mock's attributes
-    def _get_from_attribute(key, default=None):
-        return getattr(st.session_state, key, default)
-    st.session_state.get = MagicMock(side_effect=_get_from_attribute)
+    def _get_attr_side_effect(key, default=None):
+        # Ensure that if a key is accessed via .get() that was set via [],
+        # it still resolves to the attribute on the main mock.
+        if hasattr(st.session_state, key):
+            return getattr(st.session_state, key)
+        return default # Standard .get() behavior if attribute doesn't exist
+    st.session_state.get.side_effect = _get_attr_side_effect
+
+    # Configure __getitem__ to read from the mock's attributes
+    def _getitem_side_effect(key):
+        if hasattr(st.session_state, key):
+            return getattr(st.session_state, key)
+        # If the key isn't a direct attribute, it might be a child mock.
+        # For this test's purpose, if it's not an attribute we've set, raise KeyError.
+        raise KeyError(f"Mocked st.session_state has no attribute or key '{key}' for __getitem__")
+    st.session_state.__getitem__.side_effect = _getitem_side_effect
+
+    # Configure __setitem__ to set attributes on the mock
+    def _setitem_side_effect(key, value):
+        setattr(st.session_state, key, value)
+    st.session_state.__setitem__.side_effect = _setitem_side_effect
 
     # Configure item assignment to set attributes on the mock
     def _set_attribute_from_item(key, value):
@@ -46,8 +64,10 @@ def reset_mocks_and_state():
     # For this test, we are testing the routing logic within route_conversation
     # and the specific keyword detection in handle_exploration.
 
+@patch('src.utils.scratchpad_extractor.get_llm_response') # Mock get_llm_response where it's used by update_scratchpad
 @patch('src.conversation_manager.save_session') # Mock save_session to avoid file I/O
-def test_exploration_to_development_on_keyword(mock_save_session):
+def test_exploration_to_development_on_keyword(mock_save_session, mock_get_llm_response_in_extractor):
+    mock_get_llm_response_in_extractor.return_value = "{}" # Ensure it returns an empty JSON string
     """
     Ensure conversation transitions from exploration to development
     when an idea keyword is detected.
