@@ -57,7 +57,7 @@ def test_build_summary_from_scratchpad():
 @patch('src.conversation_manager.save_session') # Mock save_session
 @patch('src.search_utils.perform_search') # Mock perform_search
 async def test_generate_assistant_response(mock_perform_search, mock_save_session, monkeypatch):
-    mock_perform_search.return_value = ["Search result 1"]
+    mock_perform_search.return_value = [{"title": "Mocked Search Result", "url": "http://example.com/mock"}]
     monkeypatch.setattr(cm, "query_gemini", lambda prompt, **kwargs: "Mocked Gemini response.")
 
     st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy() # Use EMPTY_SCRATCHPAD

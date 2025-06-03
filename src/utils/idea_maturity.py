@@ -1,4 +1,4 @@
-from constants import CANONICAL_KEYS
+from ..constants import CANONICAL_KEYS
 
 RUBRIC = {
     "elements": {k: {"weight": 12.5} for k in CANONICAL_KEYS}, # 8 keys * 12.5 = 100

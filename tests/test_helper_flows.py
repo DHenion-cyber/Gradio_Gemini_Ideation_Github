@@ -107,19 +107,23 @@ def test_exploration_stays_if_below_threshold():
 
 def test_development_to_summary_transition():
     """Test that development phase transitions to summary when maturity >= 60."""
-    # Start with a scratchpad that is above 20 but below 60
-    # e.g., 3 elements * 15 = 45
-    scratchpad_mid_maturity = get_scratchpad_with_maturity(45)
+    # Manually set up a scratchpad with 4 distinct elements filled (score 50),
+    # ensuring 'differentiator' is NOT one of them.
+    scratchpad_mid_maturity = EMPTY_SCRATCHPAD.copy()
+    scratchpad_mid_maturity["problem"] = "Initial Problem"
+    scratchpad_mid_maturity["customer_segment"] = "Initial Segment"
+    scratchpad_mid_maturity["solution"] = "Initial Solution"
+    scratchpad_mid_maturity["impact_metrics"] = "Initial Metrics"
+    # 'differentiator' is currently empty.
+
     st.session_state.scratchpad = scratchpad_mid_maturity
 
-    initial_score, _ = calculate_maturity(st.session_state.scratchpad)
+    initial_score, _ = calculate_maturity(st.session_state.scratchpad) # Should be 4 * 12.5 = 50
     assert 20 <= initial_score < 60
+    assert initial_score == 50 # Be precise
 
-    # Simulate a user message that adds enough to cross the 60 threshold
-    # If we have 3 elements (45), adding one more (15) makes it 60.
-    # Let's say 'problem', 'customer_segment', 'solution' are filled. Add 'differentiator'.
+    # Simulate a user message that adds the 'differentiator'
     user_message_adds_element = "Our key differentiator is superior AI."
-    
     assistant_reply, next_phase = handle_development(user_message_adds_element, st.session_state.scratchpad)
     
     final_score, _ = calculate_maturity(st.session_state.scratchpad)

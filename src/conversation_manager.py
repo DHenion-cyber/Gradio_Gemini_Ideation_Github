@@ -9,7 +9,7 @@ from .llm_utils import build_prompt, query_gemini
 from . import search_utils
 from . import conversation_phases # Added for phase routing
 from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
-from constants import EMPTY_SCRATCHPAD # Import EMPTY_SCRATCHPAD
+from .constants import EMPTY_SCRATCHPAD # Import EMPTY_SCRATCHPAD
 
 def generate_uuid() -> str:
     """Generates a short random string for user_id."""

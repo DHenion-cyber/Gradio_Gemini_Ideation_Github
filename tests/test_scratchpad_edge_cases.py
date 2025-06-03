@@ -13,7 +13,7 @@ def test_summary_builder_incomplete_fields():
     summary = cm.build_summary_from_scratchpad(incomplete_scratchpad)
     assert "Problem Statement" in summary
     assert "High readmission rates" in summary
-    assert "Target User" in summary  # Should still render section header
+    assert "Customer Segment" in summary  # Should still render section header, using the canonical-derived term
 
 def test_recommendations_empty_context(monkeypatch):
     monkeypatch.setattr("src.conversation_manager.query_gemini", lambda prompt: "1. Do something\n2. Try another thing")
