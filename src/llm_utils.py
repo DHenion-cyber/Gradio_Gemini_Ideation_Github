@@ -69,7 +69,7 @@ def format_citations(search_results: list) -> tuple[str, str]:
     return " ".join(citations_text), "\n".join(reference_block) if reference_block else ""
 
 
-def build_prompt(conversation_history: list, scratchpad: dict, summaries: list, user_input: str, search_results: list = None, element_focus: dict = None) -> str:
+def build_prompt(conversation_history: list, scratchpad: dict, summaries: list, user_input: str, phase: str, search_results: list = None, element_focus: dict = None) -> str:
     """
     Builds a comprehensive prompt for the LLM, incorporating system preamble,
     current focus, scratchpad content, and formatted search results.
@@ -77,14 +77,25 @@ def build_prompt(conversation_history: list, scratchpad: dict, summaries: list, 
     prompt_parts = []
 
     # System preamble
-    prompt_parts.append("You are a digital health innovation assistant. Respond in plain language, using up to 3 inline citations from provided search results where relevant. Do not include Personal Health Information (PHI). Use minimal clarifiers and get straight to the point.")
+    prompt_parts.append("""SYSTEM GOALS
+1. Conduct a natural, conversational coaching session.
+2. Internally maximise:
+   a) Idea maturity score
+   b) Coverage of value‑proposition elements in the scratchpad.
+
+TONE: friendly peer‑to‑peer colleague. Use contractions and mild humour.
+
+RESEARCH POLICY: Use web_search() only when (a) the user explicitly requests it
+or (b) current phase == 'refinement' and missing fact is identified.
+Hard limit: 3 calls per session.
+
+When weaknesses arise, state them plainly, followed by at least one mitigation or alternative.""")
 
     # Inject current focus from conversation_manager.navigate_value_prop_elements()
-    if element_focus and element_focus.get("element_name"):
-        prompt_parts.append(f"\n--- Current Focus: {element_focus['element_name'].replace('_', ' ').title()} ---")
-        prompt_parts.append(element_focus.get("prompt_text", ""))
-        prompt_parts.append(element_focus.get("follow_up", ""))
-        prompt_parts.append("------------------------------------------")
+
+    # Context from scratchpad
+    # Add conversation phase
+    prompt_parts.append(f"Conversation Phase: {phase}")
 
     # Context from scratchpad
     if scratchpad and any(scratchpad.values()):
