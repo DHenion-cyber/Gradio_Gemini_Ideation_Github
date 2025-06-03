@@ -1,6 +1,5 @@
 from src import constants
 import src.conversation_phases as cp
-import src.search_utils as su
 import pytest
 from unittest.mock import patch
 import os
