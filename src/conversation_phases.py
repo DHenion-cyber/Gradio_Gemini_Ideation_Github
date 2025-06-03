@@ -91,6 +91,18 @@ def handle_summary(user_message: str, scratchpad: dict) -> tuple[str, str]:
     next_phase = "refinement"
     return assistant_reply, next_phase
 
+def handle_research(user_message: str, scratchpad: dict) -> tuple[str, str]:
+    """
+    Handles the 'research' phase of the conversation.
+    - Placeholder for research logic.
+    """
+    updated_scratchpad = update_scratchpad(user_message, scratchpad)
+    st.session_state.scratchpad = updated_scratchpad
+    
+    assistant_reply = f"Conducting research based on: '{user_message}'. What else would you like to know?"
+    next_phase = "research" # Stay in research phase for now
+    return assistant_reply, next_phase
+
 def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:
     """
     Handles the 'refinement' phase of the conversation.
