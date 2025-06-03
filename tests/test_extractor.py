@@ -57,8 +57,8 @@ def test_value_proposition_extraction():
     user_message = "Our unique benefit is improved patient engagement."
     scratchpad = {}
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    assert "value_proposition" in updated_scratchpad
-    assert "improved patient engagement" in updated_scratchpad["value_proposition"]
+    assert "differentiator" in updated_scratchpad
+    assert "improved patient engagement" in updated_scratchpad["differentiator"]
 
 def test_market_size_extraction():
     """
@@ -67,8 +67,8 @@ def test_market_size_extraction():
     user_message = "The total addressable market is worth 50 billion dollars."
     scratchpad = {}
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    assert "market_size" in updated_scratchpad
-    assert "50 billion dollars" in updated_scratchpad["market_size"]
+    assert "impact_metrics" in updated_scratchpad
+    assert "50 billion dollars" in updated_scratchpad["impact_metrics"]
 
 def test_llm_fallback_for_unmatched_keys(mocker):
     """

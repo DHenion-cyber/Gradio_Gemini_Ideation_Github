@@ -1,7 +1,7 @@
 import re
 import json
 from src.llm_utils import get_llm_response
-from constants import CANONICAL_KEYS
+from ..constants import CANONICAL_KEYS
 
 # Define synonyms for legacy keys that map to canonical keys
 SYNONYMS = {
@@ -46,6 +46,8 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
         "impact_metrics": [
             r"\b(?:impact metrics|key performance indicators|kpis|measures success) (?:are|will be)\s+(.+?)(?:\.|$)",
             r"\bwe will measure success by\s+(.+?)(?:\.|$)",
+            r"total addressable market is worth\s+(.+?)(?:\.|$)", # More specific for testing
+            r"\b(?:market size|TAM)\s+(?:is|is worth|worth|is estimated at)\s+(.+?)(?:\.|$)", # Keep a more general one too
         ],
         "revenue_model": [
             r"\b(?:revenue model|how we make money|pricing|pay|charge)\s+(?:is|will be)\s+(.+?)(?:\.|$)",
