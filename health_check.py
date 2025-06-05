@@ -9,7 +9,7 @@ all_checks_passed = True
 def check_env_vars():
     global all_checks_passed
     print("Checking required environment variables...")
-    required_vars = ["GEMINI_API_KEY", "PERPLEXITY_API_KEY", "SQLITE_DB_PATH", "DAILY_TOKEN_CAP"]
+    required_vars = ["OPENAI_API_KEY", "PERPLEXITY_API_KEY", "SQLITE_DB_PATH", "DAILY_TOKEN_CAP"]
 
     for var in required_vars:
         value = os.getenv(var)
@@ -27,7 +27,7 @@ def check_module_imports():
         "conversation_manager": "initialize_conversation_state",
         "database": "get_connection", # Corrected function name
         "error_handling": "log_error",
-        "llm_utils": "query_gemini",
+        "llm_utils": "query_openai",
         "persistence_utils": "save_session",
         "search_utils": "async_perplexity_search",
         "ui_components": "privacy_notice",
@@ -127,13 +127,13 @@ def check_hf_spaces_and_concurrency():
         num_concurrent_calls = 5
         concurrency_level_msg = "LOW CONCURRENCY"
         print("Checking Hugging Face Secrets...")
-        secret_gemini = os.getenv("SECRET_GEMINI_API_KEY")
+        secret_gemini = os.getenv("SECRET_OPENAI_API_KEY")
         secret_perplexity = os.getenv("SECRET_PERPLEXITY_API_KEY")
         if not secret_gemini:
-            print("FAIL: SECRET_GEMINI_API_KEY not set in HF Space.")
+            print("FAIL: SECRET_OPENAI_API_KEY not set in HF Space.")
             all_checks_passed = False
         else:
-            print("PASS: SECRET_GEMINI_API_KEY is set in HF Space.")
+            print("PASS: SECRET_OPENAI_API_KEY is set in HF Space.")
         if not secret_perplexity:
             print("FAIL: SECRET_PERPLEXITY_API_KEY not set in HF Space.")
             all_checks_passed = False

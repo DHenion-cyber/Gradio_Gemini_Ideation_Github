@@ -5,7 +5,7 @@ import os
 import asyncio
 
 from .persistence_utils import save_session, load_session
-from .llm_utils import build_prompt, query_gemini
+from .llm_utils import build_prompt, query_openai
 from . import search_utils
 from . import conversation_phases # Added for phase routing
 from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
