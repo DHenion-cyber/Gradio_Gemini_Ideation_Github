@@ -61,23 +61,38 @@ user_personas = [
     }
 ]
 
-# 2.1 Configure Evaluation Environment
-provider = GeminiFeedbackProvider()
+# 2.1 & 2.2 Configure Evaluation Environment & Criteria
+def build_feedbacks():
+    """
+    Builds and returns a list of Feedback objects.
+    Each call to this function creates a new GeminiFeedbackProvider instance,
+    ensuring that Feedback objects capture the provider instance current at their creation time.
+    """
+    # Instantiate provider inside the function so each set of feedbacks gets a fresh one
+    # This is key for tests to mock GeminiFeedbackProvider *before* feedbacks are built.
+    local_provider = GeminiFeedbackProvider()
 
-# 2.2 Evaluation Criteria
-def make_feedback(name, question):
-    return Feedback(
-        lambda inp, out: provider.ask(question, inp, out),
-        name=name
-    ).on_input_output()
+    def make_feedback_internal(name, question):
+        # Capture local_provider
+        return Feedback(
+            lambda inp, out: local_provider.ask(question, inp, out),
+            name=name
+        ).on_input_output()
 
-helpfulness = make_feedback("Helpfulness", "How helpful is this response to the user?")
-relevance = make_feedback("Relevance", "How relevant is this response to the user's intent?")
-alignment = make_feedback("Alignment", "Does this response align with the user's stated goal?")
-empowerment = make_feedback("User Empowerment", "Does this response empower or guide the user to take meaningful next steps?")
-coaching_tone = make_feedback("Coaching Tone", "Does the assistant speak in a tone that is supportive, constructive, and encouraging?")
+    helpfulness = make_feedback_internal("Helpfulness", "How helpful is this response to the user?")
+    relevance = make_feedback_internal("Relevance", "How relevant is this response to the user's intent?")
+    alignment = make_feedback_internal("Alignment", "Does this response align with the user's stated goal?")
+    empowerment = make_feedback_internal("User Empowerment", "Does this response empower or guide the user to take meaningful next steps?")
+    coaching_tone = make_feedback_internal("Coaching Tone", "Does the assistant speak in a tone that is supportive, constructive, and encouraging?")
+    
+    return [helpfulness, relevance, alignment, empowerment, coaching_tone]
 
-feedbacks = [helpfulness, relevance, alignment, empowerment, coaching_tone]
+# Initialize feedbacks for the main runner script
+# The `provider` instance used by these feedbacks is encapsulated within build_feedbacks
+feedbacks = build_feedbacks()
+# The global `provider` variable is no longer strictly needed here if only used for feedbacks.
+# If it was used elsewhere, it would need to be handled. For now, assuming its primary
+# use was for the feedbacks list. Tests will mock GeminiFeedbackProvider class, then call build_feedbacks.
 
 # Initialize TruLens
 # Use TRULENS_DATABASE_URL environment variable if set, otherwise default
@@ -150,20 +165,25 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
         finished = record.wait_for_feedback_results()
         logger.info(f"DEBUG: 'finished' object from wait_for_feedback_results(): {finished}")
         
-        scores = {}
-        if finished:
-            for fb, res in finished.items():
-                logger.info(f"DEBUG: Iterating 'finished' item: fb={fb}, res={res}")
-                if fb and hasattr(fb, 'name') and res and hasattr(res, 'result') and res.result is not None:
-                    logger.info(f"DEBUG: Adding to scores: fb.name='{fb.name}', res.result='{res.result}'")
-                    scores[fb.name] = res.result
-                else:
-                    fb_name = getattr(fb, 'name', 'N/A') if fb else 'fb_is_None'
-                    res_result_exists = hasattr(res, 'result') if res else 'res_is_None'
-                    res_result_val = res.result if res and hasattr(res, 'result') else 'N/A'
-                    logger.warning(f"DEBUG: Skipping item for scores: fb.name='{fb_name}', res_exists={res is not None}, res.result_exists='{res_result_exists}', res.result_val='{res_result_val}'")
-        else:
-            logger.warning("DEBUG: 'finished' object is empty or None.")
+        # Standardized extraction of scores
+        # `finished` is a dict of {Feedback: FeedbackResultFuture}
+        # `getattr(res, "result", res)` will access `res.result` if `res` is a FeedbackResultFuture.
+        # If `res` were already a resolved score (not the case here), it would return `res`.
+        raw_scores_from_futures = {
+            fb.name: getattr(res, "result", res)
+            for fb, res in finished.items()
+            if fb and hasattr(fb, 'name') and res is not None # Ensure Feedback obj and ResultFuture obj exist
+        } if finished else {}
+
+        # Filter out any scores that resolved to None
+        scores = {k: v for k, v in raw_scores_from_futures.items() if v is not None}
+        
+        if not finished:
+            logger.warning("DEBUG: 'finished' object (from record.wait_for_feedback_results) was empty or None.")
+        elif not scores and raw_scores_from_futures:
+            logger.warning(f"DEBUG: All scores resolved to None. Raw scores from futures: {raw_scores_from_futures}")
+        elif not scores:
+            logger.warning(f"DEBUG: No scores were processed. 'finished' was {finished}, raw_scores_from_futures was {raw_scores_from_futures}")
             
         assistant_response = await app_output
 
