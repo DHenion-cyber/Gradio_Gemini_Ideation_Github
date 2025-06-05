@@ -14,11 +14,4 @@ session = core_session.TruSession()
 lms = session.connector.db
 df, feedback_col_names = lms.get_records_and_feedback(app_ids=None)
 
-if df.empty:
-    st.warning("No records found in the database.")
-else:
-    st.write("Records found:")
-    st.dataframe(df)
-
-# The trulens_leaderboard() function is not rendering the full UI, so we will not call it directly for now.
-# trulens_leaderboard()
+trulens_leaderboard(tru)
