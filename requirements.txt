@@ -8,3 +8,5 @@ trulens
 llama-index # Explicitly add llama-index back
 
 reportlab
+
+trulens>=1.2.7
