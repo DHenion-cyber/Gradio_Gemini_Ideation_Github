@@ -30,6 +30,7 @@ if 'streamlit' not in sys.modules or not isinstance(sys.modules['streamlit'], Mo
 
 # Import necessary modules from the main application
 from src.conversation_manager import initialize_conversation_state, generate_assistant_response
+from src.constants import EMPTY_SCRATCHPAD
 
 # TruLens Imports
 from trulens.core import Tru, Feedback
@@ -98,8 +99,19 @@ class ChatbotAppWrapper(BaseModel):
     async def __call__(self, input_text: str) -> str:
         st_session_state = sys.modules['streamlit'].session_state
 
-        if "conversation_history" not in st_session_state:
-            initialize_conversation_state(new_chat=True) # Initialize all necessary state
+        # Harden session_state
+        for k, v in {
+            "scratchpad": EMPTY_SCRATCHPAD.copy(),
+            "conversation_history": [],
+            "summaries": [],
+            "token_usage": {"session": 0, "daily": 0}
+        }.items():
+            st_session_state.setdefault(k, v)
+
+        if "conversation_history" not in st_session_state or not st_session_state["conversation_history"]: # Ensure it's not empty if it exists
+            # If conversation_history is missing or empty, it implies other states might be missing too.
+            # initialize_conversation_state should set up all required keys including conversation_history.
+            initialize_conversation_state(new_chat=True)
         
         st_session_state["conversation_history"].append({
             "role": "user",
@@ -133,31 +145,30 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
         logger.info(f"User ({persona['name']}): {user_message}")
         
         app_output, record = tru_app.with_record(run_chatbot_wrapped, user_message)
-        assistant_response = await app_output
+        # Block until all feedback futures finish
+        logger.info(f"DEBUG: Calling record.wait_for_feedback_results() for record_id {record.record_id}")
+        finished = record.wait_for_feedback_results()
+        logger.info(f"DEBUG: 'finished' object from wait_for_feedback_results(): {finished}")
         
-        scores = {} # Initialize as empty dictionary
-        
-        # Attempt to process feedback results directly from the record object.
-        # Trulens might populate this with resolved FeedbackResult objects after the app call.
-        feedback_items = record.feedback_results
-        if feedback_items:
-            logger.info(f"DEBUG: Accessing record.feedback_results for record_id {record.record_id}: {feedback_items}")
-            for fr_index, fr_item in enumerate(feedback_items):
-                current_name = getattr(fr_item, 'name', f'Name_Not_Found_Index_{fr_index}')
-                current_result_value = getattr(fr_item, 'result', 'Result_Not_Found')
-                
-                logger.info(f"DEBUG: Processing feedback item {fr_index} - Name: '{current_name}', Value: {current_result_value}, Object: {fr_item}")
-
-                if current_name != f'Name_Not_Found_Index_{fr_index}' and current_result_value != 'Result_Not_Found' and current_result_value is not None:
-                    logger.info(f"DEBUG: Populating scores - Name: '{current_name}', Value: {current_result_value}")
-                    try:
-                        scores[current_name] = float(current_result_value)
-                    except (ValueError, TypeError) as e:
-                        logger.error(f"DEBUG: Could not convert score value to float. Name: {current_name}, Value: {current_result_value}, Error: {e}")
+        scores = {}
+        if finished:
+            for fb, res in finished.items():
+                logger.info(f"DEBUG: Iterating 'finished' item: fb={fb}, res={res}")
+                if fb and hasattr(fb, 'name') and res and hasattr(res, 'result') and res.result is not None:
+                    logger.info(f"DEBUG: Adding to scores: fb.name='{fb.name}', res.result='{res.result}'")
+                    scores[fb.name] = res.result
                 else:
-                    logger.warning(f"DEBUG: Feedback item 'fr_item' (index {fr_index}) is missing 'name' or 'result', or result is None. Name found: '{current_name}', Result found: '{current_result_value}'. fr_item object: {fr_item}")
+                    fb_name = getattr(fb, 'name', 'N/A') if fb else 'fb_is_None'
+                    res_result_exists = hasattr(res, 'result') if res else 'res_is_None'
+                    res_result_val = res.result if res and hasattr(res, 'result') else 'N/A'
+                    logger.warning(f"DEBUG: Skipping item for scores: fb.name='{fb_name}', res_exists={res is not None}, res.result_exists='{res_result_exists}', res.result_val='{res_result_val}'")
         else:
-            logger.warning(f"DEBUG: record.feedback_results is empty or None for record_id {record.record_id}")
+            logger.warning("DEBUG: 'finished' object is empty or None.")
+            
+        assistant_response = await app_output
+
+        if isinstance(assistant_response, tuple):
+            assistant_response = assistant_response[0]
         
         last_bot_message = assistant_response
         
@@ -172,6 +183,7 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
         logger.info(f"DEBUG: session_transcript after append (last entry): {session_transcript[-1]}")
         logger.info(f"Assistant: {assistant_response}")
 
+    tru_app.wait_for_feedback_results() # Block until all feedback futures finish
     session_average_scores = {}
     if session_transcript:
         # Aggregate scores per session

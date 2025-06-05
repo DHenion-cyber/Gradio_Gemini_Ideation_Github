@@ -96,12 +96,30 @@ class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
                 ("Helpfulness", 0.7), ("Relevance", 0.8), ("Alignment", 0.9),
                 ("User Empowerment", 0.7), ("Coaching Tone", 0.8),
             ]
-            mock_record.feedback_results = []
-            for name_val, result_val in feedback_data:
-                fr_mock = MagicMock()
-                fr_mock.name = name_val
-                fr_mock.result = result_val
-                mock_record.feedback_results.append(fr_mock) # Append the mock directly, not an awaitable
+            # Determine current turn's feedback data slice
+            # mock_tru_app_instance.with_record.call_count gives the number of *prior* calls.
+            # So, for the first call (turn 1), call_count is 0.
+            current_turn_idx = mock_tru_app_instance.with_record.call_count
+            feedback_items_per_turn = 5 # Helpfulness, Relevance, Alignment, User Empowerment, Coaching Tone
+            start_idx = current_turn_idx * feedback_items_per_turn
+            end_idx = start_idx + feedback_items_per_turn
+            current_turn_feedback_data = feedback_data[start_idx:end_idx]
+
+            mock_finished_dict = {}
+            for name_val, result_val in current_turn_feedback_data:
+                mock_fb = MagicMock()
+                mock_fb.name = name_val
+                
+                mock_res = MagicMock()
+                mock_res.result = result_val # This is the actual score value
+                
+                mock_finished_dict[mock_fb] = mock_res
+            
+            # Mock the wait_for_feedback_results method on the record
+            mock_record.wait_for_feedback_results.return_value = mock_finished_dict
+
+            # The old mock_record.feedback_results is no longer used by the main code.
+            # mock_record.feedback_results = [] # This can be removed
 
             return assistant_response_coroutine, mock_record
 
