@@ -79,10 +79,12 @@ coaching_tone = make_feedback("Coaching Tone", "Does the assistant speak in a to
 feedbacks = [helpfulness, relevance, alignment, empowerment, coaching_tone]
 
 # Initialize TruLens
-tru = Tru()
+# Use TRULENS_DATABASE_URL environment variable if set, otherwise default
+tru = Tru(database_url=os.getenv("TRULENS_DATABASE_URL", "sqlite:///default.sqlite"))
 
-# Start TruLens dashboard
-tru.run_dashboard()
+# Start TruLens dashboard only if not in a test environment
+if os.getenv("TRULENS_DATABASE_URL") != "sqlite:///mini.sqlite":
+    tru.run_dashboard()
 
 # Re-introduce ChatbotAppWrapper as a Pydantic BaseModel
 @instrument
@@ -97,7 +99,7 @@ class ChatbotAppWrapper(BaseModel):
         st_session_state = sys.modules['streamlit'].session_state
 
         if "conversation_history" not in st_session_state:
-            st_session_state["conversation_history"] = []
+            initialize_conversation_state(new_chat=True) # Initialize all necessary state
         
         st_session_state["conversation_history"].append({
             "role": "user",
@@ -121,6 +123,7 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
     )
 
     last_bot_message = ""
+    initialize_conversation_state(new_chat=True)
     for turn_num in range(1, num_turns + 1):
         logger.info(f"\nTurn {turn_num}:")
         if turn_num == 1:
@@ -132,24 +135,29 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
         app_output, record = tru_app.with_record(run_chatbot_wrapped, user_message)
         assistant_response = await app_output
         
-        scores = {
-            "Helpfulness": 0.0,
-            "Relevance": 0.0,
-            "Alignment": 0.0,
-            "User Empowerment": 0.0,
-            "Coaching Tone": 0.0
-        } # Initialize scores for the current turn
+        scores = {} # Initialize as empty dictionary
         
-        feedback_results = record.feedback_results
-        if feedback_results:
-            if hasattr(feedback_results[0], '__await__'):
-                feedback_results = await asyncio.gather(*feedback_results)
-            
-            for fr in feedback_results:
-                if hasattr(fr, 'name') and hasattr(fr, 'result'):
-                    logger.info(f"DEBUG: Populating scores - fr.name: '{fr.name}', fr.result: {fr.result}")
-                    scores[fr.name] = fr.result
-                    logger.info(f"DEBUG: Scores after assignment for current turn: {scores}")
+        # Attempt to process feedback results directly from the record object.
+        # Trulens might populate this with resolved FeedbackResult objects after the app call.
+        feedback_items = record.feedback_results
+        if feedback_items:
+            logger.info(f"DEBUG: Accessing record.feedback_results for record_id {record.record_id}: {feedback_items}")
+            for fr_index, fr_item in enumerate(feedback_items):
+                current_name = getattr(fr_item, 'name', f'Name_Not_Found_Index_{fr_index}')
+                current_result_value = getattr(fr_item, 'result', 'Result_Not_Found')
+                
+                logger.info(f"DEBUG: Processing feedback item {fr_index} - Name: '{current_name}', Value: {current_result_value}, Object: {fr_item}")
+
+                if current_name != f'Name_Not_Found_Index_{fr_index}' and current_result_value != 'Result_Not_Found' and current_result_value is not None:
+                    logger.info(f"DEBUG: Populating scores - Name: '{current_name}', Value: {current_result_value}")
+                    try:
+                        scores[current_name] = float(current_result_value)
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"DEBUG: Could not convert score value to float. Name: {current_name}, Value: {current_result_value}, Error: {e}")
+                else:
+                    logger.warning(f"DEBUG: Feedback item 'fr_item' (index {fr_index}) is missing 'name' or 'result', or result is None. Name found: '{current_name}', Result found: '{current_result_value}'. fr_item object: {fr_item}")
+        else:
+            logger.warning(f"DEBUG: record.feedback_results is empty or None for record_id {record.record_id}")
         
         last_bot_message = assistant_response
         
@@ -164,22 +172,30 @@ async def simulate_chat(persona: Dict[str, str], num_turns: int = 10):
         logger.info(f"DEBUG: session_transcript after append (last entry): {session_transcript[-1]}")
         logger.info(f"Assistant: {assistant_response}")
 
-    log_filename = os.path.join(LOGS_DIR, f"{persona['name'].replace(' ', '_')}_chat.json")
-    with open(log_filename, "w") as f:
-        json.dump(session_transcript, f, indent=4)
-    logger.info(f"Simulation transcript and scores saved to {log_filename}")
-
-    logger.info(f"DEBUG: Final session_transcript: {json.dumps(session_transcript, indent=2)}")
+    session_average_scores = {}
     if session_transcript:
-        logger.info(f"\nAverage Scores for {persona['name']}:")
-        for feedback_name in ["Helpfulness", "Relevance", "Alignment", "User Empowerment", "Coaching Tone"]:
-            scores_for_metric = [t["scores"].get(feedback_name) for t in session_transcript if t["scores"].get(feedback_name) is not None]
-            
-            logger.info(f"DEBUG: Processing feedback_name: {feedback_name}")
-            logger.info(f"DEBUG: Scores for metric: {scores_for_metric}")
-            
-            avg_score = sum(scores_for_metric) / len(scores_for_metric) if scores_for_metric else 0
-            logger.info(f"  {feedback_name}: {avg_score:.2f}")
+        # Aggregate scores per session
+        # Ensure session_transcript[0]["scores"] exists before accessing its keys
+        if session_transcript and "scores" in session_transcript[0]:
+            session_average_scores = {
+                k: sum(t["scores"][k] for t in session_transcript if k in t["scores"]) / len(session_transcript)
+                for k in session_transcript[0]["scores"]
+            }
+        logger.info(f"Average scores: {session_average_scores}")
+    else:
+        logger.warning("Session transcript is empty, cannot calculate average scores.")
+
+    log_filename = os.path.join(LOGS_DIR, f"{persona['name'].replace(' ', '_')}_chat.json")
+    
+    # Prepare data to be dumped, including both transcript and average scores
+    output_data = {
+        "session_transcript": session_transcript,
+        "session_average_scores": session_average_scores
+    }
+
+    with open(log_filename, "w") as f:
+        json.dump(output_data, f, indent=4)
+    logger.info(f"Simulation transcript and scores saved to {log_filename}")
 
 async def main():
     for persona in user_personas:

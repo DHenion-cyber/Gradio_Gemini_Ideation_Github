@@ -119,11 +119,13 @@ class TestSimulationRunner(unittest.IsolatedAsyncioTestCase):
 
         # 2. Validate log file content and structure
         with open(log_filename, 'r') as f:
-            transcript = json.load(f)
+            data_from_log = json.load(f)
 
-        self.assertEqual(len(transcript), 10) # 10 turns simulated
+        self.assertIn("session_transcript", data_from_log)
+        transcript_list = data_from_log["session_transcript"]
+        self.assertEqual(len(transcript_list), 10) # 10 turns simulated
 
-        for i, turn in enumerate(transcript):
+        for i, turn in enumerate(transcript_list):
             self.assertIn("turn_number", turn)
             self.assertIn("role", turn)
             self.assertIn("message", turn)
