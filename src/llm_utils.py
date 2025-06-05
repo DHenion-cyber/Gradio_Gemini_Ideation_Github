@@ -2,7 +2,6 @@ import google.generativeai as genai
 import os
 from dotenv import load_dotenv # Import load_dotenv
 import streamlit as st
-from trulens.apps.custom import instrument # Import instrument
 from typing import Optional
 
 load_dotenv() # Load environment variables from .env file
@@ -145,7 +144,6 @@ def format_prompt(prompt: str) -> str:
     """
     return prompt
 
-@instrument # Add this decorator
 def query_gemini(prompt: str, model: str = "gemini-1.5-flash-latest", temperature: float = 0.7, top_p: float = 0.95, max_output_tokens: int = 1024) -> str:
     """
     Queries the Gemini LLM with the given prompt and returns the response text.
