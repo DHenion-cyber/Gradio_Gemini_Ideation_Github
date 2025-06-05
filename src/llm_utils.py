@@ -1,5 +1,19 @@
-import google.generativeai as genai
 import os
+import openai
+
+# Configure OpenAI key from env
+openai.api_key = os.getenv('OPENAI_API_KEY')
+
+# Unified function to query OpenAI's GPT-4.1
+def query_openai(prompt):
+    response = openai.ChatCompletion.create(
+        model='gpt-4-1106-preview',
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message['content']
 from dotenv import load_dotenv # Import load_dotenv
 import streamlit as st
 from typing import Optional
@@ -144,7 +158,7 @@ def format_prompt(prompt: str) -> str:
     """
     return prompt
 
-def query_gemini(prompt: str, model: str = "gemini-1.5-flash-latest", temperature: float = 0.7, top_p: float = 0.95, max_output_tokens: int = 1024) -> str:
+def query_openai(prompt: str, model: str = "gemini-1.5-flash-latest", temperature: float = 0.7, top_p: float = 0.95, max_output_tokens: int = 1024) -> str:
     """
     Queries the Gemini LLM with the given prompt and returns the response text.
     Includes default parameter configuration and error handling.
@@ -188,8 +202,8 @@ def summarize_response(text: str) -> str:
     """
     summary_prompt = f"Summarize the following text in 100 tokens or less:\n\n{text}"
     # Use a slightly lower temperature for summarization to get more concise results
-    summary = query_gemini(summary_prompt, temperature=0.5, max_output_tokens=100)
+    summary = query_openai(summary_prompt, temperature=0.5, max_output_tokens=100)
     return summary
 
 # Alias for backward compatibility or clearer naming in some contexts
-get_llm_response = query_gemini
+get_llm_response = query_openai
