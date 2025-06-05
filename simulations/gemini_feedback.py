@@ -20,13 +20,19 @@ class GeminiFeedbackProvider:
         Only return a score from 1 to 5 with no explanation.
         """
         response = self.model.generate_content(full_prompt) # Use synchronous version
-        try:
-            # Extract text from the response, handling multiple parts if necessary
-            response_text = "".join([part.text for part in response.parts])
-            score = int(response_text.strip())
+        
+        # Debugging: Print raw response parts and stripped text
+        print(f"DEBUG: Raw Gemini response parts: {response.parts}")
+        response_text = "".join([part.text for part in response.parts])
+        print(f"DEBUG: Stripped Gemini response text: '{response_text.strip()}'")
+
+        # Attempt to extract score
+        import re
+        match = re.search(r'\d+', response_text.strip())
+        if match:
+            score = int(match.group(0))
             return score
-        except ValueError:
-            # If parsing fails, return a default or log an error
-            response_text = "".join([part.text for part in response.parts]) # Re-extract for logging
-            print(f"Warning: Could not parse Gemini feedback response '{response_text.strip()}' to int. Returning 0.")
+        else:
+            # If no integer is found, log the full response and return 0
+            print(f"Warning: No integer found in Gemini feedback response: '{response_text.strip()}'. Returning 0.")
             return 0
