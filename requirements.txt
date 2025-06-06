@@ -7,4 +7,6 @@ llama-index # Explicitly add llama-index back
 
 reportlab
 
-openai
+openai>=0.28.0,<1.0.0
+
+evals>=0.0.19

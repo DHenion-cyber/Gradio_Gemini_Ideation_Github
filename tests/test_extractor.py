@@ -57,8 +57,8 @@ def test_value_proposition_extraction():
     user_message = "Our unique benefit is improved patient engagement."
     scratchpad = {}
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    assert "differentiator" in updated_scratchpad
-    assert "improved patient engagement" in updated_scratchpad["differentiator"]
+    assert "value_proposition" in updated_scratchpad
+    assert "improved patient engagement" in updated_scratchpad["value_proposition"]
 
 def test_market_size_extraction():
     """

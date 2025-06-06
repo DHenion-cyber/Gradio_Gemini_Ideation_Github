@@ -49,8 +49,8 @@ def test_generate_actionable_recommendations_appends(monkeypatch):
     st.session_state.clear()
     cm.initialize_conversation_state()
 
-    # Patch query_gemini where it's used in conversation_manager
-    monkeypatch.setattr("src.conversation_manager.query_gemini", lambda prompt: "1. Do X.\n2. Try Y.")
+    # Patch query_openai where it's used in conversation_manager
+    monkeypatch.setattr("src.conversation_manager.query_openai", lambda prompt: "1. Do X.\n2. Try Y.")
 
     recs = cm.generate_actionable_recommendations("mechanism", "Use wearable sensors")
     for r in recs:

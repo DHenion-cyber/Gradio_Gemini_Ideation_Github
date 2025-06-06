@@ -149,7 +149,7 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     )
 
     # Query Gemini
-    response_text = query_gemini(full_prompt)
+    response_text = query_openai(full_prompt)
 
     # Store result in conversation history
     st.session_state["conversation_history"].append({
@@ -217,8 +217,8 @@ def generate_actionable_recommendations(element: str, context: str):
     """
     # In a real implementation, this would query an LLM or a knowledge base
     # to generate relevant recommendations based on the element and context.
-    # For testing, we'll assume query_gemini returns a string like "1. Rec1\n2. Rec2"
-    mock_response = query_gemini(f"Generate recommendations for {element} based on {context}")
+    # For testing, we'll assume query_openai returns a string like "1. Rec1\n2. Rec2"
+    mock_response = query_openai(f"Generate recommendations for {element} based on {context}")
     # Ensure that the mock response is split into at least two recommendations for the test
     recommendations = [rec.strip() for rec in mock_response.split('\n') if rec.strip()]
     if len(recommendations) < 2:
