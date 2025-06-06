@@ -2,7 +2,7 @@ CANONICAL_KEYS = [
     "problem",
     "customer_segment",
     "solution",
-    "differentiator",
+    "value_proposition",
     "impact_metrics",
     "revenue_model",
     "channels",

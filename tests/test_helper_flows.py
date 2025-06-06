@@ -111,7 +111,7 @@ def test_development_to_summary_transition():
     scratchpad_mid_maturity["customer_segment"] = "Initial Segment"
     scratchpad_mid_maturity["solution"] = "Initial Solution"
     scratchpad_mid_maturity["impact_metrics"] = "Initial Metrics"
-    # 'differentiator' is currently empty.
+    # 'value_proposition' is currently empty.
 
     st.session_state.scratchpad = scratchpad_mid_maturity
 
@@ -119,15 +119,15 @@ def test_development_to_summary_transition():
     assert 20 <= initial_score < 60
     assert initial_score == 50 # Be precise
 
-    # Simulate a user message that adds the 'differentiator'
-    user_message_adds_element = "Our key differentiator is superior AI."
+    # Simulate a user message that adds the 'value_proposition'
+    user_message_adds_element = "Our key differentiator is superior AI." # This message will be caught by the value_proposition regex
     assistant_reply, next_phase = handle_development(user_message_adds_element, st.session_state.scratchpad)
     
     final_score, _ = calculate_maturity(st.session_state.scratchpad)
     assert final_score >= 60
     assert next_phase == "summary"
     assert "generate a summary" in assistant_reply.lower()
-    assert st.session_state.scratchpad.get("differentiator")
+    assert st.session_state.scratchpad.get("value_proposition")
 
 def test_development_stays_if_below_threshold():
     """Test that development phase stays if maturity < 60."""

@@ -1,0 +1,4 @@
+startup-coach-test.test:
+  class: evals.elsuite.basic.match:Match
+  args:
+    samples_jsonl: c:/Users/Dale/Desktop/Summer 2025/StreamlitChatbot/Streamlit_Chatbot_1_Ideation/evals/sample_data/startup_coach_samples.jsonl

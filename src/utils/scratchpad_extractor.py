@@ -11,7 +11,7 @@ SYNONYMS = {
     "revenue_hypotheses": "revenue_model",
     "compliance_snapshot": "problem", # Placeholder, might need refinement
     "top_3_risks_and_mitigations": "problem", # Placeholder, might need refinement
-    "value_proposition": "differentiator",
+    "differentiator": "value_proposition",
     "market_size": "impact_metrics",
 }
 
@@ -36,10 +36,11 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
             r"\b(?:solution|idea|product) is\s+(.+?)(?:\.|$)",
             r"\bwe propose\s+(.+?)(?:\.|$)",
         ],
-        "differentiator": [
-            r"\b(?:differentiator|unique selling point|usp|key difference|secret sauce) is\s+(.+?)(?:\.|$)",
+        "value_proposition": [
+            r"\b(?:differentiator|unique selling point|usp|key difference|secret sauce|unique benefit) is\s+(.+?)(?:\.|$)",
             r"\b(?:sets us apart|makes us different) by\s+(.+?)(?:\.|$)",
             r"\bour key differentiator is\s+(.+?)(?:\.|$)",
+            r"\b(?:our|my|the)?\s*unique benefit is\s+(.+?)(?:\.|$)",
         ],
         "impact_metrics": [
             r"\bimpact\b.*(\d+%|\$|days|hours|readmission|adhere)",

@@ -58,7 +58,7 @@ def test_build_summary_from_scratchpad():
 @patch('src.search_utils.perform_search') # Mock perform_search
 async def test_generate_assistant_response(mock_perform_search, mock_save_session, monkeypatch):
     mock_perform_search.return_value = [{"title": "Mocked Search Result", "url": "http://example.com/mock"}]
-    monkeypatch.setattr(cm, "query_gemini", lambda prompt, **kwargs: "Mocked Gemini response.")
+    monkeypatch.setattr(cm, "query_openai", lambda prompt, **kwargs: "Mocked Gemini response.")
 
     st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy() # Use EMPTY_SCRATCHPAD
     st.session_state["conversation_history"] = []
@@ -98,8 +98,8 @@ def test_enforce_session_time(monkeypatch):
 
 def test_generate_actionable_recommendations(monkeypatch):
     cm.initialize_conversation_state() # Ensure full state is initialized
-    # Mock the query_gemini function within the conversation_manager's namespace
-    monkeypatch.setattr(cm, "query_gemini", lambda prompt, **kwargs: "1. Try this idea.\n2. Consider that approach.")
+    # Mock the query_openai function within the conversation_manager's namespace
+    monkeypatch.setattr(cm, "query_openai", lambda prompt, **kwargs: "1. Try this idea.\n2. Consider that approach.")
 
     result = cm.generate_actionable_recommendations("problem", "Chronic illness management")
     assert isinstance(result, list)
