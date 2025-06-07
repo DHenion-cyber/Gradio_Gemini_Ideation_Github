@@ -1,139 +1,113 @@
 import streamlit as st
-from .utils.idea_maturity import calculate_maturity
 from .utils.scratchpad_extractor import update_scratchpad
-import json
 from .constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS
+import json
 
-# TODO: implement feature
-pass
+def extract_best_idea(scratchpad: dict, intake_answers: list) -> str:
+    """
+    Review all prior user inputs (intake + scratchpad) to select the statement with the most potential, clarity, or emphasis.
+    """
+    candidates = []
+    # Prioritize solution and problem (if substantive)
+    for key in ["solution", "problem"]:
+        value = scratchpad.get(key, "")
+        if value and len(value.strip()) > 20:
+            candidates.append(value.strip())
+    # Search intake answers for the longest, most idea-like answer
+    for ans in intake_answers:
+        text = ans.get("text", "")
+        if text and len(text.strip()) > 20:
+            candidates.append(text.strip())
+    # Return the longest (proxy for most substantial/idea-like)
+    return max(candidates, key=len, default="your idea")
 
-# Define some keywords that suggest a desire to move to development
-IDEA_KEYWORDS = ["build", "develop", "create", "make", "app", "software", "tool", "platform", "project"]
+def generate_prompt(prompt_type: str, scratchpad: dict, intake_answers: list) -> str:
+    best_idea = extract_best_idea(scratchpad, intake_answers)
+    if prompt_type == "exploration":
+        return (
+            f"Let's explore your idea: \"{best_idea}\". "
+            "What possible directions, uses, or user groups come to mind, or would you like to brainstorm some possibilities together?"
+        )
+    elif prompt_type == "development":
+        return (
+            f"Now that we've narrowed in on \"{best_idea}\", "
+            "which aspect would you like to flesh out next—such as the core benefit, who it helps most, or how it could work in practice?"
+        )
+    return "Tell me more about your thoughts."
 
 def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
-    """
-    Handles the 'exploration' phase of the conversation.
-    - Checks for keywords to transition to development.
-    - Writes to scratchpad via extractor.
-    - If no keyword match, transitions to development if maturity >= 20.
-    """
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    st.session_state["scratchpad"] = updated_scratchpad # Ensure session state is updated
+    st.session_state["scratchpad"] = updated_scratchpad
 
-    maturity_score, weakest_components = calculate_maturity(updated_scratchpad)
-    
-    next_phase = "exploration" # Default
-    assistant_reply = "" # Initialize
+    exploration_turns = st.session_state.get("exploration_turns", 0)
+    intake_answers = st.session_state.get("intake_answers", [])
 
-    # Check for keywords first
-    # Ensure user_message is not None and is a string before calling .lower()
-    if user_message and any(keyword in user_message.lower() for keyword in IDEA_KEYWORDS):
+    # After several exploration turns, check readiness to move to development
+    if exploration_turns >= 4 and any(word in user_message.lower() for word in ["ready", "next", "move forward", "develop", "yes"]):
+        st.session_state["exploration_turns"] = 0  # reset for next phase
+        assistant_reply = "Great! Let's start organizing and refining your ideas further. Which specific aspect should we delve into first?"
         next_phase = "development"
-        # Use the reply expected by the test
-        assistant_reply = "Great! It sounds like you're ready to start developing this idea"
-        # To make the reply more natural for actual use, consider appending:
-        # assistant_reply += ". What aspect of your new app would you like to focus on first?"
-    
-    # If no keyword transition, proceed with maturity logic
-    if not assistant_reply: # Only if keyword didn't set a reply
-        if maturity_score >= 20:
-            next_phase = "development"
-            assistant_reply = f"Great progress! Your idea for '{updated_scratchpad.get(CANONICAL_KEYS[2], 'this concept')}' has reached a maturity of {maturity_score}/100. Let's move to the development phase. What's next?"
-        else:
-            # next_phase remains "exploration"
-            assistant_reply = f"Exploring further based on: '{user_message}'. Current idea maturity: {maturity_score}/100. Let's focus on strengthening: {', '.join(weakest_components)}."
+    else:
+        assistant_reply = generate_prompt("exploration", updated_scratchpad, intake_answers)
+        st.session_state["exploration_turns"] = exploration_turns + 1
+        next_phase = "exploration"
 
     return assistant_reply, next_phase
 
 def handle_development(user_message: str, scratchpad: dict) -> tuple[str, str]:
-    """
-    Handles the 'development' phase of the conversation.
-    - Writes to scratchpad via extractor.
-    - Exits when maturity >= 60 → summary.
-    """
-    updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    st.session_state["scratchpad"] = updated_scratchpad # Ensure session state is updated
-
-    maturity_score, weakest_components = calculate_maturity(updated_scratchpad)
-
-    assistant_reply = f"Developing '{updated_scratchpad.get(CANONICAL_KEYS[2], 'this concept')}'. Current maturity: {maturity_score}/100."
-    next_phase = "development"
-
-    if maturity_score >= 60:
-        next_phase = "summary"
-        assistant_reply = f"Excellent! The idea '{updated_scratchpad.get(CANONICAL_KEYS[2], 'this concept')}' has a strong maturity of {maturity_score}/100. Let's generate a summary."
-    else:
-        assistant_reply += f" We can still improve: {', '.join(weakest_components)}."
-        
-    return assistant_reply, next_phase
-
-def handle_summary(user_message: str, scratchpad: dict) -> tuple[str, str]:
-    """
-    Handles the 'summary' phase of the conversation.
-    - Sends structured snapshot then returns 'refinement'.
-    - Writes to scratchpad (though less critical here, good practice).
-    """
-    # user_message in summary phase might be a confirmation or not directly for extraction
-    # For now, we'll still run update_scratchpad in case there's a final thought.
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
     st.session_state["scratchpad"] = updated_scratchpad
 
-    # Create a structured snapshot of the scratchpad
-    # Filter out empty/None values for a cleaner summary
-    snapshot = {k: v for k, v in updated_scratchpad.items() if v}
-    
-    # Attempt to pretty-print JSON, fallback to string representation
-    try:
-        structured_summary = json.dumps(snapshot, indent=2)
-        assistant_reply = f"Here's a summary of your idea:\n```json\n{structured_summary}\n```\nWe can now refine this further."
-    except TypeError: # Handle cases where scratchpad items might not be JSON serializable
-        assistant_reply = f"Here's a summary of your idea:\n{str(snapshot)}\nWe can now refine this further."
+    development_turns = st.session_state.get("development_turns", 0)
+    intake_answers = st.session_state.get("intake_answers", [])
+
+    if development_turns >= 4 and any(word in user_message.lower() for word in ["summary", "complete", "finish", "wrap up"]):
+        st.session_state["development_turns"] = 0  # reset for next phase
+        assistant_reply = "You've developed a solid foundation! Let's review and summarize everything we've discussed."
+        next_phase = "summary"
+    else:
+        assistant_reply = generate_prompt("development", updated_scratchpad, intake_answers)
+        st.session_state["development_turns"] = development_turns + 1
+        next_phase = "development"
+
+    return assistant_reply, next_phase
+
+def handle_summary(user_message: str, scratchpad: dict) -> tuple[str, str]:
+    updated_scratchpad = update_scratchpad(user_message, scratchpad)
+    st.session_state["scratchpad"] = updated_scratchpad
+
+    snapshot = {key: updated_scratchpad.get(key, "N/A") for key in [
+        "problem", "customer_segment", "solution", "differentiator", "impact_metrics"
+    ]}
+
+    teaser = (
+        "As you take this idea forward, consider exploring potential revenue streams, "
+        "effective channels for reaching your audience, and how to establish a competitive advantage."
+    )
+
+    structured_summary = json.dumps(snapshot, indent=2)
+
+    assistant_reply = (
+        f"Here's a concise summary of your refined idea:\n\n```json\n{structured_summary}\n```\n\n{teaser} "
+        "Would you like to refine any of these further or explore a new idea?"
+    )
 
     next_phase = "refinement"
     return assistant_reply, next_phase
 
-
 def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:
-    """
-    Handles the 'refinement' phase of the conversation.
-    - Writes to scratchpad via extractor.
-    - Loops; if user types 'new idea' reset phase to 'exploration'.
-    """
-    if "new idea" in user_message.lower(): # More flexible check
-        st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy() # Use dictionary access
-        st.session_state["perplexity_calls"] = 0 # Reset search count
-        assistant_reply = "Okay, let's start exploring a new idea! What's on your mind?"
+    if "new idea" in user_message.lower():
+        st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy()
+        st.session_state["perplexity_calls"] = 0
+        assistant_reply = "Fantastic! Let's start fresh. What's the new idea you'd like to explore?"
         return assistant_reply, "exploration"
 
-    # Placeholder for external fact needing (TODO → implement)
-    # For now, let's assume a specific trigger for search, e.g., "research"
-    if "research" in user_message.lower():
-        from .search_utils import search_perplexity
-        result = search_perplexity(user_message)
-        from .search_utils import format_result # Import format_result
-        if result == "STUB_RESPONSE":
-            assistant_reply = (
-                "Live web search isn’t configured. "
-                "You can paste external findings here and I’ll integrate them."
-            )
-        elif result == "RESEARCH_CAP_REACHED":
-            assistant_reply = (
-                "I’ve reached the three‑search limit. "
-                "Feel free to explore externally and bring info back!"
-            )
-        else:
-            assistant_reply = format_result(result)
-        return assistant_reply, "refinement"
-
-
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    st.session_state["scratchpad"] = updated_scratchpad # Ensure session state is updated
-    
-    maturity_score, weakest_components = calculate_maturity(updated_scratchpad)
+    st.session_state["scratchpad"] = updated_scratchpad
 
-    assistant_reply = f"Refining the idea. You mentioned: '{user_message}'. Current maturity: {maturity_score}/100."
-    if weakest_components:
-         assistant_reply += f" We could still focus on: {', '.join(weakest_components)}."
+    assistant_reply = (
+        "Let's refine your idea further. Is there a particular aspect you'd like to expand on or clarify more deeply?"
+    )
     next_phase = "refinement"
     return assistant_reply, next_phase
 
