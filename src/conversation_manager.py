@@ -3,6 +3,7 @@ import datetime
 import uuid
 import os
 import asyncio
+import logging # Add this import
 
 from .persistence_utils import save_session, load_session
 from .llm_utils import build_prompt, query_openai
@@ -17,14 +18,23 @@ def generate_uuid() -> str:
 
 def initialize_conversation_state(new_chat: bool = False):
     """
-    Initializes the conversation state in st.session_state with default values.
-    This function sets up the necessary keys for managing the conversation flow,
-    user input, and LLM interactions.
+    Initializes the conversation state in st.session_state.
+    - If `new_chat` is True, it creates a completely fresh session.
+    - If `new_chat` is False and `conversation_initialized` is True, it assumes
+      the state is already correctly managed by a previous run (e.g., after intake completion)
+      and does minimal setup, crucially AVOIDING reloading from disk.
+    - If `new_chat` is False and `conversation_initialized` is False (e.g., first ever load,
+      or load with a UID in URL), it attempts to load or initialize a new session.
     """
-    st.session_state["stage"] = "intake"
-    st.session_state["turn_count"] = 0
-    st.session_state["intake_index"] = 0
+    # This check is now primarily for the very first script run or explicit new chat.
+    # For reruns where conversation_initialized is True and new_chat is False,
+    # we want to trust the existing st.session_state.
+
     if new_chat:
+        logging.info("DEBUG: initialize_conversation_state called with new_chat=True. Creating fresh session.")
+        st.session_state["stage"] = "intake"
+        st.session_state["turn_count"] = 0
+        st.session_state["intake_index"] = 0
         st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy()
         st.session_state["conversation_history"] = []
         st.session_state["summaries"] = []
@@ -35,45 +45,65 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state["maturity_score"] = 0
         st.session_state["perplexity_calls"] = 0
         st.session_state["phase"] = "exploration"
-    else:
+        st.session_state["conversation_initialized"] = True # Mark as initialized
+        save_session(st.session_state["user_id"], dict(st.session_state))
+        return # Explicitly return after handling new_chat
+
+    # If not a new_chat, check if it's already initialized (e.g., from a previous script run like intake completion)
+    if st.session_state.get("conversation_initialized"):
+        logging.info("DEBUG: initialize_conversation_state called with new_chat=False, but conversation_initialized is True. Assuming state is managed, doing minimal setup.")
+        # Ensure essential keys have defaults if they were somehow missed, but don't overwrite existing session values.
+        st.session_state.setdefault("stage", "intake")
+        st.session_state.setdefault("turn_count", 0)
+        st.session_state.setdefault("intake_index", 0)
+        st.session_state.setdefault("user_id", generate_uuid())
         st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy())
         st.session_state.setdefault("conversation_history", [])
         st.session_state.setdefault("summaries", [])
         st.session_state.setdefault("token_usage", {"session": 0, "daily": 0})
         st.session_state.setdefault("last_summary", "")
         st.session_state.setdefault("start_timestamp", datetime.datetime.now(datetime.timezone.utc))
-        st.session_state.setdefault("user_id", generate_uuid())
         st.session_state.setdefault("maturity_score", 0)
         st.session_state.setdefault("perplexity_calls", 0)
         st.session_state.setdefault("phase", "exploration")
+        return # IMPORTANT: Return here to prevent reloading from disk
 
-    # Check for ?uid=... in URL and load session if present
+    # This part now only runs if new_chat is False AND conversation_initialized is False
+    # (i.e., very first load of the app, or first load with a UID in URL)
+    logging.info("DEBUG: initialize_conversation_state called with new_chat=False and conversation_initialized is False. Proceeding with load/default init.")
+    st.session_state["stage"] = "intake" # Default initial stage
+    st.session_state["turn_count"] = 0
+    st.session_state["intake_index"] = 0
+    
     query_params = st.query_params
-    if "uid" in query_params:
-        loaded_data = load_session(query_params["uid"])
+    uid_from_url = query_params.get("uid")
+
+    loaded_successfully = False
+    if uid_from_url:
+        loaded_data = load_session(uid_from_url)
         if loaded_data:
-            # Clear existing state before updating to avoid merging issues with complex objects
-            # or ensure that st.session_state is a dict-like object that can be updated.
-            # For MagicMock, update should work as expected.
-            # If st.session_state could be something else, more care is needed.
-            # A simple way for tests is to ensure it's a clearable dict-like mock.
-            # For now, let's assume st.session_state (the MagicMock) supports update.
             st.session_state.update(loaded_data)
-            # Ensure user_id from loaded session is used, or generate if missing
             if "user_id" not in st.session_state or not st.session_state["user_id"]:
-                 st.session_state["user_id"] = query_params["uid"] # or generate_uuid() if preferred
-            print(f"Session state updated from loaded session {query_params['uid']}")
-        else:
-            # Session not found or error loading, ensure fresh initialization and save
-            if "user_id" not in st.session_state: # Should already be set by initial part of function
-                 st.session_state["user_id"] = generate_uuid()
-            save_session(st.session_state["user_id"], dict(st.session_state))
-            print(f"New session {st.session_state['user_id']} initialized and saved as {query_params['uid']} was not found.")
-    else:
-        # If no UID in URL, ensure state is initialized (user_id should be set by now)
-        if "user_id" not in st.session_state: # Fallback, should be set
-            st.session_state["user_id"] = generate_uuid()
-        save_session(st.session_state["user_id"], dict(st.session_state)) # Persist initial state
+                st.session_state["user_id"] = uid_from_url
+            loaded_successfully = True
+            logging.info(f"DEBUG: Session loaded for user_id {st.session_state.get('user_id')} from UID {uid_from_url}.")
+
+    if not loaded_successfully:
+        # Initialize a new session (either no UID, or UID load failed)
+        st.session_state["user_id"] = uid_from_url if uid_from_url else generate_uuid()
+        st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy())
+        st.session_state.setdefault("conversation_history", [])
+        st.session_state.setdefault("summaries", [])
+        st.session_state.setdefault("token_usage", {"session": 0, "daily": 0})
+        st.session_state.setdefault("last_summary", "")
+        st.session_state.setdefault("start_timestamp", datetime.datetime.now(datetime.timezone.utc))
+        st.session_state.setdefault("maturity_score", 0)
+        st.session_state.setdefault("perplexity_calls", 0)
+        st.session_state.setdefault("phase", "exploration")
+        logging.info(f"DEBUG: New session initialized for user_id {st.session_state['user_id']}.")
+    
+    st.session_state["conversation_initialized"] = True # Mark as initialized
+    save_session(st.session_state["user_id"], dict(st.session_state)) # Save whatever state we ended up with
 
 
 def get_intake_questions() -> list[str]:

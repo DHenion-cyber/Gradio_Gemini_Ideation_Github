@@ -158,44 +158,6 @@ def format_prompt(prompt: str) -> str:
     """
     return prompt
 
-def query_openai(prompt: str, model: str = "gemini-1.5-flash-latest", temperature: float = 0.7, top_p: float = 0.95, max_output_tokens: int = 1024) -> str:
-    """
-    Queries the Gemini LLM with the given prompt and returns the response text.
-    Includes default parameter configuration and error handling.
-    Updates token usage.
-    """
-    try:
-        genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-    except KeyError:
-        error_handling.log_error("GOOGLE_API_KEY environment variable not set.")
-        return "I'm having trouble with my configuration. Please ensure the GOOGLE_API_KEY is set."
-
-    try:
-        model_instance = genai.GenerativeModel(model)
-        response = model_instance.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=temperature,
-                top_p=top_p,
-                max_output_tokens=max_output_tokens
-            )
-        )
-        
-        if response.candidates:
-            response_text = response.text
-        else:
-            response_text = "No response text generated."
-
-        # Update token usage
-        token_limit_message = count_tokens(prompt, response_text)
-        if token_limit_message:
-            return token_limit_message # Return daily limit message if exceeded
-
-        return response_text
-    except Exception as e:
-        error_handling.log_error("Error querying Gemini", e)
-        return "I’m having trouble retrieving fresh data—here’s a concise response based on prior context…"
-
 def summarize_response(text: str) -> str:
     """
     Sends text to Gemini to create a short (<=100-token) summary.
