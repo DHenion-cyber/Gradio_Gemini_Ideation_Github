@@ -122,63 +122,109 @@ try:
             logging.info("Intake complete. Transitioning to ideation stage and exploration phase.")
             st.session_state["stage"] = "ideation" # Set stage for the new phase-based flow
             st.session_state["phase"] = "exploration" # Initialize to the first phase
+            logging.info(f"DEBUG: Before clearing history. Length: {len(st.session_state.get('conversation_history', []))}")
+            st.session_state["conversation_history"] = [] # Clear history to hide intake answers
+            logging.info(f"DEBUG: After clearing history. Length: {len(st.session_state.get('conversation_history', []))}")
+            # Save the session state AFTER clearing history and before rerun
+            from src.persistence_utils import save_session # Ensure save_session is available
+            if "user_id" in st.session_state:
+                save_session(st.session_state["user_id"], dict(st.session_state))
+                logging.info(f"DEBUG: Session saved after clearing history for user {st.session_state['user_id']}.")
+            else:
+                logging.warning("DEBUG: user_id not found in session state, cannot save session after clearing history.")
+            # st.session_state["_just_cleared_for_ideation"] = True # REMOVE FLAG
             st.success("Intake complete. Let's move to ideation!")
             st.rerun()
 
-    elif st.session_state["stage"] == "ideation" or st.session_state.get("phase") in ["exploration", "development", "refinement", "summary"]:
-        current_phase = st.session_state.get("phase", "exploration")
-        logging.info(f"DEBUG: In ideation/phase-based flow. Current phase: {current_phase}")
+    elif st.session_state["stage"] == "ideation": # Simplified condition for this block
+        logging.info(f"DEBUG: Entered ideation block. History length: {len(st.session_state.get('conversation_history', []))}")
+        # Explicitly ensure phase is correct if just transitioned to ideation or if phase is unexpected
+        expected_ideation_phases = ["exploration", "development", "refinement", "summary"]
+        if st.session_state.get("phase") not in expected_ideation_phases:
+            logging.warning(f"Ideation stage entered with unexpected phase '{st.session_state.get('phase')}'. Resetting to 'exploration'.")
+            st.session_state["phase"] = "exploration"
+        
+        current_phase = st.session_state.get("phase", "exploration") # Default to exploration if somehow still not set
+        
+        logging.info(f"DEBUG: Before initial prompt check. History length: {len(st.session_state.get('conversation_history', []))}, Current phase: {current_phase}")
+        # If it's the start of ideation (e.g. no conversation history yet in this stage), ensure phase is exploration
+        if not st.session_state.get("conversation_history"):
+            if current_phase != "exploration":
+                logging.warning(f"DEBUG: Ideation start detected (empty history) with phase '{current_phase}'. Forcing to 'exploration'.")
+                current_phase = "exploration"
+                st.session_state["phase"] = "exploration" # Persist this change
+            
+            # If it's the true start of exploration (empty history), get an initial prompt from the assistant.
+            # The inner check `if not st.session_state.get("conversation_history")` is redundant if the outer one is true,
+            # but kept for safety during debugging.
+            if not st.session_state.get("conversation_history"):
+                logging.info("DEBUG: Exploration phase started with empty history (triggering initial prompt). Getting initial assistant prompt.")
+                initial_assistant_prompt, next_phase_after_init = route_conversation("", st.session_state.scratchpad)
+                if initial_assistant_prompt:
+                    st.session_state["conversation_history"].append({"role": "assistant", "text": initial_assistant_prompt})
+                    logging.info(f"DEBUG: Initial assistant prompt for exploration: {initial_assistant_prompt}. New phase: {st.session_state.get('phase')}. History length: {len(st.session_state.get('conversation_history', []))}")
+                    st.rerun() # Rerun to display the initial assistant message
+
+        logging.info(f"DEBUG: In ideation/phase-based flow. Current phase: {current_phase}. History length: {len(st.session_state.get('conversation_history', []))}")
 
         # Display conversation history
         if "conversation_history" in st.session_state:
             for message in st.session_state["conversation_history"]:
                 with st.chat_message(message["role"]):
-                    citations_for_render = message.get("citations", []) 
+                    citations_for_render = message.get("citations", [])
                     render_response_with_citations(message["text"], citations_for_render)
         
         # Commented out sections for Actionable Recommendations and Summary Report
         # These can be integrated into the phase logic later if needed.
         # st.subheader("Actionable Recommendations")
         # ...
+        logging.info(f"DEBUG: Just before summary/chat_input block. Current phase: {current_phase}, Stage: {st.session_state['stage']}")
+        
+        # Render summary panel ONLY if current_phase is "summary"
         if current_phase == "summary":
-            display_summary_panel()
+            # display_summary_panel() # Intentionally commented out for debugging
+            logging.info(f"DEBUG: display_summary_panel() would have been called because current_phase is 'summary' (but it is commented out).")
 
-        # Chat input for user messages
-        user_input = st.chat_input(placeholder="Ask me anything about digital health innovation!")
-        if user_input:
-            logging.info(f"DEBUG: User input received: {user_input}")
-            if user_input.lower() == "/new idea":
-                initialize_conversation_state(new_chat=True)
-                st.session_state["new_chat_triggered"] = False # Reset the flag
-                st.rerun()
-            elif is_out_of_scope(user_input):
-                logging.info("DEBUG: Input identified as out of scope.")
-                st.warning("Your input seems to be out of scope. Please refrain from entering personal health information, market sizing, or financial projections.")
-                # Display the out-of-scope warning as an assistant message in history
-                st.session_state["conversation_history"].append({
-                    "role": "assistant",
-                    "text": "Your input seems to be out of scope. Please refrain from entering personal health information, market sizing, or financial projections."
-                })
-                st.rerun() # Rerun to show the warning in chat
-            else:
-                st.session_state["conversation_history"].append({"role": "user", "text": user_input})
-                logging.info("DEBUG: User message appended to history.")
+        # Render chat input ONLY if current_phase is NOT "summary"
+        # And only if there's already an assistant message to respond to, or it's not the very start.
+        if current_phase != "summary":
+            logging.info(f"DEBUG: Attempting to render chat_input because current_phase is '{current_phase}'.")
+            # st.error("EXPLORATION PHASE IS ACTIVE - CHAT INPUT SHOULD BE BELOW") # REMOVED DEBUGGING
+            user_input = st.chat_input(placeholder="Ask me anything about digital health innovation!")
+            if user_input:
+                logging.info(f"DEBUG: User input received: {user_input}")
+                if user_input.lower() == "/new idea":
+                    initialize_conversation_state(new_chat=True)
+                    st.session_state["new_chat_triggered"] = False # Reset the flag
+                    st.rerun()
+                elif is_out_of_scope(user_input):
+                    logging.info("DEBUG: Input identified as out of scope.") # Corrected indentation
+                    st.warning("Your input seems to be out of scope. Please refrain from entering personal health information, market sizing, or financial projections.")
+                    # Display the out-of-scope warning as an assistant message in history
+                    st.session_state["conversation_history"].append({
+                        "role": "assistant",
+                        "text": "Your input seems to be out of scope. Please refrain from entering personal health information, market sizing, or financial projections."
+                    })
+                    st.rerun() # Rerun to show the warning in chat
+                else:
+                    st.session_state["conversation_history"].append({"role": "user", "text": user_input})
+                    logging.info("DEBUG: User message appended to history.")
 
-                with st.chat_message("assistant"):
-                    with st.spinner("Thinking..."):
-                        logging.info(f"DEBUG: Calling route_conversation for phase {st.session_state.get('phase')}.")
-                        assistant_response, next_phase = route_conversation(user_input, st.session_state.scratchpad)
-                        # route_conversation already updates st.session_state["phase"]
-                        logging.info(f"DEBUG: route_conversation completed. Assistant response received. New phase: {st.session_state.get('phase')}")
-                        
-                        st.session_state["conversation_history"].append({"role": "assistant", "text": assistant_response})
-                        logging.info("DEBUG: Assistant message appended to history.")
-                        
-                        # Citations are not directly returned by route_conversation in this setup.
-                        # If individual phase handlers generate citations, they'd need to be stored and retrieved.
-                        render_response_with_citations(assistant_response, []) 
-                logging.info("DEBUG: Rerunning after user input processing.")
-                st.rerun()
+                    with st.chat_message("assistant"):
+                        with st.spinner("Thinking..."):
+                            logging.info(f"DEBUG: Calling route_conversation for phase {st.session_state.get('phase')}.")
+                            assistant_response, next_phase = route_conversation(user_input, st.session_state.scratchpad)
+                            # route_conversation already updates st.session_state["phase"]
+                            logging.info(f"DEBUG: route_conversation completed. Assistant response received. New phase: {st.session_state.get('phase')}")
+                            
+                            st.session_state["conversation_history"].append({"role": "assistant", "text": assistant_response})
+                            logging.info("DEBUG: Assistant message appended to history.")
+                            
+                            # Citations are not directly returned by route_conversation in this setup.
+                            # If individual phase handlers generate citations, they'd need to be stored and retrieved.
+                            render_response_with_citations(assistant_response, [])
+                    logging.info("DEBUG: Rerunning after user input processing.")
+                    st.rerun()
 except Exception as e:
     logging.error(f"Error in main application logic: {e}", exc_info=True) # Added exc_info for better debugging
     st.error(f"An critical error occurred: {e}")
