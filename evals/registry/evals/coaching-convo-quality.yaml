@@ -1,9 +1,14 @@
 coaching-convo-quality:
-  id: coaching-convo-quality.val.v0
-  description: "Evaluate coaching conversation quality"
-  metrics: [accuracy]
-
-coaching-convo-quality.val.v0:
-  class: evals.elsuite.basic.match:Match
+  class: evals.elsuite.grade:LLMGrader
   args:
     samples_jsonl: evals/sample_data/coaching_convos_from_sessions.jsonl
+    rubric:
+      - name: Empathy
+        description: "Did the assistant show empathy, understanding, or acknowledge the user's perspective?"
+      - name: Helpfulness
+        description: "Did the assistant provide useful, actionable, or supportive guidance?"
+      - name: Relevance
+        description: "Was the assistant's response appropriate and on-topic for the user's question/context?"
+    completion_fn: chatbot-openai
+    grader_model: gpt-4o
+    n_samples: 10

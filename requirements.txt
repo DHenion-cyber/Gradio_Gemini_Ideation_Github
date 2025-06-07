@@ -1,12 +1,6 @@
 streamlit
 python-dotenv
-requests
 pytest
 httpx
-llama-index # Explicitly add llama-index back
-
-reportlab
-
 openai>=0.28.0,<1.0.0
-
 evals>=0.0.19
