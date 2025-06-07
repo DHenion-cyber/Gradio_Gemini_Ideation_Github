@@ -34,7 +34,6 @@ saved_model/**/* filter=lfs diff=lfs merge=lfs -text
 *.zip filter=lfs diff=lfs merge=lfs -text
 *.zst filter=lfs diff=lfs merge=lfs -text
 *tfevents* filter=lfs diff=lfs merge=lfs -text
-
 # --- Line ending & encoding normalization ---
 * text=auto eol=lf
 # Explicitly treat key source and config files as UTF-8 with LF
@@ -47,7 +46,7 @@ saved_model/**/* filter=lfs diff=lfs merge=lfs -text
 # Optional: handle notebooks and diffs (if ever used)
 *.ipynb text
 # Binary safety for assets (even if rare)
-*.png binary
+*.png filter=lfs diff=lfs merge=lfs -text
 *.jpg binary
 *.jpeg binary
 *.gif binary
