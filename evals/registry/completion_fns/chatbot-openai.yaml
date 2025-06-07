@@ -1,4 +1,4 @@
 chatbot-openai:
   class: evals.completion_fns.openai:OpenAIChatCompletionFn
   args:
-    model: gpt-3.5-turbo #"gpt-4o" recommended for quality
+    model: gpt-4o
