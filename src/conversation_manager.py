@@ -45,6 +45,7 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state["maturity_score"] = 0
         st.session_state["perplexity_calls"] = 0
         st.session_state["phase"] = "exploration"
+        st.session_state.setdefault("intake_answers", [])
         st.session_state["conversation_initialized"] = True # Mark as initialized
         save_session(st.session_state["user_id"], dict(st.session_state))
         return # Explicitly return after handling new_chat
@@ -66,6 +67,7 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state.setdefault("maturity_score", 0)
         st.session_state.setdefault("perplexity_calls", 0)
         st.session_state.setdefault("phase", "exploration")
+        st.session_state.setdefault("intake_answers", [])
         return # IMPORTANT: Return here to prevent reloading from disk
 
     # This part now only runs if new_chat is False AND conversation_initialized is False
@@ -85,6 +87,7 @@ def initialize_conversation_state(new_chat: bool = False):
             st.session_state.update(loaded_data)
             if "user_id" not in st.session_state or not st.session_state["user_id"]:
                 st.session_state["user_id"] = uid_from_url
+            st.session_state.setdefault("intake_answers", []) # Ensure key exists after loading
             loaded_successfully = True
             logging.info(f"DEBUG: Session loaded for user_id {st.session_state.get('user_id')} from UID {uid_from_url}.")
 
@@ -100,6 +103,7 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state.setdefault("maturity_score", 0)
         st.session_state.setdefault("perplexity_calls", 0)
         st.session_state.setdefault("phase", "exploration")
+        st.session_state.setdefault("intake_answers", [])
         logging.info(f"DEBUG: New session initialized for user_id {st.session_state['user_id']}.")
     
     st.session_state["conversation_initialized"] = True # Mark as initialized
@@ -125,11 +129,14 @@ def run_intake_flow(user_input: str):
     """
     intake_questions = get_intake_questions()
 
-    # Append user response to conversation history
-    st.session_state["conversation_history"].append({
+    # Store user's intake response in st.session_state["intake_answers"]
+    # and not in st.session_state["conversation_history"]
+    st.session_state.setdefault("intake_answers", [])
+    st.session_state["intake_answers"].append({
         "role": "user",
         "text": user_input,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "meta": "intake" # Mark message as intake-related
     })
 
     # Store intake answers in scratchpad where relevant
@@ -153,6 +160,16 @@ def run_intake_flow(user_input: str):
 
     if st.session_state["intake_index"] >= len(intake_questions):
         st.session_state["stage"] = "ideation"
+        # Compute and store best_answer from intake_answers for the transition
+        answers_texts = [
+            ans.get("text", "")
+            for ans in st.session_state.get("intake_answers", [])
+            if isinstance(ans, dict)
+        ]
+        # Ensure answers_texts is not empty for max() to prevent error, default to empty string
+        if not answers_texts:
+            answers_texts = [""]
+        st.session_state["best_intake_answer_for_transition"] = max(answers_texts, key=len, default="")
     
     save_session(st.session_state["user_id"], st.session_state.to_dict())
 
@@ -208,6 +225,30 @@ def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
     current_phase = st.session_state.get("phase", "exploration")  # Default to exploration
     assistant_reply = "An unexpected error occurred." # Default reply
     next_phase = current_phase # Default next_phase
+
+    # Check if this is the initial call for the exploration phase after intake
+    if not user_message and current_phase == "exploration" and "best_intake_answer_for_transition" in st.session_state:
+        best_answer = st.session_state.pop("best_intake_answer_for_transition") # Get and remove the stored answer
+        
+        # Remove any existing "maturity-score" or similar system message if present
+        # This is a proactive cleanup, though streamlit_app.py already clears history.
+        if st.session_state.get("conversation_history"):
+            # Check the last message if it's a system message to be replaced
+            # This logic might need adjustment if the "maturity score" message isn't always the last one
+            # or if it's not marked with role "system".
+            # For now, we assume the new message will effectively replace it or be the first one.
+            pass # No explicit removal here, as streamlit_app.py clears history.
+                 # The new message will be the first in the 'ideation' stage.
+
+        assistant_reply = (
+            f"Let’s build on your insight about \"{best_answer}\". "
+            "Who would benefit most from this idea, and what makes the timing right?"
+        )
+        # The phase remains "exploration"
+        next_phase = "exploration"
+        # The calling function in streamlit_app.py will append this to history.
+        save_session(st.session_state["user_id"], dict(st.session_state)) # Persist state changes, including removal of best_intake_answer_for_transition
+        return assistant_reply, next_phase
 
     if current_phase == "exploration":
         assistant_reply, next_phase = conversation_phases.handle_exploration(user_message, st.session_state["scratchpad"])
