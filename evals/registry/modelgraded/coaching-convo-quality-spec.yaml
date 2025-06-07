@@ -1,0 +1,5 @@
+minimal-spec:
+  prompt: "Test"
+  choice_strings: ["A"]
+  input_outputs: {"in": "out"}
+  eval_type: "classify"
