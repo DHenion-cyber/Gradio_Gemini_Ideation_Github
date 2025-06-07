@@ -124,7 +124,8 @@ try:
             st.session_state["phase"] = "exploration" # Initialize to the first phase
             logging.info(f"DEBUG: Before clearing history. Length: {len(st.session_state.get('conversation_history', []))}")
             st.session_state["conversation_history"] = [] # Clear history to hide intake answers
-            logging.info(f"DEBUG: After clearing history. Length: {len(st.session_state.get('conversation_history', []))}")
+            st.session_state.pop("intake_answers", None) # Optional cleanup of intake_answers
+            logging.info(f"DEBUG: After clearing history and popping intake_answers. History Length: {len(st.session_state.get('conversation_history', []))}")
             # Save the session state AFTER clearing history and before rerun
             from src.persistence_utils import save_session # Ensure save_session is available
             if "user_id" in st.session_state:
@@ -133,11 +134,16 @@ try:
             else:
                 logging.warning("DEBUG: user_id not found in session state, cannot save session after clearing history.")
             # st.session_state["_just_cleared_for_ideation"] = True # REMOVE FLAG
-            st.success("Intake complete. Let's move to ideation!")
             st.rerun()
 
     elif st.session_state["stage"] == "ideation": # Simplified condition for this block
-        logging.info(f"DEBUG: Entered ideation block. History length: {len(st.session_state.get('conversation_history', []))}")
+        # Defense-in-depth: Remove any messages with meta=="intake" from conversation_history
+        if "conversation_history" in st.session_state:
+            st.session_state["conversation_history"] = [
+                msg for msg in st.session_state["conversation_history"]
+                if msg.get("meta") != "intake"
+            ]
+        logging.info(f"DEBUG: Entered ideation block. History length after intake meta check: {len(st.session_state.get('conversation_history', []))}")
         # Explicitly ensure phase is correct if just transitioned to ideation or if phase is unexpected
         expected_ideation_phases = ["exploration", "development", "refinement", "summary"]
         if st.session_state.get("phase") not in expected_ideation_phases:
@@ -190,7 +196,7 @@ try:
         if current_phase != "summary":
             logging.info(f"DEBUG: Attempting to render chat_input because current_phase is '{current_phase}'.")
             # st.error("EXPLORATION PHASE IS ACTIVE - CHAT INPUT SHOULD BE BELOW") # REMOVED DEBUGGING
-            user_input = st.chat_input(placeholder="Ask me anything about digital health innovation!")
+            user_input = st.chat_input(placeholder="Your response")
             if user_input:
                 logging.info(f"DEBUG: User input received: {user_input}")
                 if user_input.lower() == "/new idea":

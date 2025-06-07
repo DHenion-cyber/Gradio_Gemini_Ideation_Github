@@ -25,6 +25,7 @@ def test_initialize_conversation_state():
     assert isinstance(state["scratchpad"], dict)
     assert state["scratchpad"] == EMPTY_SCRATCHPAD # Check against EMPTY_SCRATCHPAD
     assert isinstance(state["conversation_history"], list)
+    assert state["intake_answers"] == [] # Check for intake_answers initialization
     assert isinstance(state["user_id"], str)
     assert state["token_usage"]["daily"] == 0
 
@@ -105,3 +106,117 @@ def test_generate_actionable_recommendations(monkeypatch):
     assert isinstance(result, list)
     assert len(result) == 2
     assert all("Try" in r or "Consider" in r for r in result)
+
+@patch('src.conversation_manager.save_session') # Mock save_session for run_intake_flow
+def test_run_intake_flow_modifies_intake_answers_and_scratchpad(mock_save_session):
+    cm.initialize_conversation_state() # Ensure clean state
+    st.session_state["conversation_history"] = [] # Explicitly empty for this test
+    st.session_state["intake_answers"] = []
+    st.session_state["intake_index"] = 0
+    st.session_state["scratchpad"] = cm.EMPTY_SCRATCHPAD.copy()
+
+    questions = cm.get_intake_questions()
+    
+    # Answer first question
+    user_input_1 = "Test response 1"
+    cm.run_intake_flow(user_input_1)
+    assert len(st.session_state["conversation_history"]) == 0
+    assert len(st.session_state["intake_answers"]) == 1
+    assert st.session_state["intake_answers"][0]["text"] == user_input_1
+    assert st.session_state["intake_answers"][0]["meta"] == "intake"
+    assert st.session_state["intake_index"] == 1
+    # No direct scratchpad update for question 0 in current logic
+
+    # Answer second question (index 1 - "Problems interested in")
+    user_input_2 = "Test problem"
+    cm.run_intake_flow(user_input_2)
+    assert len(st.session_state["conversation_history"]) == 0
+    assert len(st.session_state["intake_answers"]) == 2
+    assert st.session_state["intake_answers"][1]["text"] == user_input_2
+    assert st.session_state["scratchpad"]["problem"] == user_input_2
+    assert st.session_state["intake_index"] == 2
+
+    # Answer third question (index 2 - "Areas of orientation")
+    user_input_3 = "Patient Impact"
+    cm.run_intake_flow(user_input_3)
+    assert len(st.session_state["conversation_history"]) == 0
+    assert len(st.session_state["intake_answers"]) == 3
+    assert st.session_state["intake_answers"][2]["text"] == user_input_3
+    assert st.session_state["scratchpad"]["solution"] == user_input_3 # Mapped to 'solution'
+    assert st.session_state["intake_index"] == 3
+    
+    mock_save_session.assert_called() # Ensure state is saved
+
+@patch('src.conversation_manager.save_session') # Mock save_session
+@patch('src.conversation_manager.get_intake_questions')
+def test_intake_completion_transitions_to_ideation(mock_get_intake_questions, mock_save_session):
+    # Mock get_intake_questions to return a small, controlled list
+    mock_questions = [
+        "Mock Question 1: Experience?",
+        "Mock Question 2: Problems?"
+    ]
+    mock_get_intake_questions.return_value = mock_questions
+
+    cm.initialize_conversation_state() # Start with a fresh state
+    st.session_state["conversation_history"] = [] # Ensure it starts empty
+    st.session_state["intake_answers"] = []
+
+    # Simulate answering all mock intake questions
+    for i, question in enumerate(mock_questions):
+        user_response = f"Answer to mock question {i+1}"
+        cm.run_intake_flow(user_response)
+        assert st.session_state["intake_answers"][-1]["text"] == user_response
+        assert st.session_state["conversation_history"] == [] # History should remain empty
+
+    # After all questions are answered
+    assert st.session_state["stage"] == "ideation"
+    assert st.session_state["conversation_history"] == [] # Verify again, crucial for the test
+    assert len(st.session_state["intake_answers"]) == len(mock_questions)
+    
+    # Ensure save_session was called after each intake step and potentially at the end
+    assert mock_save_session.call_count >= len(mock_questions)
+@patch('src.conversation_manager.save_session')
+@patch('src.conversation_manager.update_scratchpad') # Mock to avoid side effects
+@patch('src.conversation_manager.conversation_phases.handle_exploration') # Mock to isolate route_conversation logic
+def test_initial_ideation_message_after_intake(mock_handle_exploration, mock_update_scratchpad, mock_save_session):
+    # 1. Initialize state and simulate intake completion
+    cm.initialize_conversation_state()
+    st.session_state["intake_answers"] = [
+        {"role": "user", "text": "Short answer."},
+        {"role": "user", "text": "This is the longest answer and should be the best one."},
+        {"role": "user", "text": "Another short answer."}
+    ]
+    st.session_state["intake_index"] = len(cm.get_intake_questions()) # Mark intake as complete for run_intake_flow logic
+    
+    # Manually trigger the logic that run_intake_flow would use to set best_answer
+    # This simulates the state just before streamlit_app.py transitions and calls route_conversation
+    answers_texts = [
+        ans.get("text", "") 
+        for ans in st.session_state.get("intake_answers", []) 
+        if isinstance(ans, dict)
+    ]
+    if not answers_texts:
+        answers_texts = [""]
+    st.session_state["best_intake_answer_for_transition"] = max(answers_texts, key=len, default="")
+    
+    st.session_state["stage"] = "ideation" # Set by streamlit_app.py after intake
+    st.session_state["phase"] = "exploration" # Set by streamlit_app.py
+    st.session_state["scratchpad"] = cm.EMPTY_SCRATCHPAD.copy()
+    st.session_state["conversation_history"] = [] # Cleared by streamlit_app.py
+
+    # Mock update_scratchpad to return the input scratchpad without modification
+    mock_update_scratchpad.side_effect = lambda _, sp: sp
+
+    # 2. Call route_conversation with an empty user message (initial call for exploration)
+    assistant_reply, next_phase = cm.route_conversation("", st.session_state.scratchpad)
+
+    # 3. Assertions
+    assert "😀" not in assistant_reply
+    assert "This is the longest answer and should be the best one." in assistant_reply
+    assert "Let’s build on your insight about" in assistant_reply
+    assert "Who would benefit most from this idea, and what makes the timing right?" in assistant_reply
+    assert next_phase == "exploration"
+    assert "best_intake_answer_for_transition" not in st.session_state # Ensure it's popped
+
+    mock_save_session.assert_called() # Ensure state is saved by route_conversation
+    # We are not testing handle_exploration here, so no need to check its call unless debugging interactions
