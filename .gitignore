@@ -48,5 +48,9 @@ Thumbs.db
 
 # Databases
 *.sqlite3
+*.sqlite
 *.db
 .env
+
+#Ignore ouptut folder
+out 
