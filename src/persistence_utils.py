@@ -4,18 +4,55 @@ import os
 import datetime
 from typing import Dict, Optional, Any
 
-# Use the SQLITE_DB_PATH environment variable for the database file
-SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "chatbot_sessions.sqlite") # Default if not set
+# --- Dynamic Database Path Logic ---
+_DB_FILENAME = "chatbot_sessions.sqlite"
+_DATA_DIR_PATH = "/data"
+
+def get_dynamic_db_path() -> str:
+    """
+    Determines the SQLite database path dynamically.
+    Uses /data/chatbot_sessions.sqlite if /data exists,
+    otherwise defaults to chatbot_sessions.sqlite in the current working directory.
+    """
+    if os.path.exists(_DATA_DIR_PATH) and os.path.isdir(_DATA_DIR_PATH):
+        # Check if the /data directory is writable
+        # This is a simplified check; real-world scenarios might need more robust permission handling
+        if os.access(_DATA_DIR_PATH, os.W_OK):
+            return os.path.join(_DATA_DIR_PATH, _DB_FILENAME)
+        else:
+            # /data exists but is not writable, fall back to local
+            print(f"Warning: Directory '{_DATA_DIR_PATH}' exists but is not writable. Using local DB path.")
+            return _DB_FILENAME
+    return _DB_FILENAME
+
+SQLITE_DB_PATH = get_dynamic_db_path()
+# --- End Dynamic Database Path Logic ---
 
 def get_db_connection() -> sqlite3.Connection:
     """Establishes and returns a SQLite database connection."""
+    # Ensure SQLITE_DB_PATH is current if it could change after module load
+    # For this setup, it's set once at module load. If it needed to be more dynamic,
+    # this function might need to call get_dynamic_db_path() directly.
     return sqlite3.connect(SQLITE_DB_PATH)
 
 def ensure_db():
     """
     Ensures that the necessary tables (sessions, search_cache) exist in the database.
-    Creates them if they are missing.
+    Creates them if they are missing using the dynamically determined path.
     """
+    # Ensure we are using the potentially updated path
+    current_db_path = get_dynamic_db_path()
+    if SQLITE_DB_PATH != current_db_path:
+        # This case should ideally not happen if SQLITE_DB_PATH is set correctly at module load
+        # and not changed elsewhere. However, as a safeguard:
+        print(f"Warning: DB path discrepancy. Module loaded with {SQLITE_DB_PATH}, but current dynamic path is {current_db_path}. Using {current_db_path}.")
+        # In a more complex app, you might re-initialize connection logic here or raise an error.
+        # For now, we'll proceed assuming get_db_connection() will use the module-level SQLITE_DB_PATH
+        # which should be the result of get_dynamic_db_path() at import time.
+        # To be absolutely sure, ensure_db could take the path as an argument or re-fetch it.
+        # For simplicity, we rely on get_db_connection() using the module-level SQLITE_DB_PATH.
+        pass
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -39,9 +76,11 @@ def ensure_db():
 
     conn.commit()
     conn.close()
-    print(f"Database {SQLITE_DB_PATH} ensured with sessions and search_cache tables.")
+    # Use the actual path that will be used by get_db_connection
+    print(f"Database {SQLITE_DB_PATH} ensured with sessions and search_cache tables at path: {os.path.abspath(SQLITE_DB_PATH)}")
 
 # Call ensure_db on module load to make sure tables are ready
+# This will now use the dynamically determined SQLITE_DB_PATH
 ensure_db()
 
 def _datetime_converter(o):
