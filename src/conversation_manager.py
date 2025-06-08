@@ -6,7 +6,7 @@ import asyncio
 import logging # Add this import
 
 from .persistence_utils import save_session, load_session
-from .llm_utils import build_prompt, query_openai
+from .llm_utils import build_prompt, query_openai, propose_next_conversation_turn
 from . import search_utils
 from . import conversation_phases # Added for phase routing
 from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
@@ -227,27 +227,26 @@ def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
     next_phase = current_phase # Default next_phase
 
     # Check if this is the initial call for the exploration phase after intake
-    if not user_message and current_phase == "exploration" and "best_intake_answer_for_transition" in st.session_state:
-        best_answer = st.session_state.pop("best_intake_answer_for_transition") # Get and remove the stored answer
-        
-        # Remove any existing "maturity-score" or similar system message if present
-        # This is a proactive cleanup, though streamlit_app.py already clears history.
-        if st.session_state.get("conversation_history"):
-            # Check the last message if it's a system message to be replaced
-            # This logic might need adjustment if the "maturity score" message isn't always the last one
-            # or if it's not marked with role "system".
-            # For now, we assume the new message will effectively replace it or be the first one.
-            pass # No explicit removal here, as streamlit_app.py clears history.
-                 # The new message will be the first in the 'ideation' stage.
+    if not user_message and current_phase == "exploration" and st.session_state.get("stage") == "ideation":
+        # This is the transition from intake to ideation (exploration phase starts here)
+        # Remove the marker that was set at the end of intake
+        st.session_state.pop("best_intake_answer_for_transition", None)
 
-        assistant_reply = (
-            f"Let’s build on your insight about \"{best_answer}\". "
-            "Who would benefit most from this idea, and what makes the timing right?"
+        # Remove any existing "maturity-score" or similar system message if present
+        if st.session_state.get("conversation_history"):
+            # This cleanup might be better handled in streamlit_app.py when transitioning stages
+            pass
+
+        assistant_reply = propose_next_conversation_turn(
+            intake_answers=st.session_state.get("intake_answers", []),
+            scratchpad=st.session_state.get("scratchpad", EMPTY_SCRATCHPAD.copy()),
+            phase=current_phase, # Should be "exploration"
+            conversation_history=st.session_state.get("conversation_history", [])
         )
-        # The phase remains "exploration"
+        # The phase remains "exploration" as this is the first turn of exploration
         next_phase = "exploration"
         # The calling function in streamlit_app.py will append this to history.
-        save_session(st.session_state["user_id"], dict(st.session_state)) # Persist state changes, including removal of best_intake_answer_for_transition
+        save_session(st.session_state["user_id"], dict(st.session_state))
         return assistant_reply, next_phase
 
     if current_phase == "exploration":

@@ -1,39 +1,8 @@
 import streamlit as st
 from .utils.scratchpad_extractor import update_scratchpad
 from .constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS
+from .llm_utils import query_openai, propose_next_conversation_turn # Import query_openai and propose_next_conversation_turn
 import json
-
-def extract_best_idea(scratchpad: dict, intake_answers: list) -> str:
-    """
-    Review all prior user inputs (intake + scratchpad) to select the statement with the most potential, clarity, or emphasis.
-    """
-    candidates = []
-    # Prioritize solution and problem (if substantive)
-    for key in ["solution", "problem"]:
-        value = scratchpad.get(key, "")
-        if value and len(value.strip()) > 20:
-            candidates.append(value.strip())
-    # Search intake answers for the longest, most idea-like answer
-    for ans in intake_answers:
-        text = ans.get("text", "")
-        if text and len(text.strip()) > 20:
-            candidates.append(text.strip())
-    # Return the longest (proxy for most substantial/idea-like)
-    return max(candidates, key=len, default="your idea")
-
-def generate_prompt(prompt_type: str, scratchpad: dict, intake_answers: list) -> str:
-    best_idea = extract_best_idea(scratchpad, intake_answers)
-    if prompt_type == "exploration":
-        return (
-            f"Let's explore your idea: \"{best_idea}\". "
-            "What possible directions, uses, or user groups come to mind, or would you like to brainstorm some possibilities together?"
-        )
-    elif prompt_type == "development":
-        return (
-            f"Now that we've narrowed in on \"{best_idea}\", "
-            "which aspect would you like to flesh out next—such as the core benefit, who it helps most, or how it could work in practice?"
-        )
-    return "Tell me more about your thoughts."
 
 def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
@@ -45,10 +14,23 @@ def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
     # After several exploration turns, check readiness to move to development
     if exploration_turns >= 4 and any(word in user_message.lower() for word in ["ready", "next", "move forward", "develop", "yes"]):
         st.session_state["exploration_turns"] = 0  # reset for next phase
-        assistant_reply = "Great! Let's start organizing and refining your ideas further. Which specific aspect should we delve into first?"
+        assistant_reply = propose_next_conversation_turn(
+            intake_answers=st.session_state.get("intake_answers", []),
+            scratchpad=updated_scratchpad,
+            phase="development", # Transitioning to development
+            conversation_history=st.session_state.get("conversation_history", [])
+        )
         next_phase = "development"
     else:
-        assistant_reply = generate_prompt("exploration", updated_scratchpad, intake_answers)
+        # For non-transition turns within exploration, we might still use a simpler prompt or LLM call
+        # For now, let's use propose_next_conversation_turn to keep it consistent,
+        # or we can refine this if it feels too heavy for every turn.
+        assistant_reply = propose_next_conversation_turn(
+            intake_answers=st.session_state.get("intake_answers", []),
+            scratchpad=updated_scratchpad,
+            phase="exploration", # Still in exploration
+            conversation_history=st.session_state.get("conversation_history", [])
+        )
         st.session_state["exploration_turns"] = exploration_turns + 1
         next_phase = "exploration"
 
@@ -63,10 +45,20 @@ def handle_development(user_message: str, scratchpad: dict) -> tuple[str, str]:
 
     if development_turns >= 4 and any(word in user_message.lower() for word in ["summary", "complete", "finish", "wrap up"]):
         st.session_state["development_turns"] = 0  # reset for next phase
-        assistant_reply = "You've developed a solid foundation! Let's review and summarize everything we've discussed."
+        assistant_reply = propose_next_conversation_turn(
+            intake_answers=st.session_state.get("intake_answers", []),
+            scratchpad=updated_scratchpad,
+            phase="summary", # Transitioning to summary
+            conversation_history=st.session_state.get("conversation_history", [])
+        )
         next_phase = "summary"
     else:
-        assistant_reply = generate_prompt("development", updated_scratchpad, intake_answers)
+        assistant_reply = propose_next_conversation_turn(
+            intake_answers=st.session_state.get("intake_answers", []),
+            scratchpad=updated_scratchpad,
+            phase="development", # Still in development
+            conversation_history=st.session_state.get("conversation_history", [])
+        )
         st.session_state["development_turns"] = development_turns + 1
         next_phase = "development"
 
@@ -87,10 +79,19 @@ def handle_summary(user_message: str, scratchpad: dict) -> tuple[str, str]:
 
     structured_summary = json.dumps(snapshot, indent=2)
 
-    assistant_reply = (
-        f"Here's a concise summary of your refined idea:\n\n```json\n{structured_summary}\n```\n\n{teaser} "
-        "Would you like to refine any of these further or explore a new idea?"
+    # For the transition from summary to refinement, use propose_next_conversation_turn
+    assistant_reply = propose_next_conversation_turn(
+        intake_answers=st.session_state.get("intake_answers", []),
+        scratchpad=updated_scratchpad, # Pass the most current scratchpad
+        phase="refinement", # Transitioning to refinement
+        conversation_history=st.session_state.get("conversation_history", [])
     )
+    # The structured_summary and teaser can be part of the context for the LLM if needed,
+    # or displayed separately in the UI before this LLM-generated prompt.
+    # For now, the LLM will generate the next turn based on the scratchpad.
+    # We might want to prepend the JSON summary to the assistant_reply if it's crucial for the user to see it *before* the next question.
+    # Example:
+    # assistant_reply = f"Here's a concise summary of your refined idea:\n\n```json\n{structured_summary}\n```\n\n{teaser}\n\n{llm_proposed_next_turn}"
 
     next_phase = "refinement"
     return assistant_reply, next_phase
@@ -105,10 +106,14 @@ def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
     st.session_state["scratchpad"] = updated_scratchpad
 
-    assistant_reply = (
-        "Let's refine your idea further. Is there a particular aspect you'd like to expand on or clarify more deeply?"
+    # For turns within refinement, or when transitioning from refinement (e.g., to new idea/exploration)
+    assistant_reply = propose_next_conversation_turn(
+        intake_answers=st.session_state.get("intake_answers", []),
+        scratchpad=updated_scratchpad,
+        phase="refinement", # Still in refinement, or LLM can suggest moving to exploration
+        conversation_history=st.session_state.get("conversation_history", [])
     )
-    next_phase = "refinement"
+    next_phase = "refinement" # The LLM might guide to a different phase implicitly
     return assistant_reply, next_phase
 
 handle_research = handle_refinement
