@@ -1,19 +1,23 @@
 import os
-import openai
+from openai import OpenAI # Import the OpenAI class
+
+# Instantiate the client. It will automatically pick up the OPENAI_API_KEY environment variable.
+client = OpenAI()
 
 # Configure OpenAI key from env
-openai.api_key = os.getenv('OPENAI_API_KEY')
+# openai.api_key = os.getenv('OPENAI_API_KEY') # Removed: Handled by client instantiation
 
 # Unified function to query OpenAI's GPT-4.1
-def query_openai(prompt):
-    response = openai.ChatCompletion.create(
+def query_openai(prompt, **kwargs): # Added **kwargs to accept additional parameters
+    response = client.chat.completions.create( # Changed to v1.x client syntax
         model='gpt-4-1106-preview',
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt}
-        ]
+        ],
+        **kwargs # Pass through any additional keyword arguments
     )
-    return response.choices[0].message['content']
+    return response.choices[0].message.content # Access content via attribute
 from dotenv import load_dotenv # Import load_dotenv
 import streamlit as st
 from typing import Optional
@@ -164,7 +168,7 @@ def summarize_response(text: str) -> str:
     """
     summary_prompt = f"Summarize the following text in 100 tokens or less:\n\n{text}"
     # Use a slightly lower temperature for summarization to get more concise results
-    summary = query_openai(summary_prompt, temperature=0.5, max_output_tokens=100)
+    summary = query_openai(summary_prompt, temperature=0.5, max_tokens=100) # Changed max_output_tokens to max_tokens
     return summary
 
 # Alias for backward compatibility or clearer naming in some contexts

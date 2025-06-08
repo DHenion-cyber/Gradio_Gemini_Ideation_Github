@@ -2,5 +2,5 @@ streamlit
 python-dotenv
 pytest
 httpx
-openai>=0.28.0,<1.0.0
+openai>=1.0.0,<2.0.0 # Ensure compatibility with modern evals and assume src code supports openai v1.x
 evals>=0.0.19
