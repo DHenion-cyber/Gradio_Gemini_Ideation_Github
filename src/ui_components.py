@@ -106,3 +106,25 @@ def apply_responsive_css():
 
 # Call this function in your Streamlit app's main execution block
 # apply_responsive_css()
+def render_feedback_box(message_key_prefix: str):
+    """
+    Renders a text input and a button to collect feedback for a specific message.
+
+    Args:
+        message_key_prefix (str): A unique prefix for the streamlit widget keys
+                                  to avoid collisions, e.g., "feedback_for_msg_1".
+    """
+    feedback_text = st.text_area(
+        "Share your feedback on this response:",
+        key=f"{message_key_prefix}_text_area",
+        height=100
+    )
+    submit_feedback = st.button(
+        "Submit Feedback",
+        key=f"{message_key_prefix}_button"
+    )
+    if submit_feedback and feedback_text:
+        return feedback_text
+    elif submit_feedback and not feedback_text:
+        st.caption("Please enter some feedback before submitting.")
+    return None

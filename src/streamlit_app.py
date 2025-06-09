@@ -1,6 +1,7 @@
 import streamlit as st
 import sys
 import os
+import datetime # Added for feedback timestamp
 
 # Add the project root to the Python path to enable absolute imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -10,7 +11,8 @@ from src.conversation_manager import (
     is_out_of_scope, route_conversation, # route_conversation is key for the new flow
      # Kept for commented out sections
 )
-from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations, progress_bar
+from src.persistence_utils import save_session # Added for saving feedback
+from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations, progress_bar, render_feedback_box # Added render_feedback_box
 from ui.sidebar import create_sidebar
 from ui.summary_panel import display_summary_panel
 
@@ -175,11 +177,31 @@ try:
 
         # Display conversation history
         if "conversation_history" in st.session_state:
-            for message in st.session_state["conversation_history"]:
+            for i, message in enumerate(st.session_state["conversation_history"]):
                 with st.chat_message(message["role"]):
                     citations_for_render = message.get("citations", [])
                     render_response_with_citations(message["text"], citations_for_render)
-        
+
+                    if message["role"] == "assistant" and "feedback" not in message: # Only show if no feedback yet
+                        feedback_key_prefix = f"feedback_msg_{i}"
+                        feedback_text = render_feedback_box(feedback_key_prefix)
+                        if feedback_text:
+                            # Ensure message is a dictionary and can be updated
+                            if isinstance(st.session_state["conversation_history"][i], dict):
+                                st.session_state["conversation_history"][i]["feedback"] = feedback_text
+                                st.session_state["conversation_history"][i]["feedback_timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                                if "user_id" in st.session_state:
+                                    save_session(st.session_state["user_id"], dict(st.session_state))
+                                    logging.info(f"Feedback saved for message {i} by user {st.session_state['user_id']}.")
+                                    st.caption("Thank you for your feedback!") # Give user confirmation
+                                    st.rerun() # Rerun to hide the input box and show caption
+                                else:
+                                    logging.warning("user_id not found, cannot save feedback.")
+                            else:
+                                logging.error(f"Message at index {i} is not a dictionary, cannot save feedback.")
+                    elif message["role"] == "assistant" and "feedback" in message:
+                        st.caption(f"Feedback received: \"{message['feedback']}\"")
+
         # Commented out sections for Actionable Recommendations and Summary Report
         # These can be integrated into the phase logic later if needed.
         # st.subheader("Actionable Recommendations")
