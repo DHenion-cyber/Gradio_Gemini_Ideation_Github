@@ -106,25 +106,75 @@ def apply_responsive_css():
 
 # Call this function in your Streamlit app's main execution block
 # apply_responsive_css()
-def render_feedback_box(message_key_prefix: str):
-    """
-    Renders a text input and a button to collect feedback for a specific message.
 
-    Args:
-        message_key_prefix (str): A unique prefix for the streamlit widget keys
-                                  to avoid collisions, e.g., "feedback_for_msg_1".
+# Commenting out the old render_feedback_box as it's replaced by general feedback mechanisms
+# def render_feedback_box(message_key_prefix: str):
+#     """
+#     Renders a text input and a button to collect feedback for a specific message.
+#
+#     Args:
+#         message_key_prefix (str): A unique prefix for the streamlit widget keys
+#                                   to avoid collisions, e.g., "feedback_for_msg_1".
+#     """
+#     feedback_text = st.text_area(
+#         "Share your feedback on this response:",
+#         key=f"{message_key_prefix}_text_area",
+#         height=100
+#     )
+#     submit_feedback = st.button(
+#         "Submit Feedback",
+#         key=f"{message_key_prefix}_button"
+#     )
+#     if submit_feedback and feedback_text:
+#         return feedback_text
+#     elif submit_feedback and not feedback_text:
+#         st.caption("Please enter some feedback before submitting.")
+#     return None
+
+def render_general_feedback_trigger():
     """
+    Renders an expander that allows users to submit general feedback at any time.
+    Returns the feedback text if submitted, otherwise None.
+    """
+    with st.expander("💬 Share General Feedback"):
+        feedback_text = st.text_area(
+            "Your thoughts on the session or chatbot:",
+            key="general_feedback_text_area",
+            height=150
+        )
+        submit_general_feedback = st.button(
+            "Submit General Feedback",
+            key="general_feedback_button"
+        )
+        if submit_general_feedback and feedback_text:
+            st.caption("Thank you for your general feedback!")
+            return feedback_text
+        elif submit_general_feedback and not feedback_text:
+            st.caption("Please enter some feedback before submitting.")
+    return None
+
+def render_final_session_feedback_prompt():
+    """
+    Renders a prompt for final session feedback.
+    Returns the feedback text if submitted, otherwise None.
+    """
+    st.markdown("---")
+    st.markdown("### Your feedback matters to me!")
+    st.markdown("Before you go, would you like to share any overall thoughts on this session?")
+    
     feedback_text = st.text_area(
-        "Share your feedback on this response:",
-        key=f"{message_key_prefix}_text_area",
-        height=100
+        "Overall session feedback:",
+        key="final_session_feedback_text_area",
+        height=150
     )
-    submit_feedback = st.button(
-        "Submit Feedback",
-        key=f"{message_key_prefix}_button"
+    submit_final_feedback = st.button(
+        "Submit Final Feedback",
+        key="final_session_feedback_button"
     )
-    if submit_feedback and feedback_text:
+
+    if submit_final_feedback and feedback_text:
+        st.success("Thank you! Your final feedback has been recorded.")
         return feedback_text
-    elif submit_feedback and not feedback_text:
-        st.caption("Please enter some feedback before submitting.")
+    elif submit_final_feedback and not feedback_text:
+        st.warning("Please enter some feedback or close this section if you're done.")
     return None

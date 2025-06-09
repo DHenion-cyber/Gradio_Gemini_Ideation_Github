@@ -61,9 +61,24 @@ def ensure_db():
         CREATE TABLE IF NOT EXISTS sessions (
             uuid TEXT PRIMARY KEY,
             data_json TEXT,
-            last_modified TEXT
+            last_modified TEXT,
+            general_session_feedback TEXT,
+            general_session_feedback_timestamp TEXT
         )
     """)
+
+    # Add new columns if they don't exist (for existing databases)
+    # This is a more robust way to handle schema changes
+    table_info = cursor.execute("PRAGMA table_info(sessions);").fetchall()
+    column_names = [info[1] for info in table_info]
+
+    if "general_session_feedback" not in column_names:
+        cursor.execute("ALTER TABLE sessions ADD COLUMN general_session_feedback TEXT;")
+        print("Added column 'general_session_feedback' to 'sessions' table.")
+    
+    if "general_session_feedback_timestamp" not in column_names:
+        cursor.execute("ALTER TABLE sessions ADD COLUMN general_session_feedback_timestamp TEXT;")
+        print("Added column 'general_session_feedback_timestamp' to 'sessions' table.")
 
     # Create search_cache table
     cursor.execute("""
