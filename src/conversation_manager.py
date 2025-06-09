@@ -181,8 +181,50 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     Returns the response text and the search results.
     """
     print(f"DEBUG: In generate_assistant_response. Event loop running: {asyncio.get_event_loop().is_running()}")
-    # Perform search
-    search_results = await search_utils.perform_search(user_input)
+    
+    search_results = [] # Initialize with no results
+    perform_web_search = False
+    user_input_lower = user_input.lower()
+    search_keywords = ["search for", "research", "find information on", "look up", "what is", "who is", "tell me about"] # Add more as needed
+
+    # Condition 1: User explicitly requests search
+    if any(keyword in user_input_lower for keyword in search_keywords):
+        perform_web_search = True
+        print("DEBUG: User explicitly requested search.")
+
+    # Condition 2: Current phase is 'refinement' and a missing fact is identified (placeholder for missing fact logic)
+    current_phase = st.session_state.get("phase", "exploration")
+    if current_phase == "refinement":
+        # TODO: Implement robust "missing fact" identification logic.
+        # For now, we can assume if in refinement and not an explicit search,
+        # a simple heuristic might be to search if the user asks a question.
+        # This is a placeholder and should be improved.
+        if "?" in user_input and not perform_web_search: # Simple heuristic: user asks a question
+            perform_web_search = True
+            print("DEBUG: Performing search in refinement phase (heuristic: user asked a question).")
+        elif not perform_web_search: # If no explicit search and not a question, maybe still search sometimes?
+             # This part needs careful consideration to avoid over-searching.
+             # For now, let's be conservative and only search on explicit request or question in refinement.
+             pass
+
+
+    if perform_web_search:
+        # Check research cap BEFORE attempting search
+        current_calls = st.session_state.get("perplexity_calls", 0)
+        if current_calls < search_utils.MAX_PERPLEXITY_CALLS:
+            # Check API key BEFORE incrementing calls or attempting search
+            perplexity_api_key = os.environ.get("PERPLEXITY_API_KEY")
+            if perplexity_api_key:
+                st.session_state["perplexity_calls"] = current_calls + 1
+                print(f"DEBUG: Performing Perplexity search for: {user_input}. Call count: {st.session_state['perplexity_calls']}")
+                search_results = await search_utils.perform_search(user_input)
+            else:
+                print("DEBUG: PERPLEXITY_API_KEY not set. Skipping search.")
+                # Optionally, inform the user or return a specific message via search_results
+        else:
+            print(f"DEBUG: Perplexity call cap reached ({st.session_state.get('perplexity_calls', 0)}). Skipping search.")
+            # Optionally, inform the user that the search cap has been reached.
+            # search_results can remain empty or carry a message.
 
     # Build the full prompt
     full_prompt = build_prompt(
@@ -409,7 +451,8 @@ def is_out_of_scope(msg: str) -> bool:
             # Use regex word boundaries for short, sensitive keywords
             # \b ensures that the keyword is a whole word
             pattern = r"\b" + re.escape(keyword) + r"\b"
-            if re.search(pattern, msg_lower):
+            match = re.search(pattern, msg_lower)
+            if match:
                 return True
         elif keyword in msg_lower: # For longer, less ambiguous keywords
             return True
