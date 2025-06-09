@@ -15,7 +15,11 @@ from typing import Any, Generator, Iterator, Optional, Sequence, Tuple, Type, Ty
 
 import openai
 import yaml
+from dotenv import load_dotenv # Import load_dotenv
 from openai import OpenAI
+
+# Load environment variables from .env file before initializing client
+load_dotenv()
 
 from .completion_fns.openai import OpenAIChatCompletionFn, OpenAICompletionFn
 from evals.api import CompletionFn, DummyCompletionFn

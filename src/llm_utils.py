@@ -1,5 +1,10 @@
 import os
+from dotenv import load_dotenv # Import load_dotenv
 from openai import OpenAI # Import the OpenAI class
+import streamlit as st
+from typing import Optional
+
+load_dotenv() # Load environment variables from .env file
 
 # Instantiate the client. It will automatically pick up the OPENAI_API_KEY environment variable.
 client = OpenAI()
@@ -18,11 +23,6 @@ def query_openai(prompt, **kwargs): # Added **kwargs to accept additional parame
         **kwargs # Pass through any additional keyword arguments
     )
     return response.choices[0].message.content # Access content via attribute
-from dotenv import load_dotenv # Import load_dotenv
-import streamlit as st
-from typing import Optional
-
-load_dotenv() # Load environment variables from .env file
 
 # Assuming error_handling.py and search_utils.py exist or will be created
 # For now, using placeholders for these imports.

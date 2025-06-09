@@ -6,3 +6,8 @@ openai>=1.0.0,<2.0.0 # Ensure compatibility with modern evals and assume src cod
 # evals>=0.0.19
 pytest-asyncio
 zstandard
+blobfile
+blinker
+annotated-types
+protobuf
+backoff
