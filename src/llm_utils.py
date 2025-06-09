@@ -275,5 +275,42 @@ def summarize_response(text: str) -> str:
     summary = query_openai(summary_prompt, temperature=0.5, max_tokens=100) # Changed max_output_tokens to max_tokens
     return summary
 
+def generate_contextual_follow_up(advice_text: str) -> str:
+    """
+    Generates a contextually relevant follow-up question based on the provided advice.
+    """
+    if not advice_text:
+        return ""
+
+    prompt = f"""Given the following advice:
+"{advice_text}"
+
+Generate a single, open-ended follow-up question that encourages the user to reflect on the advice, make a choice, or continue the conversation. The question should be directly related to the content of the advice. Avoid generic or canned questions.
+
+Follow-up question:"""
+
+    try:
+        # Using the existing query_openai function structure
+        response = client.chat.completions.create(
+            model='gpt-4-1106-preview', # Or your preferred model for this task
+            messages=[
+                {"role": "system", "content": "You are an expert at crafting engaging and contextually relevant follow-up questions."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7, # Allow for some creativity
+            max_tokens=50,   # Keep the question concise
+            n=1,
+            stop=None
+        )
+        question = response.choices[0].message.content.strip()
+        # Ensure it's a question
+        if question and not question.endswith("?"):
+            question += "?"
+        return question
+    except Exception as e:
+        # Log the error, but don't break the flow. Return an empty string.
+        print(f"Error generating follow-up question: {e}") # Or use a proper logger
+        return ""
+
 # Alias for backward compatibility or clearer naming in some contexts
 get_llm_response = query_openai

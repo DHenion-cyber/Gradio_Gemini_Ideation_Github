@@ -1,6 +1,27 @@
 import subprocess
 import os
 from dotenv import load_dotenv
+# import argparse # Removed as UI launch is no longer supported here
+
+# def launch_grading_ui(): # Removed as local UI launch seems unsupported/deprecated
+#     """Launches the OpenAI Evals grading UI."""
+#     record_path = "eval_results/eval_output.jsonl"
+#     if not os.path.exists(record_path):
+#         print(f"Error: Evaluation results file not found at {record_path}")
+#         print("Please run the evaluations first to generate the results file.")
+#         return
+#
+#     # The 'oaieval.app' command was found to be incorrect or part of an older/different setup.
+#     ui_cmd = ["oaieval.app", "--record_path", record_path]
+#     print(f"Attempting to launch grading UI with command: {' '.join(ui_cmd)}")
+#     print("This would typically open a local web server.")
+#     try:
+#         subprocess.run(ui_cmd, check=True)
+#     except FileNotFoundError:
+#         print("Error: 'oaieval.app' command not found. This local UI functionality may be deprecated.")
+#         print("Please check OpenAI's official documentation for current methods to review eval results, possibly via their online dashboard.")
+#     except subprocess.CalledProcessError as e:
+#         print(f"Error launching grading UI: {e}")
 
 def run_evals():
     load_dotenv()
@@ -27,4 +48,18 @@ def run_evals():
     subprocess.run(eval_cmd)
 
 if __name__ == "__main__":
-    run_evals()
+    # parser = argparse.ArgumentParser(description="Run OpenAI Evals or launch the grading UI.") # Reverted
+    # parser.add_argument(
+    #     "action",
+    #     choices=["run", "ui"],
+    #     nargs="?",
+    #     default="run",
+    #     help="Specify 'run' to execute evaluations or 'ui' to launch the grading interface (default: run)."
+    # )
+    # args = parser.parse_args()
+    #
+    # if args.action == "run":
+    #     run_evals()
+    # elif args.action == "ui":
+    #     launch_grading_ui()
+    run_evals() # Reverted to only run evaluations

@@ -22,7 +22,8 @@ dist/
 *.whl
 
 # OpenAI Evals
-eval_results/
+eval_results/*
+!eval_results/eval_output.jsonl
 sessions/
 eval_yaml_debug_dump.txt
 out/

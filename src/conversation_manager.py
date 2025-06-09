@@ -4,9 +4,10 @@ import uuid
 import os
 import asyncio
 import logging # Add this import
+import random # Added for empathetic statements
 
 from .persistence_utils import save_session, load_session
-from .llm_utils import build_prompt, query_openai, propose_next_conversation_turn
+from .llm_utils import build_prompt, query_openai, propose_next_conversation_turn, generate_contextual_follow_up # Added generate_contextual_follow_up
 from . import search_utils
 from . import conversation_phases # Added for phase routing
 from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
@@ -237,18 +238,40 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
         element_focus=None
     )
 
-    # Query Gemini
-    response_text = query_openai(full_prompt)
+    # Check for empathetic trigger phrases
+    empathetic_prepend = ""
+    empathy_keywords = ["i'm struggling", "i always ignore", "i'm frustrated"]
+    if any(keyword in user_input.lower() for keyword in empathy_keywords):
+        empathetic_statements = [
+            "It sounds like things are a bit tough right now, and that's completely understandable. ",
+            "I hear you; it can be really challenging when you're feeling that way. ",
+            "Thanks for sharing that; it takes courage to acknowledge those feelings. "
+        ]
+        empathetic_prepend = random.choice(empathetic_statements)
+
+    # Query Gemini for main advice
+    main_advice_text = query_openai(full_prompt)
+
+    # Generate contextual follow-up question
+    follow_up_question = ""
+    if main_advice_text: # Only generate if there's main advice
+        follow_up_question = generate_contextual_follow_up(main_advice_text)
+
+    # Combine response parts
+    final_response_text = f"{empathetic_prepend}{main_advice_text}"
+    if follow_up_question:
+        final_response_text += f" {follow_up_question}"
+
 
     # Store result in conversation history
     st.session_state["conversation_history"].append({
         "role": "assistant",
-        "text": response_text,
+        "text": final_response_text, # Store the combined response
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     })
     st.session_state["turn_count"] += 1
     save_session(st.session_state["user_id"], dict(st.session_state))
-    return response_text, search_results
+    return final_response_text, search_results
 
 def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
     """

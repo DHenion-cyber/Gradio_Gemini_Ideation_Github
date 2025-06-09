@@ -1,5 +1,6 @@
 import logging
 import string
+import re
 from typing import Any, Callable, Iterable, Optional, Union
 
 from evals import CompletionFn
@@ -8,6 +9,9 @@ from evals.elsuite.utils import PromptFn, format_necessary, format_prompt
 from evals.prompt.base import OpenAICreateChatPrompt, is_chat_prompt
 
 INVALID_STR = "__invalid__"
+
+MODEL_GRADED_LABELS = ["Excellent", "Good", "Fair", "Poor"]
+MODEL_GRADED_LABEL_PATTERN = re.compile(r'"(' + '|'.join(MODEL_GRADED_LABELS) + r')"')
 
 
 ANSWER_PROMPTS = {
@@ -116,15 +120,33 @@ def get_choice(
     lines = text.strip().split("\n")
     if eval_type.startswith("cot_classify"):
         lines = lines[::-1]  # reverse lines
-    for line in lines:
-        line = line.strip()
-        line = "".join(c for c in line if c not in string.punctuation)
-        if not line:
+    for raw_line in lines:
+        current_line_stripped = raw_line.strip()
+        # Process the line: remove punctuation and convert to lower case for robust matching
+        processed_line_for_match = "".join(c for c in current_line_stripped if c not in string.punctuation).lower()
+        if not processed_line_for_match:
             continue
-        for choice in choice_strings:
-            if match_fn(line, choice):
-                return choice
+        for original_choice_str in choice_strings:
+            # Match the processed line against the lowercased version of the choice
+            if match_fn(processed_line_for_match, original_choice_str.lower()):
+                return original_choice_str # Return the original cased choice string
     logging.warn(f"Choices {choice_strings} not parsable for {eval_type}: {text}")
+    return INVALID_STR
+
+
+def extract_label_from_model_graded_response(text: str) -> str:
+    """
+    Extracts the final evaluation label (Excellent, Good, Fair, Poor)
+    from a model-graded response.
+
+    Searches for the last quoted occurrence of one of the predefined labels.
+    The regex pattern `MODEL_GRADED_LABEL_PATTERN` should be defined globally.
+    e.g., extracts "Good" from '... categorized as "Good".'
+    """
+    matches = MODEL_GRADED_LABEL_PATTERN.findall(text)
+    if matches:
+        # The pattern captures the content *inside* the quotes
+        return matches[-1]
     return INVALID_STR
 
 
