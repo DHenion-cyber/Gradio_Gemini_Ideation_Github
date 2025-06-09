@@ -392,19 +392,29 @@ def is_out_of_scope(msg: str) -> bool:
     Checks if a message is out of scope based on predefined keywords.
     Returns True if the message includes PHI, TAM/SAM/SOM modeling, or other off-topic queries.
     """
+    import re # Add import for regular expressions
     msg_lower = msg.lower()
     # Simple keyword matching for demonstration. A more robust solution would use NLP.
-    if "personal health information" in msg_lower or \
-       "phi" in msg_lower or \
-       "health records" in msg_lower or \
-       "medical history" in msg_lower or \
-       "diabetes records" in msg_lower or \
-       "tam" in msg_lower or \
-       "sam" in msg_lower or \
-       "som" in msg_lower or \
-       "market size" in msg_lower or \
-       "financial projection" in msg_lower:
-        return True
+    out_of_scope_keywords = [
+        "personal health information", "phi", "pii",
+        "health records", "medical history", "diabetes records",
+        "privacy policy", "health data",
+        "tam", "sam", "som", "market size", "financial projection"
+    ]
+    
+    short_sensitive_keywords = ["phi", "pii", "tam", "sam", "som"]
+
+    for keyword in out_of_scope_keywords:
+        if keyword in short_sensitive_keywords:
+            # Use regex word boundaries for short, sensitive keywords
+            # \b ensures that the keyword is a whole word
+            pattern = r"\b" + re.escape(keyword) + r"\b"
+            if re.search(pattern, msg_lower):
+                return True
+        elif keyword in msg_lower: # For longer, less ambiguous keywords
+            return True
+    
+    # If none of the out-of-scope keywords are found, the message is considered in-scope.
     return False
 
 def update_token_usage(tokens: int):

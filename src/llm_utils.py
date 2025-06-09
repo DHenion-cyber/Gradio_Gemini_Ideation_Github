@@ -77,13 +77,19 @@ def format_citations(search_results: list) -> tuple[str, str]:
     and a reference block.
     """
     citations_text = []
-    reference_block = ["\n--- References ---"]
+    reference_block_content = [] # Initialize empty list for content
+    
+    if not search_results:
+        return "", "" # Return empty strings if no search results
+
+    # Only add header and process if there are search results
+    reference_block_content.append("\n--- References ---")
     for i, result in enumerate(search_results):
         citation_tag = f"[^{i+1}]"
         citations_text.append(citation_tag)
-        reference_block.append(f"{citation_tag} {result.get('title', 'No Title')} - {result.get('url', 'No URL')}")
+        reference_block_content.append(f"{citation_tag} {result.get('title', 'No Title')} - {result.get('url', 'No URL')}")
     
-    return " ".join(citations_text), "\n".join(reference_block) if reference_block else ""
+    return " ".join(citations_text), "\n".join(reference_block_content)
 
 
 def build_prompt(conversation_history: list, scratchpad: dict, summaries: list, user_input: str, phase: str, search_results: list = None, element_focus: dict = None) -> str:

@@ -5,17 +5,7 @@ from src.constants import EMPTY_SCRATCHPAD # Import for tests
 import streamlit as st
 from unittest.mock import patch # Added for save_session mocking
 
-@pytest.fixture(autouse=True)
-def reset_session_state():
-    st.session_state.clear()
-    # Mock st.query_params before it's accessed at the module level in conversation_manager
-    if not hasattr(st, 'query_params'):
-        st.query_params = {}
-    cm.initialize_conversation_state() # Re-initialize with defaults
-    # Ensure user_id is explicitly set for tests that might rely on it before full init
-    st.session_state["user_id"] = cm.generate_uuid()
-    yield
-    st.session_state.clear()
+# The reset_session_state fixture is now in conftest.py and will be auto-used.
 
 def test_initialize_conversation_state():
     # initialize_conversation_state is called by the fixture
@@ -54,6 +44,7 @@ def test_build_summary_from_scratchpad():
     assert "\nChannels:\nUniversity partnerships" in summary
     assert "\nCompetitive Moat:\nProprietary algorithm" in summary
 
+@pytest.mark.llm_mocked
 @pytest.mark.asyncio
 @patch('src.conversation_manager.save_session') # Mock save_session
 @patch('src.search_utils.perform_search') # Mock perform_search
@@ -78,10 +69,20 @@ def test_trim_conversation_history():
     cm.trim_conversation_history()
     assert len(st.session_state["conversation_history"]) < 100
 
-def test_is_out_of_scope():
-    assert cm.is_out_of_scope("Tell me about your diabetes records")
-    assert cm.is_out_of_scope("How large is the TAM?")
-    assert not cm.is_out_of_scope("How do I improve engagement?")
+@pytest.mark.parametrize(
+    "text_input, expected_output",
+    [
+        ("Tell me about your diabetes records", True),
+        ("How large is the TAM?", True),
+        ("Can you share PII?", True), # Example of another out-of-scope
+        ("What's your privacy policy regarding health data?", True), # Example
+        ("How do I improve engagement?", False),
+        ("What are some good business ideas?", False), # Example of in-scope
+        ("Let's talk about value proposition.", False), # Example
+    ],
+)
+def test_is_out_of_scope(text_input, expected_output):
+    assert cm.is_out_of_scope(text_input) == expected_output
 
 def test_update_token_usage(monkeypatch):
     cm.initialize_conversation_state() # Ensure full state is initialized
@@ -97,6 +98,7 @@ def test_enforce_session_time(monkeypatch):
     # Should not raise error; just return a warning message in actual use
     cm.enforce_session_time()
 
+@pytest.mark.llm_mocked
 def test_generate_actionable_recommendations(monkeypatch):
     cm.initialize_conversation_state() # Ensure full state is initialized
     # Mock the query_openai function within the conversation_manager's namespace
