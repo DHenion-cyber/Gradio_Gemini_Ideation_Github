@@ -1,9 +1,0 @@
-coaching-convo-quality.main:
-  class: evals.elsuite.modelgraded.classify:ModelBasedClassify
-  args:
-    samples_jsonl: evals/sample_data/coaching_convos_from_sessions.jsonl
-    modelgraded_spec: minimal-spec # Points to the spec in evals/registry/modelgraded/
-    completion_fns: # Renamed from completion_fn and now expects a list
-      - chatbot-openai
-    # The 'rubric' is now defined within the 'coaching-convo-quality-spec.yaml' via the 'args' field.
-    # The 'grader_model' is now handled by 'eval_completion_fn'.

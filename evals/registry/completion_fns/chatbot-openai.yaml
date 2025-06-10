@@ -1,4 +1,0 @@
-chatbot-openai:
-  class: evals.completion_fns.openai:OpenAIChatCompletionFn
-  args:
-    model: gpt-4o
