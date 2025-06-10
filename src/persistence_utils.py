@@ -90,9 +90,28 @@ def ensure_db():
     """)
 
     conn.commit()
+
+    # Create conversation_log table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_log (
+            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_uuid TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            source TEXT,
+            module TEXT,
+            stage TEXT,
+            user_message TEXT,
+            bot_message TEXT,
+            metadata_json TEXT,
+            FOREIGN KEY (session_uuid) REFERENCES sessions(uuid)
+        )
+    """)
+    print("Ensured 'conversation_log' table exists.")
+
+    conn.commit()
     conn.close()
     # Use the actual path that will be used by get_db_connection
-    print(f"Database {SQLITE_DB_PATH} ensured with sessions and search_cache tables at path: {os.path.abspath(SQLITE_DB_PATH)}")
+    print(f"Database {SQLITE_DB_PATH} ensured with sessions, search_cache, and conversation_log tables at path: {os.path.abspath(SQLITE_DB_PATH)}")
 
 # Call ensure_db on module load to make sure tables are ready
 # This will now use the dynamically determined SQLITE_DB_PATH
@@ -290,5 +309,81 @@ def clear_search_cache():
         print("Search cache cleared.")
     except sqlite3.Error as e:
         print(f"Error clearing search cache: {e}")
+    finally:
+        conn.close()
+
+def log_message_to_db(
+    session_uuid: str,
+    timestamp: datetime.datetime,
+    source: str,
+    module: str,
+    stage: str,
+    user_message: Optional[str] = None,
+    bot_message: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> Optional[int]:
+    """
+    Logs a single message turn (user or bot) or a system event to the conversation_log table.
+
+    Args:
+        session_uuid: The unique identifier for the session.
+        timestamp: The datetime object for when the message was logged.
+        source: Identifier for the origin of the log entry (e.g., 'user', 'bot', 'system').
+        module: The module or component logging the message (e.g., 'simulate_user_session.py', 'llm_utils').
+        stage: The stage in the conversation or process (e.g., 'ideation', 'critique', 'summary').
+        user_message: The user's message, if applicable.
+        bot_message: The bot's response, if applicable.
+        metadata: A dictionary for any additional structured data to log (will be JSON serialized).
+
+    Returns:
+        The row ID of the inserted log entry, or None if an error occurred.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    metadata_json_str = None
+    if metadata:
+        try:
+            metadata_json_str = json.dumps(metadata, default=_datetime_converter)
+        except TypeError as e:
+            print(f"Error serializing metadata for log in session {session_uuid}: {e}")
+            # Fallback for metadata serialization
+            safe_metadata = {}
+            for k, v in metadata.items():
+                if isinstance(v, datetime.datetime):
+                    safe_metadata[k] = v.isoformat()
+                elif isinstance(v, (dict, list, str, int, float, bool, type(None))):
+                    safe_metadata[k] = v
+                else:
+                    safe_metadata[k] = str(v)
+            metadata_json_str = json.dumps(safe_metadata)
+
+    iso_timestamp = timestamp.isoformat()
+
+    try:
+        cursor.execute(
+            """
+            INSERT INTO conversation_log
+            (session_uuid, timestamp, source, module, stage, user_message, bot_message, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_uuid,
+                iso_timestamp,
+                source,
+                module,
+                stage,
+                user_message,
+                bot_message,
+                metadata_json_str
+            )
+        )
+        conn.commit()
+        log_id = cursor.lastrowid
+        print(f"Message logged for session {session_uuid} with log_id {log_id}.")
+        return log_id
+    except sqlite3.Error as e:
+        print(f"Error logging message for session {session_uuid}: {e}")
+        return None
     finally:
         conn.close()

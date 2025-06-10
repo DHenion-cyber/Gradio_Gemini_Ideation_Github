@@ -181,6 +181,21 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     queries Gemini, and stores the result in conversation history.
     Returns the response text and the search results.
     """
+    # This patch is to support simulation/test scripts that run without `streamlit run` or UI context.
+    # Initialize essential session state keys if they don't exist, providing defaults for simulation.
+    st.session_state.setdefault("conversation_history", [])
+    st.session_state.setdefault("user_id", generate_uuid()) # Ensure user_id exists
+    st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy())
+    st.session_state.setdefault("summaries", [])
+    st.session_state.setdefault("token_usage", {"session": 0, "daily": 0})
+    st.session_state.setdefault("last_summary", "")
+    st.session_state.setdefault("start_timestamp", datetime.datetime.now(datetime.timezone.utc))
+    st.session_state.setdefault("maturity_score", 0)
+    st.session_state.setdefault("perplexity_calls", 0)
+    st.session_state.setdefault("phase", "exploration") # Default phase for simulation
+    st.session_state.setdefault("module", "default_module") # Default module for simulation
+    st.session_state.setdefault("turn_count", 0) # Ensure turn_count exists
+
     print(f"DEBUG: In generate_assistant_response. Event loop running: {asyncio.get_event_loop().is_running()}")
     
     search_results = [] # Initialize with no results
