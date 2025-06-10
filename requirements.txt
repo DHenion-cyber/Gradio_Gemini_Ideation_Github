@@ -3,8 +3,6 @@ python-dotenv
 pytest
 httpx
 openai>=1.0.0,<2.0.0 # Ensure compatibility with modern evals and assume src code supports openai v1.x
-# openai-evals[ui] # This package/extra was not found. Local evals are likely installed via `pip install -e ./evals` or `pip install evals`.
-# evals>=0.0.19
 pytest-asyncio
 zstandard
 blobfile

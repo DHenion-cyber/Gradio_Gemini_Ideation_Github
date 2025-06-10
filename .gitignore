@@ -21,16 +21,6 @@ dist/
 *.zip
 *.whl
 
-# OpenAI Evals
-eval_results/*
-!eval_results/eval_output.jsonl
-sessions/
-eval_yaml_debug_dump.txt
-out/
-openai-key.txt
-evals/elsuite/**/logs/
-evals/elsuite/**/outputs/
-
 # MacOS folder metadata
 .DS_Store
 
