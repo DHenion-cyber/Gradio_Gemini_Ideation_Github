@@ -1,47 +1,57 @@
 import os
 import sqlite3
 
-# Detect if we're running in a Hugging Face Space (or anywhere we want to force /data path)
+def ensure_data_dir_exists():
+    data_dir = '/data'
+    if not os.path.exists(data_dir):
+        try:
+            os.makedirs(data_dir, exist_ok=True)
+        except Exception as e:
+            print(f"CRITICAL: Unable to create /data directory: {e}")
+
 def get_sqlite_db_path():
-    # HF Spaces set the HF_SPACE_ID env var
-    hf_running = bool(os.environ.get("HF_SPACE_ID")) or os.environ.get("SPACE_ENVIRONMENT") == "spaces"
-    db_in_data = '/data/chatbot_sessions.sqlite'
-    db_local = 'chatbot_sessions.sqlite'
-    if hf_running:
-        # Ensure /data exists
-        os.makedirs('/data', exist_ok=True)
-        return db_in_data
+    # Use /data if available, else fallback to current dir (local dev)
+    if os.environ.get("HF_SPACE_ID") or os.path.isdir('/data'):
+        ensure_data_dir_exists()
+        return '/data/chatbot_sessions.sqlite'
     else:
-        return db_local
+        return 'chatbot_sessions.sqlite'
 
 SQLITE_DB_PATH = get_sqlite_db_path()
 
 def get_db_connection():
-    # Ensure parent directory exists (should already for /data)
     db_dir = os.path.dirname(SQLITE_DB_PATH)
     if db_dir and not os.path.exists(db_dir):
-        os.makedirs(db_dir, exist_ok=True)
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+        except Exception as e:
+            print(f"CRITICAL: Could not create db directory {db_dir}: {e}")
+            raise
     try:
-        return sqlite3.connect(SQLITE_DB_PATH)
-    except sqlite3.OperationalError as e:
-        print(f"Failed to open DB at {SQLITE_DB_PATH}: {e}")
+        # Explicitly set timeout and isolation to avoid some cloud SQLite bugs
+        return sqlite3.connect(SQLITE_DB_PATH, timeout=10, isolation_level=None)
+    except Exception as e:
+        print(f"CRITICAL: Could not open SQLite DB at {SQLITE_DB_PATH}: {e}")
         raise
 
 def ensure_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    # Example schema setup — replace with your actual table creation
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS chatbot_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_data TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    ''')
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Edit this schema to match your actual one!
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS chatbot_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        conn.commit()
+        conn.close()
+        print(f"SQLite DB successfully created/opened at {SQLITE_DB_PATH}")
+    except Exception as e:
+        print(f"CRITICAL: DB initialization failed: {e}")
+        raise
 
-# Call ensure_db on import (if you did this before)
 ensure_db()
-
-# Add your other persistence functions below as before...
+# ... (rest of your file as before)
