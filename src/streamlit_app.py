@@ -1,18 +1,27 @@
 import os
+import sys
+print("DEBUG_STREAMLIT_APP_TOP_LEVEL_EXECUTION_POINT_1")
+sys.stdout.flush()
 print("DEBUG: Does /data exist?", os.path.exists("/data"))
+sys.stdout.flush()
 print("DEBUG: Is /data a directory?", os.path.isdir("/data"))
+sys.stdout.flush()
 if os.path.exists("/data"):
     print("DEBUG: /data permissions (octal):", oct(os.stat("/data").st_mode))
+    sys.stdout.flush()
     try:
         testfile = "/data/test_can_write.txt"
         with open(testfile, "w") as f:
             f.write("write test")
         print("DEBUG: Able to write to /data.")
+        sys.stdout.flush()
         os.remove(testfile)
     except Exception as e:
         print("DEBUG: Unable to write to /data:", e)
+        sys.stdout.flush()
 else:
     print("DEBUG: /data does not exist at app startup!")
+    sys.stdout.flush()
 import os
 print("Sanity check: Does /data exist?", os.path.exists("/data"))
 print("Sanity check: Is /data a directory?", os.path.isdir("/data"))

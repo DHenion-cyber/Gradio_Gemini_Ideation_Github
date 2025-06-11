@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import sys
 
 def ensure_data_dir_exists():
     data_dir = '/data'
@@ -8,43 +9,58 @@ def ensure_data_dir_exists():
             os.makedirs(data_dir, exist_ok=True)
         except Exception as e:
             print(f"CRITICAL: Unable to create /data directory: {e}")
+            sys.stdout.flush()
 
 def get_sqlite_db_path():
     print("DEBUG: get_sqlite_db_path() called")
+    sys.stdout.flush()
     hf_space_id = os.environ.get("HF_SPACE_ID")
     is_data_dir = os.path.isdir('/data')
     print(f"DEBUG: HF_SPACE_ID: {hf_space_id}, os.path.isdir('/data'): {is_data_dir}")
+    sys.stdout.flush()
     if hf_space_id or is_data_dir:
         print("DEBUG: get_sqlite_db_path() - In if block (HF Space or /data exists)")
+        sys.stdout.flush()
         ensure_data_dir_exists()
         return '/data/chatbot_sessions.sqlite'
     else:
         print("DEBUG: get_sqlite_db_path() - In else block")
+        sys.stdout.flush()
         return 'chatbot_sessions.sqlite'
 
 print("DEBUG: About to call get_sqlite_db_path() for SQLITE_DB_PATH")
+sys.stdout.flush()
 SQLITE_DB_PATH = get_sqlite_db_path()
 print(f"DEBUG: SQLITE_DB_PATH initialized to: {SQLITE_DB_PATH}")
+sys.stdout.flush()
 
 def get_db_connection():
     print("DEBUG: get_db_connection() called")
+    sys.stdout.flush()
     db_dir = os.path.dirname(SQLITE_DB_PATH)
     print(f"DEBUG: db_dir: {db_dir}")
+    sys.stdout.flush()
     if db_dir and not os.path.exists(db_dir):
         print(f"DEBUG: db_dir '{db_dir}' does not exist. Attempting to create.")
+        sys.stdout.flush()
         try:
             os.makedirs(db_dir, exist_ok=True)
             print(f"DEBUG: Successfully created db_dir '{db_dir}'")
+            sys.stdout.flush()
         except Exception as e:
             print(f"CRITICAL: Could not create db directory {db_dir}: {e}")
+            sys.stdout.flush()
             raise
     else:
         print(f"DEBUG: db_dir '{db_dir}' already exists or is not specified.")
+        sys.stdout.flush()
     try:
         print("DEBUG: Attempting to connect. SQLITE_DB_PATH =", SQLITE_DB_PATH)
+        sys.stdout.flush()
         return sqlite3.connect(SQLITE_DB_PATH, timeout=10, isolation_level=None)
     except Exception as e:
         print(f"CRITICAL: Could not open SQLite DB at {SQLITE_DB_PATH}: {e}")
+        sys.stdout.flush()
         raise
 
 def ensure_db():
@@ -71,8 +87,10 @@ def ensure_db():
         conn.commit()
         conn.close()
         print(f"SQLite DB successfully created/opened at {SQLITE_DB_PATH}")
+        sys.stdout.flush()
     except Exception as e:
         print(f"CRITICAL: DB initialization failed: {e}")
+        sys.stdout.flush()
         raise
 
 # === Helper functions restored from your original code ===
