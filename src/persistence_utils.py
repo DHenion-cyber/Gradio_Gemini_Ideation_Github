@@ -53,5 +53,5 @@ def ensure_db():
         print(f"CRITICAL: DB initialization failed: {e}")
         raise
 
-ensure_db()
+# ensure_db() # Removed global call to ensure_db()
 # ... (rest of your file as before)

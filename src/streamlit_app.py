@@ -3,15 +3,26 @@ import sys
 import os
 import datetime # Added for feedback timestamp
 
+# Early test: try to write to /data, print error if not possible
+try:
+    with open("/data/_write_test.txt", "w") as f:
+        f.write("Write test successful!")
+    print("Successfully wrote to /data!")
+except Exception as e:
+    print(f"FAILED TO WRITE TO /data: {e}")
+
 # Add the project root to the Python path to enable absolute imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Ensure database is initialized and ready before any other app logic or session state access
+from src.persistence_utils import ensure_db, save_session # Import ensure_db
+ensure_db() # Initialize the database
 
 from src.conversation_manager import (
     initialize_conversation_state, run_intake_flow, get_intake_questions,
     is_out_of_scope, route_conversation, # route_conversation is key for the new flow
      # Kept for commented out sections
 )
-from src.persistence_utils import save_session # Added for saving feedback
 from src.ui_components import apply_responsive_css, privacy_notice, render_response_with_citations, progress_bar, render_general_feedback_trigger, render_final_session_feedback_prompt # Added render_final_session_feedback_prompt
 from ui.sidebar import create_sidebar
 from ui.summary_panel import display_summary_panel
