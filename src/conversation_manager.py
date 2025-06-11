@@ -5,6 +5,7 @@ import os
 import asyncio
 import logging # Add this import
 import random # Added for empathetic statements
+import re
 
 from .persistence_utils import save_session, load_session, ensure_db
 from .llm_utils import build_prompt, query_openai, propose_next_conversation_turn, generate_contextual_follow_up # Added generate_contextual_follow_up
@@ -313,6 +314,11 @@ def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
     # Update scratchpad at the top of route_conversation before phase helpers
     st.session_state["scratchpad"] = update_scratchpad(user_message, st.session_state["scratchpad"])
 
+# Check for affirmative response in exploration phase to confirm value prop
+    if current_phase == "exploration" and re.search(r"\b(yes|that.?s it|correct|sounds good)\b", user_message, re.I):
+        scratchpad["value_prop_confirmed"] = True
+        # Also update the session state scratchpad directly as it's used by conversation_phases.handle_exploration
+        st.session_state["scratchpad"]["value_prop_confirmed"] = True
     current_phase = st.session_state.get("phase", "exploration")  # Default to exploration
     assistant_reply = "An unexpected error occurred." # Default reply
     next_phase = current_phase # Default next_phase
