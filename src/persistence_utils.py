@@ -2,6 +2,7 @@ import os
 import sqlite3
 import sys
 import json
+from datetime import datetime
 
 # --- ensure_data_dir_exists ---
 def ensure_data_dir_exists():
@@ -137,16 +138,6 @@ def ensure_db():
         print(f"CRITICAL_P_UTILS: Exception in ensure_db(): {e}") # Changed to CRITICAL_P_UTILS for consistency
         sys.stdout.flush()
         raise
-# Ensure the database schema is created when this module is first imported
-try:
-    print("DEBUG_P_UTILS: MODULE LEVEL - Attempting to call ensure_db() after SQLITE_DB_PATH initialization.")
-    sys.stdout.flush()
-    ensure_db() # Defined later in the file, but Python allows this for module-level execution
-    print("DEBUG_P_UTILS: MODULE LEVEL - ensure_db() call completed.")
-    sys.stdout.flush()
-except Exception as e:
-    print(f"CRITICAL_P_UTILS: MODULE LEVEL - Exception during initial ensure_db() call: {e}")
-    sys.stdout.flush()
 
 def get_db_connection():
     print(f"DEBUG_P_UTILS: get_db_connection() called. Using SQLITE_DB_PATH: {SQLITE_DB_PATH}")
@@ -179,10 +170,16 @@ def get_db_connection():
 
 # === Helper functions restored from your original code ===
 
+def datetime_serializer(obj):
+    """JSON serializer for objects not serializable by default json code"""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError (f"Type {type(obj)} not serializable")
+
 def save_session(user_id, session_data):
     conn = get_db_connection()
     cursor = conn.cursor()
-    session_data_json = json.dumps(session_data)
+    session_data_json = json.dumps(session_data, default=datetime_serializer)
     cursor.execute(
         "INSERT INTO chatbot_sessions (user_id, session_data) VALUES (?, ?)",
         (user_id, session_data_json,)
@@ -253,3 +250,15 @@ def delete_feedback(session_id):
     conn.close()
 
 # Add other helpers here as needed. If you have more tables or session functions, let me know!
+
+# Ensure the database schema is created when this module is first imported,
+# after all functions have been defined.
+try:
+    print("DEBUG_P_UTILS: MODULE LEVEL (END OF FILE) - Attempting to call ensure_db().")
+    sys.stdout.flush()
+    ensure_db()
+    print("DEBUG_P_UTILS: MODULE LEVEL (END OF FILE) - ensure_db() call completed.")
+    sys.stdout.flush()
+except Exception as e:
+    print(f"CRITICAL_P_UTILS: MODULE LEVEL (END OF FILE) - Exception during initial ensure_db() call: {e}")
+    sys.stdout.flush()
