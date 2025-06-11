@@ -142,7 +142,7 @@ def main():
                         st.rerun()
                     else:
                         st.warning("Please enter a response to proceed.")
-            else:  # Intake complete
+            else:
                 logging.info("Intake complete. Transitioning to ideation stage and exploration phase.")
                 st.session_state["stage"] = "ideation"
                 st.session_state["phase"] = "exploration"
