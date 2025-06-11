@@ -3,36 +3,94 @@ from .utils.scratchpad_extractor import update_scratchpad
 from .constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS
 from .llm_utils import query_openai, propose_next_conversation_turn # Import query_openai and propose_next_conversation_turn
 import json
+import textwrap
+EXPLORATION_PROMPT = textwrap.dedent("""
+You are a strategy coach. The ONLY goal of the exploration phase
+is to lock in a concise VALUE PROPOSITION:
+
+• problem (one line)
+• target user
+• proposed solution
+• one measurable core benefit
+
+Rules:
+1. Give a MAXIMUM of **one** short acknowledgment sentence.
+2. Ask **one** focused question to fill the FIRST missing slot.
+3. If all four slots are already answered, RESTATE the value prop in
+   ≤50 words, ask “Is this correct?” and stop brainstorming.
+4. No features or rabbit holes until the value prop is confirmed.
+""").strip()
 
 def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
+    if scratchpad.get("value_prop_confirmed"):
+        return "", "development"
+    # Existing scratchpad update can remain if it's generally useful
     updated_scratchpad = update_scratchpad(user_message, scratchpad)
     st.session_state["scratchpad"] = updated_scratchpad
 
-    exploration_turns = st.session_state.get("exploration_turns", 0)
-    intake_answers = st.session_state.get("intake_answers", [])
+    # Construct the messages for the LLM call using the new EXPLORATION_PROMPT
+    # The conversation history should be managed carefully here.
+    # For this specific prompt, we might not need extensive history,
+    # but rather the current user_message and the scratchpad contents.
 
-    # After several exploration turns, check readiness to move to development
-    if exploration_turns >= 4 and any(word in user_message.lower() for word in ["ready", "next", "move forward", "develop", "yes"]):
-        st.session_state["exploration_turns"] = 0  # reset for next phase
-        assistant_reply = propose_next_conversation_turn(
-            intake_answers=st.session_state.get("intake_answers", []),
-            scratchpad=updated_scratchpad,
-            phase="development", # Transitioning to development
-            conversation_history=st.session_state.get("conversation_history", [])
-        )
-        next_phase = "development"
-    else:
-        # For non-transition turns within exploration, we might still use a simpler prompt or LLM call
-        # For now, let's use propose_next_conversation_turn to keep it consistent,
-        # or we can refine this if it feels too heavy for every turn.
-        assistant_reply = propose_next_conversation_turn(
-            intake_answers=st.session_state.get("intake_answers", []),
-            scratchpad=updated_scratchpad,
-            phase="exploration", # Still in exploration
-            conversation_history=st.session_state.get("conversation_history", [])
-        )
-        st.session_state["exploration_turns"] = exploration_turns + 1
-        next_phase = "exploration"
+    # For simplicity, let's assume the EXPLORATION_PROMPT is a system message
+    # and the user_message is the user's latest input.
+    # The llm_utils.query_openai function needs to be adapted or a new one created
+    # if it doesn't directly support this structure or the new prompt's rules.
+    # For now, I'll use query_openai as it's available.
+    
+    # We need to build a history or context for the LLM.
+    # The EXPLORATION_PROMPT itself defines the persona and task.
+    # We should pass the current user_message and relevant scratchpad info.
+    
+    # Simplified context for the LLM based on the new prompt's focus:
+    # The prompt implies the LLM should look at the scratchpad for value prop elements.
+    
+    # Let's prepare the input for the LLM based on the new prompt's rules.
+    # The prompt is quite specific about how the LLM should behave.
+    
+    # The `query_openai` function is imported but its signature is not visible here.
+    # Assuming it takes a list of messages (system, user, assistant).
+    
+    # Create a representation of the current value proposition from the scratchpad
+    # to help the LLM follow Rule 3.
+    value_prop_elements = {
+        "problem": updated_scratchpad.get(CANONICAL_KEYS["problem"], "Not yet defined"),
+        "target user": updated_scratchpad.get(CANONICAL_KEYS["customer_segment"], "Not yet defined"),
+        "proposed solution": updated_scratchpad.get(CANONICAL_KEYS["solution"], "Not yet defined"),
+        "core benefit": updated_scratchpad.get(CANONICAL_KEYS["value_prop"], "Not yet defined") # Assuming value_prop key for core benefit
+    }
+    
+    # Construct a user message that includes the current state for the LLM
+    # This is a way to feed current state to the LLM if it doesn't directly access scratchpad
+    contextual_user_message = f"""
+Current User Input: {user_message}
+
+Current Value Proposition Status:
+- Problem: {value_prop_elements['problem']}
+- Target User: {value_prop_elements['target user']}
+- Proposed Solution: {value_prop_elements['proposed solution']}
+- Core Benefit: {value_prop_elements['core benefit']}
+"""
+
+    messages = [
+        {"role": "system", "content": EXPLORATION_PROMPT},
+        {"role": "user", "content": contextual_user_message.strip()}
+    ]
+
+    try:
+        # Assuming query_openai returns the assistant's message text directly.
+        # Adjust if it returns a more complex object.
+        assistant_reply = query_openai(messages=messages, phase="exploration") # Pass phase if useful for query_openai
+    except Exception as e:
+        st.error(f"Error querying LLM in exploration: {e}")
+        assistant_reply = "I encountered an issue. Could you please try rephrasing?"
+
+    # The phase remains "exploration" unless the LLM indicates a change or rules are met.
+    # The new prompt's Rule 3 implies the LLM itself handles the "Is this correct?" part.
+    # The `value_prop_confirmed` flag will be set by `route_conversation` in `conversation_manager.py`
+    # based on user's affirmative response.
+    next_phase = "exploration"
 
     return assistant_reply, next_phase
 
