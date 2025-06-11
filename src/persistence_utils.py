@@ -82,6 +82,16 @@ finally:
     print(f"DEBUG_P_UTILS: MODULE LEVEL - Final SQLITE_DB_PATH after try/except/finally: {SQLITE_DB_PATH}")
     sys.stdout.flush()
 
+# Ensure the database schema is created when this module is first imported
+try:
+    print("DEBUG_P_UTILS: MODULE LEVEL - Attempting to call ensure_db() after SQLITE_DB_PATH initialization.")
+    sys.stdout.flush()
+    ensure_db() # Defined later in the file, but Python allows this for module-level execution
+    print("DEBUG_P_UTILS: MODULE LEVEL - ensure_db() call completed.")
+    sys.stdout.flush()
+except Exception as e:
+    print(f"CRITICAL_P_UTILS: MODULE LEVEL - Exception during initial ensure_db() call: {e}")
+    sys.stdout.flush()
 
 def get_db_connection():
     print(f"DEBUG_P_UTILS: get_db_connection() called. Using SQLITE_DB_PATH: {SQLITE_DB_PATH}")

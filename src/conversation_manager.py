@@ -6,7 +6,7 @@ import asyncio
 import logging # Add this import
 import random # Added for empathetic statements
 
-from .persistence_utils import save_session, load_session
+from .persistence_utils import save_session, load_session, ensure_db
 from .llm_utils import build_prompt, query_openai, propose_next_conversation_turn, generate_contextual_follow_up # Added generate_contextual_follow_up
 from . import search_utils
 from . import conversation_phases # Added for phase routing
@@ -18,6 +18,17 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())[:8] # Using first 8 characters for a short slug
 
 def initialize_conversation_state(new_chat: bool = False):
+    # Ensure database and tables are created before any session logic
+    try:
+        logging.info("DEBUG: Calling ensure_db() from initialize_conversation_state.")
+        ensure_db()
+        logging.info("DEBUG: ensure_db() call completed in initialize_conversation_state.")
+    except Exception as e:
+        logging.error(f"CRITICAL: Error calling ensure_db() in initialize_conversation_state: {e}")
+        # Optionally, re-raise or handle critical failure, e.g., st.error("Database setup failed!")
+        # For now, we'll let it proceed and see if subsequent operations fail,
+        # as ensure_db() itself logs critical errors.
+
     """
     Initializes the conversation state in st.session_state.
     - If `new_chat` is True, it creates a completely fresh session.
