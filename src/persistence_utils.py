@@ -27,6 +27,7 @@ def get_db_connection():
             print(f"CRITICAL: Could not create db directory {db_dir}: {e}")
             raise
     try:
+        print("DEBUG: SQLITE_DB_PATH =", SQLITE_DB_PATH)
         return sqlite3.connect(SQLITE_DB_PATH, timeout=10, isolation_level=None)
     except Exception as e:
         print(f"CRITICAL: Could not open SQLite DB at {SQLITE_DB_PATH}: {e}")

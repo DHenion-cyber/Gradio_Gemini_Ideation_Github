@@ -1,4 +1,19 @@
 import os
+print("DEBUG: Does /data exist?", os.path.exists("/data"))
+print("DEBUG: Is /data a directory?", os.path.isdir("/data"))
+if os.path.exists("/data"):
+    print("DEBUG: /data permissions (octal):", oct(os.stat("/data").st_mode))
+    try:
+        testfile = "/data/test_can_write.txt"
+        with open(testfile, "w") as f:
+            f.write("write test")
+        print("DEBUG: Able to write to /data.")
+        os.remove(testfile)
+    except Exception as e:
+        print("DEBUG: Unable to write to /data:", e)
+else:
+    print("DEBUG: /data does not exist at app startup!")
+import os
 print("Sanity check: Does /data exist?", os.path.exists("/data"))
 print("Sanity check: Is /data a directory?", os.path.isdir("/data"))
 if os.path.exists("/data"):
