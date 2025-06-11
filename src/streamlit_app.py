@@ -199,19 +199,22 @@ def main():
                 else:
                     st.success("Thank you! Your final feedback has been recorded for this session.")
             
-            if current_phase != "summary":
+                        if current_phase != "summary":
+                # Persona Example Response Button integration
+                # The button appears above the chat input.
+                phase = st.session_state.get("phase", "intake")
+                if st.button("Example"):
+                    persona_msg = get_persona_response(phase, st.session_state.get("scratchpad"))
+                    st.session_state["conversation_history"].append({"role": "user", "text": persona_msg})
+                    with st.chat_message("assistant"):
+                        with st.spinner("Thinking..."):
+                            assistant_response, _ = route_conversation(persona_msg, st.session_state.get("scratchpad", {}))
+                            st.session_state["conversation_history"].append({"role": "assistant", "text": assistant_response})
+                            render_response_with_citations(assistant_response, [])
+                    st.rerun()
+
                 user_input = st.chat_input(placeholder="Your response")
 
-                # --- Persona Example Response Button ---
-                # Map your session state or phase logic to the phase labels above
-                phase = st.session_state.get("phase", "intake")  # adjust "phase" if your state uses a different key
-
-                if st.button("Example Response"):
-                    st.session_state['user_input_from_persona'] = get_persona_response(phase, st.session_state.get("scratchpad"))
-                    # If button is pressed, we want its output to be treated as user_input
-                    user_input = st.session_state.pop('user_input_from_persona', None) # Use pop to clear after read
-                    st.rerun()
-                # --- End Persona Example Response Button ---
                 if user_input:
                     if user_input.lower() == "/new idea":
                         initialize_conversation_state(new_chat=True)
@@ -231,6 +234,7 @@ def main():
                                 st.session_state["conversation_history"].append({"role": "assistant", "text": assistant_response})
                                 render_response_with_citations(assistant_response, [])
                         st.rerun()
+
     except Exception as e:
         logging.error(f"Error in main application logic: {e}", exc_info=True)
         st.error(f"An critical error occurred: {e}")
