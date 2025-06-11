@@ -36,6 +36,11 @@ def mock_streamlit_session_state(monkeypatch):
     mock_session_state.setdefault.side_effect = setdefault_item
     mock_session_state.__contains__.side_effect = contains_item
 
+    # Add to_dict mock to return the underlying serializable dictionary
+    def to_dict_method():
+        return mock_session_state_data
+    mock_session_state.to_dict = MagicMock(side_effect=to_dict_method)
+
     # Patch st.session_state where it's directly used
     monkeypatch.setattr(st, "session_state", mock_session_state)
 
