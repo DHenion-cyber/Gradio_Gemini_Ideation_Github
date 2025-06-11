@@ -82,7 +82,7 @@ def cleanup_directories():
     # These look like absolute paths from the root of the Hugging Face Space.
 
     directories_to_remove_abs = [
-        "/data",
+        # "/data", # Temporarily disabled to prevent interference with SQLite DB
         "/app/old_evals",
         "/app/logs",
         "/app/output",

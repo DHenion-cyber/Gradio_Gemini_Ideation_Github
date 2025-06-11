@@ -113,10 +113,20 @@ def get_db_connection():
         raise
 
 def ensure_db():
+    print("DEBUG_P_UTILS: ensure_db() CALLED")
+    sys.stdout.flush()
     try:
+        print("DEBUG_P_UTILS: ensure_db() - Attempting to get DB connection.")
+        sys.stdout.flush()
         conn = get_db_connection()
+        print(f"DEBUG_P_UTILS: ensure_db() - DB connection obtained: {conn}")
+        sys.stdout.flush()
         cursor = conn.cursor()
-        # Your actual schema here!
+        print("DEBUG_P_UTILS: ensure_db() - Cursor obtained.")
+        sys.stdout.flush()
+        
+        print("DEBUG_P_UTILS: ensure_db() - Attempting to CREATE TABLE chatbot_sessions.")
+        sys.stdout.flush()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chatbot_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,6 +135,11 @@ def ensure_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         ''')
+        print("DEBUG_P_UTILS: ensure_db() - CREATE TABLE chatbot_sessions executed.")
+        sys.stdout.flush()
+
+        print("DEBUG_P_UTILS: ensure_db() - Attempting to CREATE TABLE general_session_feedback.")
+        sys.stdout.flush()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS general_session_feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,12 +148,22 @@ def ensure_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         ''')
+        print("DEBUG_P_UTILS: ensure_db() - CREATE TABLE general_session_feedback executed.")
+        sys.stdout.flush()
+
+        print("DEBUG_P_UTILS: ensure_db() - Attempting to commit.")
+        sys.stdout.flush()
         conn.commit()
+        print("DEBUG_P_UTILS: ensure_db() - Commit successful.")
+        sys.stdout.flush()
+        
         conn.close()
-        print(f"SQLite DB successfully created/opened at {SQLITE_DB_PATH}")
+        print("DEBUG_P_UTILS: ensure_db() - Connection closed.")
+        sys.stdout.flush()
+        print(f"DEBUG_P_UTILS: SQLite DB ensure_db() completed successfully for {SQLITE_DB_PATH}")
         sys.stdout.flush()
     except Exception as e:
-        print(f"CRITICAL: DB initialization failed: {e}")
+        print(f"CRITICAL_P_UTILS: Exception in ensure_db(): {e}") # Changed to CRITICAL_P_UTILS for consistency
         sys.stdout.flush()
         raise
 
