@@ -2,6 +2,8 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
+RUN mkdir -p /data && chmod 777 /data
+
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
@@ -13,6 +15,8 @@ COPY requirements.txt ./
 COPY src/ ./src/
 
 RUN pip install --no-cache-dir -r requirements.txt
+
+ENV STREAMLIT_HOME=/data/.streamlit
 
 EXPOSE 8501
 
