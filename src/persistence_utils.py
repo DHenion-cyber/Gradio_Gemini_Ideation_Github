@@ -84,13 +84,42 @@ finally:
     print(f"DEBUG_P_UTILS: MODULE LEVEL - Final SQLITE_DB_PATH after try/except/finally: {SQLITE_DB_PATH}")
     sys.stdout.flush()
 
+def get_db_connection():
+    print(f"DEBUG_P_UTILS: get_db_connection() called. Using SQLITE_DB_PATH: {SQLITE_DB_PATH}")
+    sys.stdout.flush()
+    db_dir = os.path.dirname(SQLITE_DB_PATH)
+    print(f"DEBUG: db_dir: {db_dir}")
+    sys.stdout.flush()
+    if db_dir and not os.path.exists(db_dir):
+        print(f"DEBUG: db_dir '{db_dir}' does not exist. Attempting to create.")
+        sys.stdout.flush()
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+            print(f"DEBUG: Successfully created db_dir '{db_dir}'")
+            sys.stdout.flush()
+        except Exception as e:
+            print(f"CRITICAL: Could not create db directory {db_dir}: {e}")
+            sys.stdout.flush()
+            raise
+    else:
+        print(f"DEBUG: db_dir '{db_dir}' already exists or is not specified.")
+        sys.stdout.flush()
+    try:
+        print("DEBUG: Attempting to connect. SQLITE_DB_PATH =", SQLITE_DB_PATH)
+        sys.stdout.flush()
+        return sqlite3.connect(SQLITE_DB_PATH, timeout=10, isolation_level=None)
+    except Exception as e:
+        print(f"CRITICAL: Could not open SQLite DB at {SQLITE_DB_PATH}: {e}")
+        sys.stdout.flush()
+        raise
+
 def ensure_db():
     print("DEBUG_P_UTILS: ensure_db() CALLED")
     sys.stdout.flush()
     try:
         print("DEBUG_P_UTILS: ensure_db() - Attempting to get DB connection.")
         sys.stdout.flush()
-        conn = get_db_connection()
+        conn = get_db_connection() 
         print(f"DEBUG_P_UTILS: ensure_db() - DB connection obtained: {conn}")
         sys.stdout.flush()
         cursor = conn.cursor()
@@ -135,36 +164,7 @@ def ensure_db():
         print(f"DEBUG_P_UTILS: SQLite DB ensure_db() completed successfully for {SQLITE_DB_PATH}")
         sys.stdout.flush()
     except Exception as e:
-        print(f"CRITICAL_P_UTILS: Exception in ensure_db(): {e}") # Changed to CRITICAL_P_UTILS for consistency
-        sys.stdout.flush()
-        raise
-
-def get_db_connection():
-    print(f"DEBUG_P_UTILS: get_db_connection() called. Using SQLITE_DB_PATH: {SQLITE_DB_PATH}")
-    sys.stdout.flush()
-    db_dir = os.path.dirname(SQLITE_DB_PATH)
-    print(f"DEBUG: db_dir: {db_dir}")
-    sys.stdout.flush()
-    if db_dir and not os.path.exists(db_dir):
-        print(f"DEBUG: db_dir '{db_dir}' does not exist. Attempting to create.")
-        sys.stdout.flush()
-        try:
-            os.makedirs(db_dir, exist_ok=True)
-            print(f"DEBUG: Successfully created db_dir '{db_dir}'")
-            sys.stdout.flush()
-        except Exception as e:
-            print(f"CRITICAL: Could not create db directory {db_dir}: {e}")
-            sys.stdout.flush()
-            raise
-    else:
-        print(f"DEBUG: db_dir '{db_dir}' already exists or is not specified.")
-        sys.stdout.flush()
-    try:
-        print("DEBUG: Attempting to connect. SQLITE_DB_PATH =", SQLITE_DB_PATH)
-        sys.stdout.flush()
-        return sqlite3.connect(SQLITE_DB_PATH, timeout=10, isolation_level=None)
-    except Exception as e:
-        print(f"CRITICAL: Could not open SQLite DB at {SQLITE_DB_PATH}: {e}")
+        print(f"CRITICAL_P_UTILS: Exception in ensure_db(): {e}")
         sys.stdout.flush()
         raise
 
