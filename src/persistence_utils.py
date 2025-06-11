@@ -10,24 +10,38 @@ def ensure_data_dir_exists():
             print(f"CRITICAL: Unable to create /data directory: {e}")
 
 def get_sqlite_db_path():
-    if os.environ.get("HF_SPACE_ID") or os.path.isdir('/data'):
+    print("DEBUG: get_sqlite_db_path() called")
+    hf_space_id = os.environ.get("HF_SPACE_ID")
+    is_data_dir = os.path.isdir('/data')
+    print(f"DEBUG: HF_SPACE_ID: {hf_space_id}, os.path.isdir('/data'): {is_data_dir}")
+    if hf_space_id or is_data_dir:
+        print("DEBUG: get_sqlite_db_path() - In if block (HF Space or /data exists)")
         ensure_data_dir_exists()
         return '/data/chatbot_sessions.sqlite'
     else:
+        print("DEBUG: get_sqlite_db_path() - In else block")
         return 'chatbot_sessions.sqlite'
 
+print("DEBUG: About to call get_sqlite_db_path() for SQLITE_DB_PATH")
 SQLITE_DB_PATH = get_sqlite_db_path()
+print(f"DEBUG: SQLITE_DB_PATH initialized to: {SQLITE_DB_PATH}")
 
 def get_db_connection():
+    print("DEBUG: get_db_connection() called")
     db_dir = os.path.dirname(SQLITE_DB_PATH)
+    print(f"DEBUG: db_dir: {db_dir}")
     if db_dir and not os.path.exists(db_dir):
+        print(f"DEBUG: db_dir '{db_dir}' does not exist. Attempting to create.")
         try:
             os.makedirs(db_dir, exist_ok=True)
+            print(f"DEBUG: Successfully created db_dir '{db_dir}'")
         except Exception as e:
             print(f"CRITICAL: Could not create db directory {db_dir}: {e}")
             raise
+    else:
+        print(f"DEBUG: db_dir '{db_dir}' already exists or is not specified.")
     try:
-        print("DEBUG: SQLITE_DB_PATH =", SQLITE_DB_PATH)
+        print("DEBUG: Attempting to connect. SQLITE_DB_PATH =", SQLITE_DB_PATH)
         return sqlite3.connect(SQLITE_DB_PATH, timeout=10, isolation_level=None)
     except Exception as e:
         print(f"CRITICAL: Could not open SQLite DB at {SQLITE_DB_PATH}: {e}")
