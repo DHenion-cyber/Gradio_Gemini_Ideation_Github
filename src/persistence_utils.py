@@ -10,7 +10,6 @@ def ensure_data_dir_exists():
             print(f"CRITICAL: Unable to create /data directory: {e}")
 
 def get_sqlite_db_path():
-    # Use /data if available, else fallback to current dir (local dev)
     if os.environ.get("HF_SPACE_ID") or os.path.isdir('/data'):
         ensure_data_dir_exists()
         return '/data/chatbot_sessions.sqlite'
@@ -28,7 +27,6 @@ def get_db_connection():
             print(f"CRITICAL: Could not create db directory {db_dir}: {e}")
             raise
     try:
-        # Explicitly set timeout and isolation to avoid some cloud SQLite bugs
         return sqlite3.connect(SQLITE_DB_PATH, timeout=10, isolation_level=None)
     except Exception as e:
         print(f"CRITICAL: Could not open SQLite DB at {SQLITE_DB_PATH}: {e}")
@@ -38,11 +36,19 @@ def ensure_db():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Edit this schema to match your actual one!
+        # Your actual schema here!
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chatbot_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_data TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS general_session_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER,
+                feedback TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         ''')
@@ -53,5 +59,72 @@ def ensure_db():
         print(f"CRITICAL: DB initialization failed: {e}")
         raise
 
-# ensure_db() # Removed global call to ensure_db()
-# ... (rest of your file as before)
+# === Helper functions restored from your original code ===
+
+def save_session(session_data):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO chatbot_sessions (session_data) VALUES (?)",
+        (session_data,)
+    )
+    session_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return session_id
+
+def load_session(session_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT session_data FROM chatbot_sessions WHERE id = ?",
+        (session_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return row[0]
+    return None
+
+def delete_session(session_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM chatbot_sessions WHERE id = ?",
+        (session_id,)
+    )
+    conn.commit()
+    conn.close()
+
+def save_feedback(session_id, feedback):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO general_session_feedback (session_id, feedback) VALUES (?, ?)",
+        (session_id, feedback)
+    )
+    conn.commit()
+    conn.close()
+
+def load_feedback(session_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT feedback FROM general_session_feedback WHERE session_id = ?",
+        (session_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
+def delete_feedback(session_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM general_session_feedback WHERE session_id = ?",
+        (session_id,)
+    )
+    conn.commit()
+    conn.close()
+
+# Add other helpers here as needed. If you have more tables or session functions, let me know!
