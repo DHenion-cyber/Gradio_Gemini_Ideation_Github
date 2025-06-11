@@ -1,3 +1,18 @@
+import os
+print("Sanity check: Does /data exist?", os.path.exists("/data"))
+print("Sanity check: Is /data a directory?", os.path.isdir("/data"))
+if os.path.exists("/data"):
+    print("Sanity check: /data permissions (octal):", oct(os.stat("/data").st_mode))
+    try:
+        testfile = "/data/test_can_write.txt"
+        with open(testfile, "w") as f:
+            f.write("write test")
+        print("Sanity check: Able to write to /data.")
+        os.remove(testfile)
+    except Exception as e:
+        print("Sanity check: Unable to write to /data:", e)
+else:
+    print("Sanity check: /data does not exist at app startup!")
 import streamlit as st
 import sys
 import os
@@ -17,7 +32,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 # Ensure database is initialized and ready before any other app logic or session state access
 from src.persistence_utils import ensure_db, save_session # Import ensure_db
-ensure_db() # Initialize the database
 
 from src.conversation_manager import (
     initialize_conversation_state, run_intake_flow, get_intake_questions,
@@ -47,8 +61,13 @@ if "conversation_initialized" not in st.session_state or st.session_state.get("n
 else:
     logging.info("Conversation state already initialized.")
 
-st.set_page_config(page_title="Chatbot UI", layout="wide")
-st.title("Digital Health Innovation Chats")
+def main():
+    st.set_page_config(page_title="Chatbot UI", layout="wide")
+    st.title("Digital Health Innovation Chats")
+
+    # Ensure database is initialized and ready before any other app logic or session state access
+    from src.persistence_utils import ensure_db
+    ensure_db() # Initialize the database
 
 # Apply custom CSS for responsive design
 apply_responsive_css()
@@ -283,3 +302,6 @@ finally:
             # User gets confirmation from the component itself.
         else:
             logging.warning("user_id not found, cannot save general session feedback.")
+
+if __name__ == "__main__":
+    main()
