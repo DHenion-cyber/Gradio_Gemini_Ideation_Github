@@ -3,6 +3,7 @@ FROM python:3.9-slim
 WORKDIR /app
 
 RUN mkdir -p /data && chmod 777 /data
+RUN mkdir -p /.streamlit && chmod 777 /.streamlit
 
 RUN apt-get update && apt-get install -y \
     build-essential \
