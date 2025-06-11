@@ -314,12 +314,18 @@ def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
     # Update scratchpad at the top of route_conversation before phase helpers
     st.session_state["scratchpad"] = update_scratchpad(user_message, st.session_state["scratchpad"])
 
-# Check for affirmative response in exploration phase to confirm value prop
-    if current_phase == "exploration" and re.search(r"\b(yes|that.?s it|correct|sounds good)\b", user_message, re.I):
-        scratchpad["value_prop_confirmed"] = True
-        # Also update the session state scratchpad directly as it's used by conversation_phases.handle_exploration
-        st.session_state["scratchpad"]["value_prop_confirmed"] = True
     current_phase = st.session_state.get("phase", "exploration")  # Default to exploration
+# Check for affirmative response in exploration phase to confirm value prop
+    if current_phase == "exploration" and user_message and re.search(r"\b(yes|that.?s it|correct|sounds good)\b", user_message, re.I):
+        # Ensure scratchpad exists in session_state, though it should by this point.
+        if "scratchpad" not in st.session_state:
+            st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy() # Or some other default
+        
+        # The 'scratchpad' variable passed into this function might be a copy or stale.
+        # It's safer to update st.session_state["scratchpad"] directly as it's the source of truth.
+        st.session_state["scratchpad"]["value_prop_confirmed"] = True
+        # No need to update the local `scratchpad` variable here as it might not propagate as expected.
+        # The `handle_exploration` function will read from st.session_state["scratchpad"].
     assistant_reply = "An unexpected error occurred." # Default reply
     next_phase = current_phase # Default next_phase
 
