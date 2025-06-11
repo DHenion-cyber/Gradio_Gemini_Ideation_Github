@@ -40,6 +40,7 @@ def ensure_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chatbot_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,
                 session_data TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -61,12 +62,12 @@ def ensure_db():
 
 # === Helper functions restored from your original code ===
 
-def save_session(session_data):
+def save_session(user_id, session_data):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO chatbot_sessions (session_data) VALUES (?)",
-        (session_data,)
+        "INSERT INTO chatbot_sessions (user_id, session_data) VALUES (?, ?)",
+        (user_id, session_data,)
     )
     session_id = cursor.lastrowid
     conn.commit()
