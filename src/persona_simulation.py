@@ -1,53 +1,52 @@
-# src/persona_simulation.py
-
-"""
-Persona simulation module for auto-filling user responses based on program phase.
-Add `from src.persona_simulation import get_persona_response` in your main app logic.
-"""
+import os
+import openai  # pip install openai
 
 PERSONA_PROFILE = {
     "name": "Pat Morgan",
-    "background": "Hospital admin, 15 years managing imaging, digital innovation advocate.",
+    "background": "Hospital admin, 15 years managing imaging departments.",
     "goal": "Deploy a patient-facing chatbot to streamline appointment scheduling and navigation for in-person care.",
     "constraints": "Bootstrap, avoid external funding, keep scope tight and integration easy.",
-    "preferences": [
-        "Prioritize features with highest impact and simplest integration.",
-        "Hybrid approach: AI handles routine, humans for exceptions.",
-        "Financial value ($3 per patient scheduled; $300/day for 100 patients).",
-    ]
 }
 
-# Map your actual conversation phases to canned or dynamic responses.
+# Make sure your OpenAI API key is set in the environment as OPENAI_API_KEY
+openai.api_key = os.environ.get("OPENAI_API_KEY")
+
 def get_persona_response(phase, scratchpad=None):
     """
-    Returns a plausible user response for the given phase.
-    Optionally uses current scratchpad/context.
+    Calls OpenAI GPT-3.5-turbo to generate an adaptive persona reply, using conversation history.
     """
-    if phase == "intake":
-        return (
-            "I'm Pat Morgan, hospital administrator with 15 years in imaging. "
-            "I'm looking for ways to use a chatbot to reduce scheduling complexity and improve care, but I want to start lean—bootstrap if possible, avoid outside investment, and keep costs down for proof of concept. "
-            "My main pain point is patients and staff getting conflicting or confusing appointment instructions—especially when there are multiple appointments in a day."
-        )
-    elif phase == "exploration":
-        return (
-            "Let’s focus on a scheduling and navigation assistant for in-person care. "
-            "Biggest problems: multiple appointments, fragmented instructions, and too many contact points. "
-            "If we could give patients one clear itinerary and a single support number, that would be a huge improvement."
-        )
-    elif phase == "development":
-        return (
-            "Assume a scheduler makes $20/hour and handles 50 patients a day. If the bot can handle all related tasks—scheduling, reminders, and instructions—that’s about $3 saved per patient or $300/day for a 100-patient clinic. "
-            "Patients get convenience, clarity, and easy follow-up; hospitals save money and reduce no-shows."
-        )
-    elif phase == "summary":
-        return (
-            "Yes, that's the value: cost savings, patient convenience, fewer missed appointments, and central support for anything the bot can't solve. "
-            "Let's keep scope tight: start with scheduling, then expand to post-op care and other resources once proven."
-        )
-    else:
-        # Default/fallback
-        return "That sounds good. Please summarize what we've established so far."
+    # Build conversation context
+    messages = []
+    # System prompt to keep the persona on message
+    persona_instructions = (
+        f"You are Pat Morgan, a practical, cost-conscious hospital administrator who wants to deploy a chatbot for appointment scheduling and navigation. "
+        f"Your priorities: patient experience, cost savings, and quick wins. You are skeptical of unnecessary complexity, and prefer MVPs that can be bootstrapped. "
+        f"Be concise and businesslike, but willing to brainstorm when prompted. Reply ONLY as Pat Morgan would—do not add extra explanation."
+    )
+    messages.append({"role": "system", "content": persona_instructions})
 
-# Optionally: expose a list of valid phases for your app
-PHASES = ["intake", "exploration", "development", "summary"]
+    # Add the latest assistant message for full context
+    last_msg = ""
+    if scratchpad and "conversation_history" in scratchpad and scratchpad["conversation_history"]:
+        for m in reversed(scratchpad["conversation_history"]):
+            if m.get("role") == "assistant":
+                last_msg = m.get("text", "")
+                break
+        if last_msg:
+            messages.append({"role": "assistant", "content": last_msg})
+
+    # Simulate user's answer for this turn, as Pat
+    user_prompt = (
+        "As Pat Morgan, reply realistically to the assistant's last message, considering your professional background and project constraints."
+    )
+    messages.append({"role": "user", "content": user_prompt})
+
+    # API call (gpt-3.5-turbo, very low cost)
+    completion = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        max_tokens=200,
+        temperature=0.7,
+        stop=None,
+    )
+    return completion.choices[0].message.content.strip()
