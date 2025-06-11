@@ -16,7 +16,7 @@ COPY src/ ./src/
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-ENV STREAMLIT_HOME=/data/.streamlit
+# ENV STREAMLIT_HOME=/data/.streamlit # Setting this via Hugging Face Space Variables
 
 EXPOSE 8501
 
