@@ -84,7 +84,6 @@ def render_horizontal_header(current_stage, current_phase):
     st.markdown('</div>', unsafe_allow_html=True)
 
 def main():
-    # THIS MUST BE THE FIRST STREAMLIT COMMAND
     st.set_page_config(page_title="Chatbot UI", layout="wide")
 
     # Debug prints moved here
@@ -112,9 +111,6 @@ def main():
         sys.stdout.flush()
 
     st.title("Digital Health Innovation Chats")
-
-    # Ensure database is initialized (redundant if persistence_utils.ensure_db() at module level works, but safe)
-    # ensure_db() # Called by initialize_conversation_state and at module level in persistence_utils
 
     apply_responsive_css()
     privacy_notice()
@@ -146,11 +142,11 @@ def main():
                         st.rerun()
                     else:
                         st.warning("Please enter a response to proceed.")
-            else: # Intake complete
+            else:  # Intake complete
                 logging.info("Intake complete. Transitioning to ideation stage and exploration phase.")
                 st.session_state["stage"] = "ideation"
                 st.session_state["phase"] = "exploration"
-                st.session_state["conversation_history"] = [] 
+                st.session_state["conversation_history"] = []
                 st.session_state.pop("intake_answers", None)
                 if "user_id" in st.session_state:
                     save_session(st.session_state["user_id"], dict(st.session_state))
@@ -162,18 +158,17 @@ def main():
                     msg for msg in st.session_state["conversation_history"]
                     if msg.get("meta") != "intake"
                 ]
-            
+
             current_phase = st.session_state.get("phase", "exploration")
             expected_ideation_phases = ["exploration", "development", "refinement", "summary"]
             if current_phase not in expected_ideation_phases:
                 st.session_state["phase"] = "exploration"
                 current_phase = "exploration"
-            
+
             if not st.session_state.get("conversation_history"):
-                if current_phase != "exploration": # Should be exploration if history is empty
+                if current_phase != "exploration":
                     st.session_state["phase"] = "exploration"
                     current_phase = "exploration"
-                
                 logging.info("DEBUG: Exploration phase started with empty history. Getting initial assistant prompt.")
                 initial_assistant_prompt, _ = route_conversation("", st.session_state.get("scratchpad", {}))
                 if initial_assistant_prompt:
@@ -198,10 +193,9 @@ def main():
                             save_session(st.session_state["user_id"], dict(st.session_state))
                 else:
                     st.success("Thank you! Your final feedback has been recorded for this session.")
-            
-                        if current_phase != "summary":
-                # Persona Example Response Button integration
-                # The button appears above the chat input.
+
+            if current_phase != "summary":
+                # --- Persona Example Button Integration ---
                 phase = st.session_state.get("phase", "intake")
                 if st.button("Example"):
                     persona_msg = get_persona_response(phase, st.session_state.get("scratchpad"))
@@ -212,6 +206,7 @@ def main():
                             st.session_state["conversation_history"].append({"role": "assistant", "text": assistant_response})
                             render_response_with_citations(assistant_response, [])
                     st.rerun()
+                # --- End Persona Example Button Integration ---
 
                 user_input = st.chat_input(placeholder="Your response")
 
@@ -234,10 +229,9 @@ def main():
                                 st.session_state["conversation_history"].append({"role": "assistant", "text": assistant_response})
                                 render_response_with_citations(assistant_response, [])
                         st.rerun()
-
     except Exception as e:
         logging.error(f"Error in main application logic: {e}", exc_info=True)
-        st.error(f"An critical error occurred: {e}")
+        st.error(f"A critical error occurred: {e}")
         st.stop()
     finally:
         st.markdown("---")
@@ -247,6 +241,3 @@ def main():
             st.session_state["general_session_feedback_timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             if "user_id" in st.session_state:
                 save_session(st.session_state["user_id"], dict(st.session_state))
-
-if __name__ == "__main__":
-    main()
