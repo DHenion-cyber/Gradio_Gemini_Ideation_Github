@@ -1,389 +1,47 @@
-import sqlite3
-import json
 import os
-import datetime
-from typing import Dict, Optional, Any
+import sqlite3
 
-# --- Dynamic Database Path Logic ---
-_DB_FILENAME = "chatbot_sessions.sqlite"
-_DATA_DIR_PATH = "/data"
+# Detect if we're running in a Hugging Face Space (or anywhere we want to force /data path)
+def get_sqlite_db_path():
+    # HF Spaces set the HF_SPACE_ID env var
+    hf_running = bool(os.environ.get("HF_SPACE_ID")) or os.environ.get("SPACE_ENVIRONMENT") == "spaces"
+    db_in_data = '/data/chatbot_sessions.sqlite'
+    db_local = 'chatbot_sessions.sqlite'
+    if hf_running:
+        # Ensure /data exists
+        os.makedirs('/data', exist_ok=True)
+        return db_in_data
+    else:
+        return db_local
 
-def get_dynamic_db_path() -> str:
-    """
-    Determines the SQLite database path dynamically.
-    Uses /data/chatbot_sessions.sqlite if /data exists,
-    otherwise defaults to chatbot_sessions.sqlite in the current working directory.
-    """
-    if os.path.exists(_DATA_DIR_PATH) and os.path.isdir(_DATA_DIR_PATH):
-        # Check if the /data directory is writable
-        # This is a simplified check; real-world scenarios might need more robust permission handling
-        if os.access(_DATA_DIR_PATH, os.W_OK):
-            return os.path.join(_DATA_DIR_PATH, _DB_FILENAME)
-        else:
-            # /data exists but is not writable, fall back to local
-            print(f"Warning: Directory '{_DATA_DIR_PATH}' exists but is not writable. Using local DB path.")
-            return _DB_FILENAME
-    return _DB_FILENAME
+SQLITE_DB_PATH = get_sqlite_db_path()
 
-SQLITE_DB_PATH = get_dynamic_db_path()
-# --- End Dynamic Database Path Logic ---
-
-def get_db_connection() -> sqlite3.Connection:
-    """Establishes and returns a SQLite database connection."""
-    # Ensure SQLITE_DB_PATH is current if it could change after module load
-    # For this setup, it's set once at module load. If it needed to be more dynamic,
-    # this function might need to call get_dynamic_db_path() directly.
-    return sqlite3.connect(SQLITE_DB_PATH)
+def get_db_connection():
+    # Ensure parent directory exists (should already for /data)
+    db_dir = os.path.dirname(SQLITE_DB_PATH)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+    try:
+        return sqlite3.connect(SQLITE_DB_PATH)
+    except sqlite3.OperationalError as e:
+        print(f"Failed to open DB at {SQLITE_DB_PATH}: {e}")
+        raise
 
 def ensure_db():
-    """
-    Ensures that the necessary tables (sessions, search_cache) exist in the database.
-    Creates them if they are missing using the dynamically determined path.
-    """
-    # Ensure we are using the potentially updated path
-    current_db_path = get_dynamic_db_path()
-    if SQLITE_DB_PATH != current_db_path:
-        # This case should ideally not happen if SQLITE_DB_PATH is set correctly at module load
-        # and not changed elsewhere. However, as a safeguard:
-        print(f"Warning: DB path discrepancy. Module loaded with {SQLITE_DB_PATH}, but current dynamic path is {current_db_path}. Using {current_db_path}.")
-        # In a more complex app, you might re-initialize connection logic here or raise an error.
-        # For now, we'll proceed assuming get_db_connection() will use the module-level SQLITE_DB_PATH
-        # which should be the result of get_dynamic_db_path() at import time.
-        # To be absolutely sure, ensure_db could take the path as an argument or re-fetch it.
-        # For simplicity, we rely on get_db_connection() using the module-level SQLITE_DB_PATH.
-        pass
-
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    # Create sessions table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS sessions (
-            uuid TEXT PRIMARY KEY,
-            data_json TEXT,
-            last_modified TEXT,
-            general_session_feedback TEXT,
-            general_session_feedback_timestamp TEXT
-        )
-    """)
-
-    # Add new columns if they don't exist (for existing databases)
-    # This is a more robust way to handle schema changes
-    table_info = cursor.execute("PRAGMA table_info(sessions);").fetchall()
-    column_names = [info[1] for info in table_info]
-
-    if "general_session_feedback" not in column_names:
-        cursor.execute("ALTER TABLE sessions ADD COLUMN general_session_feedback TEXT;")
-        print("Added column 'general_session_feedback' to 'sessions' table.")
-    
-    if "general_session_feedback_timestamp" not in column_names:
-        cursor.execute("ALTER TABLE sessions ADD COLUMN general_session_feedback_timestamp TEXT;")
-        print("Added column 'general_session_feedback_timestamp' to 'sessions' table.")
-
-    # Create search_cache table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS search_cache (
-            query_hash TEXT PRIMARY KEY,
-            response_json TEXT,
-            timestamp TEXT
-        )
-    """)
-
-    conn.commit()
-
-    # Create conversation_log table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS conversation_log (
-            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_uuid TEXT NOT NULL,
-            timestamp TEXT NOT NULL,
-            source TEXT,
-            module TEXT,
-            stage TEXT,
-            user_message TEXT,
-            bot_message TEXT,
-            metadata_json TEXT,
-            FOREIGN KEY (session_uuid) REFERENCES sessions(uuid)
-        )
-    """)
-    print("Ensured 'conversation_log' table exists.")
-
+    # Example schema setup — replace with your actual table creation
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chatbot_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    ''')
     conn.commit()
     conn.close()
-    # Use the actual path that will be used by get_db_connection
-    print(f"Database {SQLITE_DB_PATH} ensured with sessions, search_cache, and conversation_log tables at path: {os.path.abspath(SQLITE_DB_PATH)}")
 
-# Call ensure_db on module load to make sure tables are ready
-# This will now use the dynamically determined SQLITE_DB_PATH
+# Call ensure_db on import (if you did this before)
 ensure_db()
 
-def _datetime_converter(o):
-    """Helper function to convert datetime objects to ISO format strings for JSON serialization."""
-    if isinstance(o, datetime.datetime):
-        return o.isoformat()
-    raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
-
-def save_session(session_uuid: str, data_dict: Dict[str, Any]):
-    """
-    Saves a session to the database. Data is JSON-serialized.
-    Datetime objects are converted to ISO format strings.
-    Performs an UPSERT operation (insert or replace).
-
-    Args:
-        session_uuid: The unique identifier for the session.
-        data_dict: The session data as a dictionary.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        data_json = json.dumps(data_dict, default=_datetime_converter)
-    except TypeError as e:
-        print(f"Error serializing session data for {session_uuid}: {e}")
-        # Potentially log the problematic data_dict for debugging
-        # For now, we'll try to save a version with problematic fields removed or stringified
-        # This is a basic fallback, a more robust solution would be needed for complex cases
-        safe_data_dict = {}
-        for k, v in data_dict.items():
-            if isinstance(v, datetime.datetime):
-                safe_data_dict[k] = v.isoformat()
-            elif isinstance(v, (dict, list, str, int, float, bool, type(None))):
-                 safe_data_dict[k] = v
-            else:
-                 safe_data_dict[k] = str(v) # Fallback to string representation
-        data_json = json.dumps(safe_data_dict)
-    last_modified = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    try:
-        cursor.execute(
-            "INSERT OR REPLACE INTO sessions (uuid, data_json, last_modified) VALUES (?, ?, ?)",
-            (session_uuid, data_json, last_modified)
-        )
-        conn.commit()
-        print(f"Session {session_uuid} saved successfully.")
-    except sqlite3.Error as e:
-        print(f"Error saving session {session_uuid}: {e}") # Consider using a proper logger
-    finally:
-        conn.close()
-
-def load_session(session_uuid: str) -> Optional[Dict[str, Any]]:
-    """
-    Loads a session from the database by its UUID.
-
-    Args:
-        session_uuid: The unique identifier for the session.
-
-    Returns:
-        A dictionary containing the session data, or None if the session is not found
-        or an error occurs.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT data_json FROM sessions WHERE uuid = ?", (session_uuid,))
-        result = cursor.fetchone()
-        if result:
-            data_dict = json.loads(result[0])
-            # Convert ISO format strings back to datetime objects
-            for key, value in data_dict.items():
-                if isinstance(value, str):
-                    try:
-                        # Attempt to parse as datetime if it matches ISO format
-                        # This is a simple check; more robust parsing might be needed
-                        if len(value) > 19 and value[10] == 'T' and (value.endswith('Z') or '+' in value or '-' in value[11:]):
-                             data_dict[key] = datetime.datetime.fromisoformat(value)
-                    except ValueError:
-                        pass # Not an ISO datetime string, leave as is
-            print(f"Session {session_uuid} loaded successfully.")
-            return data_dict
-        else:
-            print(f"Session {session_uuid} not found.")
-            return None
-    except sqlite3.Error as e:
-        print(f"Error loading session {session_uuid}: {e}") # Consider using a proper logger
-        return None
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON for session {session_uuid}: {e}")
-        return None
-    finally:
-        conn.close()
-
-def prune_sessions(max_age_days: int = 14):
-    """
-    Removes sessions older than a specified number of days from the database.
-
-    Args:
-        max_age_days: The maximum age of a session in days. Sessions older than this
-                      will be removed. Defaults to 14 days.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cutoff_date = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=max_age_days)).isoformat()
-    try:
-        cursor.execute("DELETE FROM sessions WHERE last_modified < ?", (cutoff_date,))
-        conn.commit()
-        deleted_count = cursor.rowcount
-        print(f"Pruned {deleted_count} sessions older than {max_age_days} days.")
-    except sqlite3.Error as e:
-        print(f"Error pruning sessions: {e}") # Consider using a proper logger
-    finally:
-        conn.close()
-
-# --- Search Cache Helper Functions ---
-# These will be called by search_utils.py
-
-def get_cached_search_response(query_hash: str, max_age_hours: int = 12) -> Optional[Dict[str, Any]]:
-    """
-    Looks up a query in the search_cache table.
-
-    Args:
-        query_hash: The SHA256 hash of the search query.
-        max_age_hours: The maximum age of the cache entry in hours.
-
-    Returns:
-        The cached response as a dictionary if found and not expired, otherwise None.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT response_json, timestamp FROM search_cache WHERE query_hash = ?", (query_hash,))
-        result = cursor.fetchone()
-        if result:
-            response_json_str, timestamp_str = result
-            cached_time = datetime.datetime.fromisoformat(timestamp_str)
-            # Ensure current_time is offset-aware if timestamp_str is
-            if cached_time.tzinfo is None: # If timestamp was stored as naive
-                current_time = datetime.datetime.now()
-            else: # If timestamp was stored as aware (e.g. UTC)
-                current_time = datetime.datetime.now(datetime.timezone.utc)
-
-            if (current_time - cached_time).total_seconds() / 3600 < max_age_hours:
-                print(f"Cache hit for hash {query_hash}.")
-                return json.loads(response_json_str)
-            else:
-                print(f"Cache expired for hash {query_hash}.")
-                return None
-        else:
-            print(f"Cache miss for hash {query_hash}.")
-            return None
-    except sqlite3.Error as e:
-        print(f"Error looking up cached search response for hash {query_hash}: {e}")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"Error decoding cached JSON for hash {query_hash}: {e}")
-        return None
-    finally:
-        conn.close()
-
-def store_search_response(query_hash: str, response_data: Dict[str, Any]):
-    """
-    Stores a search query response in the search_cache table.
-
-    Args:
-        query_hash: The SHA256 hash of the search query.
-        response_data: The search response data as a dictionary.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    response_json_str = json.dumps(response_data)
-    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    try:
-        cursor.execute(
-            "INSERT OR REPLACE INTO search_cache (query_hash, response_json, timestamp) VALUES (?, ?, ?)",
-            (query_hash, response_json_str, timestamp)
-        )
-        conn.commit()
-        print(f"Search response for hash {query_hash} stored in cache.")
-    except sqlite3.Error as e:
-        print(f"Error storing search response for hash {query_hash}: {e}")
-    finally:
-        conn.close()
-
-def clear_search_cache():
-    """
-    Clears all entries from the search_cache table.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM search_cache")
-        conn.commit()
-        print("Search cache cleared.")
-    except sqlite3.Error as e:
-        print(f"Error clearing search cache: {e}")
-    finally:
-        conn.close()
-
-def log_message_to_db(
-    session_uuid: str,
-    timestamp: datetime.datetime,
-    source: str,
-    module: str,
-    stage: str,
-    user_message: Optional[str] = None,
-    bot_message: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None
-) -> Optional[int]:
-    """
-    Logs a single message turn (user or bot) or a system event to the conversation_log table.
-
-    Args:
-        session_uuid: The unique identifier for the session.
-        timestamp: The datetime object for when the message was logged.
-        source: Identifier for the origin of the log entry (e.g., 'user', 'bot', 'system').
-        module: The module or component logging the message (e.g., 'simulate_user_session.py', 'llm_utils').
-        stage: The stage in the conversation or process (e.g., 'ideation', 'critique', 'summary').
-        user_message: The user's message, if applicable.
-        bot_message: The bot's response, if applicable.
-        metadata: A dictionary for any additional structured data to log (will be JSON serialized).
-
-    Returns:
-        The row ID of the inserted log entry, or None if an error occurred.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    metadata_json_str = None
-    if metadata:
-        try:
-            metadata_json_str = json.dumps(metadata, default=_datetime_converter)
-        except TypeError as e:
-            print(f"Error serializing metadata for log in session {session_uuid}: {e}")
-            # Fallback for metadata serialization
-            safe_metadata = {}
-            for k, v in metadata.items():
-                if isinstance(v, datetime.datetime):
-                    safe_metadata[k] = v.isoformat()
-                elif isinstance(v, (dict, list, str, int, float, bool, type(None))):
-                    safe_metadata[k] = v
-                else:
-                    safe_metadata[k] = str(v)
-            metadata_json_str = json.dumps(safe_metadata)
-
-    iso_timestamp = timestamp.isoformat()
-
-    try:
-        cursor.execute(
-            """
-            INSERT INTO conversation_log
-            (session_uuid, timestamp, source, module, stage, user_message, bot_message, metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                session_uuid,
-                iso_timestamp,
-                source,
-                module,
-                stage,
-                user_message,
-                bot_message,
-                metadata_json_str
-            )
-        )
-        conn.commit()
-        log_id = cursor.lastrowid
-        print(f"Message logged for session {session_uuid} with log_id {log_id}.")
-        return log_id
-    except sqlite3.Error as e:
-        print(f"Error logging message for session {session_uuid}: {e}")
-        return None
-    finally:
-        conn.close()
+# Add your other persistence functions below as before...
