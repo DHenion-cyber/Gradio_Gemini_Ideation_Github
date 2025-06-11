@@ -19,6 +19,7 @@ from src.ui_components import (
 )
 from ui.sidebar import create_sidebar
 # from ui.summary_panel import display_summary_panel # display_summary_panel is commented out in main logic
+from src.persona_simulation import get_persona_response
 
 import logging
 
@@ -200,6 +201,17 @@ def main():
             
             if current_phase != "summary":
                 user_input = st.chat_input(placeholder="Your response")
+
+                # --- Persona Example Response Button ---
+                # Map your session state or phase logic to the phase labels above
+                phase = st.session_state.get("phase", "intake")  # adjust "phase" if your state uses a different key
+
+                if st.button("Example Response"):
+                    st.session_state['user_input_from_persona'] = get_persona_response(phase, st.session_state.get("scratchpad"))
+                    # If button is pressed, we want its output to be treated as user_input
+                    user_input = st.session_state.pop('user_input_from_persona', None) # Use pop to clear after read
+                    st.rerun()
+                # --- End Persona Example Response Button ---
                 if user_input:
                     if user_input.lower() == "/new idea":
                         initialize_conversation_state(new_chat=True)
