@@ -11,7 +11,7 @@ PERSONA_PROFILE = {
 # Create an OpenAI client instance
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-def get_persona_response(phase, scratchpad=None):
+def get_persona_response(phase, conversation_history=None, scratchpad=None): # Added conversation_history parameter
     """
     Calls OpenAI GPT-3.5-turbo to generate an adaptive persona reply, using conversation history.
     """
@@ -24,16 +24,27 @@ def get_persona_response(phase, scratchpad=None):
     messages.append({"role": "system", "content": persona_instructions})
 
     last_msg = ""
-    if scratchpad and "conversation_history" in scratchpad and scratchpad["conversation_history"]:
-        for m in reversed(scratchpad["conversation_history"]):
-            if m.get("role") == "assistant":
+    # Use the passed conversation_history directly
+    if conversation_history: # Check if conversation_history is provided and not empty
+        for m in reversed(conversation_history):
+            if isinstance(m, dict) and m.get("role") == "assistant": # Ensure m is a dict
                 last_msg = m.get("text", "")
                 break
         if last_msg:
             messages.append({"role": "assistant", "content": last_msg})
 
+    # Include scratchpad information in the user prompt if available
+    scratchpad_summary = ""
+    if scratchpad:
+        scratchpad_items = []
+        for key, value in scratchpad.items():
+            if value and isinstance(value, str): # Only include non-empty string values
+                scratchpad_items.append(f"- {key.replace('_', ' ').title()}: {value}")
+        if scratchpad_items:
+            scratchpad_summary = "\nCurrent project thoughts from scratchpad:\n" + "\n".join(scratchpad_items)
+
     user_prompt = (
-        "As Pat Morgan, reply realistically to the assistant's last message, considering your professional background and project constraints."
+        f"As Pat Morgan, reply realistically to the assistant's last message, considering your professional background and project constraints.{scratchpad_summary}\nYour current focus is the '{phase}' phase."
     )
     messages.append({"role": "user", "content": user_prompt})
 

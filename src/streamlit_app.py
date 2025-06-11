@@ -165,7 +165,11 @@ def main():
             if current_phase != "summary":
                 phase = st.session_state.get("phase", "intake")
                 if st.button("Example"):
-                    persona_msg = get_persona_response(phase, st.session_state.get("scratchpad"))
+                    persona_msg = get_persona_response(
+                        phase=phase,
+                        conversation_history=st.session_state.get("conversation_history", []),
+                        scratchpad=st.session_state.get("scratchpad")
+                    )
                     st.session_state["conversation_history"].append({"role": "user", "text": persona_msg})
                     with st.chat_message("assistant"):
                         with st.spinner("Thinking..."):
