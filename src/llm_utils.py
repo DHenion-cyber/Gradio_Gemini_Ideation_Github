@@ -13,16 +13,21 @@ client = OpenAI()
 # openai.api_key = os.getenv('OPENAI_API_KEY') # Removed: Handled by client instantiation
 
 # Unified function to query OpenAI's GPT-4.1
-def query_openai(prompt, **kwargs): # Added **kwargs to accept additional parameters
-    response = client.chat.completions.create( # Changed to v1.x client syntax
-        model='gpt-4-1106-preview',
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        **kwargs # Pass through any additional keyword arguments
+def query_openai(messages: list, **kwargs): # Changed 'prompt' to 'messages: list'
+    # Ensure API key is available (client instantiation handles this, but good to be aware)
+    if not client.api_key:
+        # Log an error or raise an exception if the API key is missing
+        # For now, this will likely result in an API error from the client.create call
+        error_handling.log_error("OpenAI API key is not configured.")
+        # Depending on desired behavior, could return a specific error message or raise
+        raise ValueError("OpenAI API key not configured.")
+
+    response = client.chat.completions.create(
+        model=kwargs.pop('model', 'gpt-4-1106-preview'), # Allow model override via kwargs, default
+        messages=messages, # Use the passed-in messages list
+        **kwargs # Pass through any other keyword arguments like temperature, max_tokens
     )
-    return response.choices[0].message.content # Access content via attribute
+    return response.choices[0].message.content.strip() # Ensure stripping
 
 # Assuming error_handling.py and search_utils.py exist or will be created
 # For now, using placeholders for these imports.

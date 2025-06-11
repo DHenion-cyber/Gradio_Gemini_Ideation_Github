@@ -81,7 +81,7 @@ Current Value Proposition Status:
     try:
         # Assuming query_openai returns the assistant's message text directly.
         # Adjust if it returns a more complex object.
-        assistant_reply = query_openai(messages=messages, phase="exploration") # Pass phase if useful for query_openai
+        assistant_reply = query_openai(messages=messages) # Removed phase="exploration"
     except Exception as e:
         st.error(f"Error querying LLM in exploration: {e}")
         assistant_reply = "I encountered an issue. Could you please try rephrasing?"
