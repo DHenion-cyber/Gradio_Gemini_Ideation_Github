@@ -2,40 +2,89 @@ import os
 import sqlite3
 import sys
 
+# --- ensure_data_dir_exists ---
 def ensure_data_dir_exists():
+    print("DEBUG_P_UTILS: ensure_data_dir_exists() CALLED")
+    sys.stdout.flush()
     data_dir = '/data'
-    if not os.path.exists(data_dir):
-        try:
-            os.makedirs(data_dir, exist_ok=True)
-        except Exception as e:
-            print(f"CRITICAL: Unable to create /data directory: {e}")
+    try:
+        if not os.path.exists(data_dir):
+            print(f"DEBUG_P_UTILS: /data directory '{data_dir}' does not exist. Attempting to create.")
             sys.stdout.flush()
+            os.makedirs(data_dir, exist_ok=True)
+            print(f"DEBUG_P_UTILS: Successfully created or ensured /data directory '{data_dir}'")
+            sys.stdout.flush()
+        else:
+            print(f"DEBUG_P_UTILS: /data directory '{data_dir}' already exists.")
+            sys.stdout.flush()
+    except Exception as e:
+        print(f"CRITICAL_P_UTILS: Exception in ensure_data_dir_exists for {data_dir}: {e}")
+        sys.stdout.flush()
+        # Do not raise, allow get_sqlite_db_path to try to handle path determination
 
+# --- get_sqlite_db_path ---
 def get_sqlite_db_path():
-    print("DEBUG: get_sqlite_db_path() called")
+    print("DEBUG_P_UTILS: get_sqlite_db_path() CALLED - TOP")
     sys.stdout.flush()
-    hf_space_id = os.environ.get("HF_SPACE_ID")
-    is_data_dir = os.path.isdir('/data')
-    print(f"DEBUG: HF_SPACE_ID: {hf_space_id}, os.path.isdir('/data'): {is_data_dir}")
-    sys.stdout.flush()
-    if hf_space_id or is_data_dir:
-        print("DEBUG: get_sqlite_db_path() - In if block (HF Space or /data exists)")
+    try:
+        hf_space_id = os.environ.get("HF_SPACE_ID")
+        # Check /data existence *before* calling ensure_data_dir_exists within this function's logic
+        is_data_dir_initially = os.path.isdir('/data')
+        print(f"DEBUG_P_UTILS: In get_sqlite_db_path - HF_SPACE_ID: {hf_space_id}, initial os.path.isdir('/data'): {is_data_dir_initially}")
         sys.stdout.flush()
-        ensure_data_dir_exists()
-        return '/data/chatbot_sessions.sqlite'
-    else:
-        print("DEBUG: get_sqlite_db_path() - In else block")
-        sys.stdout.flush()
-        return 'chatbot_sessions.sqlite'
 
-print("DEBUG: About to call get_sqlite_db_path() for SQLITE_DB_PATH")
-sys.stdout.flush()
-SQLITE_DB_PATH = get_sqlite_db_path()
-print(f"DEBUG: SQLITE_DB_PATH initialized to: {SQLITE_DB_PATH}")
-sys.stdout.flush()
+        if hf_space_id or is_data_dir_initially:
+            print("DEBUG_P_UTILS: get_sqlite_db_path() - In if block (HF Space or /data initially exists). Ensuring /data.")
+            sys.stdout.flush()
+            ensure_data_dir_exists() # Attempt to create/ensure /data
+            # Re-check /data status after attempt
+            if not os.path.isdir('/data'):
+                 print("CRITICAL_P_UTILS: /data is STILL NOT a directory after ensure_data_dir_exists(). Defaulting path to local.")
+                 sys.stdout.flush()
+                 final_path = 'fallback_chatbot_sessions.sqlite' # Fallback if /data cannot be made
+            else:
+                 final_path = '/data/chatbot_sessions.sqlite'
+            print(f"DEBUG_P_UTILS: get_sqlite_db_path() - Returning from if block: {final_path}")
+            sys.stdout.flush()
+            return final_path
+        else:
+            print("DEBUG_P_UTILS: get_sqlite_db_path() - In else block (local dev likely, /data not found initially).")
+            sys.stdout.flush()
+            final_path = 'chatbot_sessions.sqlite' # Local path for non-HF/no-data scenarios
+            print(f"DEBUG_P_UTILS: get_sqlite_db_path() - Returning from else block: {final_path}")
+            sys.stdout.flush()
+            return final_path
+    except Exception as e:
+        print(f"CRITICAL_P_UTILS: Exception in get_sqlite_db_path() execution: {e}")
+        sys.stdout.flush()
+        error_fallback_path = 'error_during_get_path.sqlite'
+        print(f"DEBUG_P_UTILS: get_sqlite_db_path() - Returning error fallback path: {error_fallback_path}")
+        sys.stdout.flush()
+        return error_fallback_path
+
+# --- Global SQLITE_DB_PATH assignment with robust error handling ---
+SQLITE_DB_PATH = "uninitialized_db_path.sqlite" # Default if everything fails
+try:
+    print("DEBUG_P_UTILS: MODULE LEVEL - About to call get_sqlite_db_path() for SQLITE_DB_PATH global assignment.")
+    sys.stdout.flush()
+    SQLITE_DB_PATH = get_sqlite_db_path()
+    print(f"DEBUG_P_UTILS: MODULE LEVEL - SQLITE_DB_PATH globally initialized to: {SQLITE_DB_PATH}")
+    sys.stdout.flush()
+    if SQLITE_DB_PATH is None: # Should be handled by get_sqlite_db_path returning fallbacks
+        print("CRITICAL_P_UTILS: MODULE LEVEL - SQLITE_DB_PATH is None after assignment! This should not happen.")
+        sys.stdout.flush()
+        SQLITE_DB_PATH = "critical_none_fallback.sqlite"
+except Exception as e:
+    print(f"CRITICAL_P_UTILS: MODULE LEVEL - Exception during global SQLITE_DB_PATH assignment: {e}")
+    sys.stdout.flush()
+    SQLITE_DB_PATH = "global_assign_exception_fallback.sqlite"
+finally:
+    print(f"DEBUG_P_UTILS: MODULE LEVEL - Final SQLITE_DB_PATH after try/except/finally: {SQLITE_DB_PATH}")
+    sys.stdout.flush()
+
 
 def get_db_connection():
-    print("DEBUG: get_db_connection() called")
+    print(f"DEBUG_P_UTILS: get_db_connection() called. Using SQLITE_DB_PATH: {SQLITE_DB_PATH}")
     sys.stdout.flush()
     db_dir = os.path.dirname(SQLITE_DB_PATH)
     print(f"DEBUG: db_dir: {db_dir}")
