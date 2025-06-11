@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import sys
+import json
 
 # --- ensure_data_dir_exists ---
 def ensure_data_dir_exists():
@@ -82,46 +83,6 @@ finally:
     print(f"DEBUG_P_UTILS: MODULE LEVEL - Final SQLITE_DB_PATH after try/except/finally: {SQLITE_DB_PATH}")
     sys.stdout.flush()
 
-# Ensure the database schema is created when this module is first imported
-try:
-    print("DEBUG_P_UTILS: MODULE LEVEL - Attempting to call ensure_db() after SQLITE_DB_PATH initialization.")
-    sys.stdout.flush()
-    ensure_db() # Defined later in the file, but Python allows this for module-level execution
-    print("DEBUG_P_UTILS: MODULE LEVEL - ensure_db() call completed.")
-    sys.stdout.flush()
-except Exception as e:
-    print(f"CRITICAL_P_UTILS: MODULE LEVEL - Exception during initial ensure_db() call: {e}")
-    sys.stdout.flush()
-
-def get_db_connection():
-    print(f"DEBUG_P_UTILS: get_db_connection() called. Using SQLITE_DB_PATH: {SQLITE_DB_PATH}")
-    sys.stdout.flush()
-    db_dir = os.path.dirname(SQLITE_DB_PATH)
-    print(f"DEBUG: db_dir: {db_dir}")
-    sys.stdout.flush()
-    if db_dir and not os.path.exists(db_dir):
-        print(f"DEBUG: db_dir '{db_dir}' does not exist. Attempting to create.")
-        sys.stdout.flush()
-        try:
-            os.makedirs(db_dir, exist_ok=True)
-            print(f"DEBUG: Successfully created db_dir '{db_dir}'")
-            sys.stdout.flush()
-        except Exception as e:
-            print(f"CRITICAL: Could not create db directory {db_dir}: {e}")
-            sys.stdout.flush()
-            raise
-    else:
-        print(f"DEBUG: db_dir '{db_dir}' already exists or is not specified.")
-        sys.stdout.flush()
-    try:
-        print("DEBUG: Attempting to connect. SQLITE_DB_PATH =", SQLITE_DB_PATH)
-        sys.stdout.flush()
-        return sqlite3.connect(SQLITE_DB_PATH, timeout=10, isolation_level=None)
-    except Exception as e:
-        print(f"CRITICAL: Could not open SQLite DB at {SQLITE_DB_PATH}: {e}")
-        sys.stdout.flush()
-        raise
-
 def ensure_db():
     print("DEBUG_P_UTILS: ensure_db() CALLED")
     sys.stdout.flush()
@@ -176,15 +137,55 @@ def ensure_db():
         print(f"CRITICAL_P_UTILS: Exception in ensure_db(): {e}") # Changed to CRITICAL_P_UTILS for consistency
         sys.stdout.flush()
         raise
+# Ensure the database schema is created when this module is first imported
+try:
+    print("DEBUG_P_UTILS: MODULE LEVEL - Attempting to call ensure_db() after SQLITE_DB_PATH initialization.")
+    sys.stdout.flush()
+    ensure_db() # Defined later in the file, but Python allows this for module-level execution
+    print("DEBUG_P_UTILS: MODULE LEVEL - ensure_db() call completed.")
+    sys.stdout.flush()
+except Exception as e:
+    print(f"CRITICAL_P_UTILS: MODULE LEVEL - Exception during initial ensure_db() call: {e}")
+    sys.stdout.flush()
+
+def get_db_connection():
+    print(f"DEBUG_P_UTILS: get_db_connection() called. Using SQLITE_DB_PATH: {SQLITE_DB_PATH}")
+    sys.stdout.flush()
+    db_dir = os.path.dirname(SQLITE_DB_PATH)
+    print(f"DEBUG: db_dir: {db_dir}")
+    sys.stdout.flush()
+    if db_dir and not os.path.exists(db_dir):
+        print(f"DEBUG: db_dir '{db_dir}' does not exist. Attempting to create.")
+        sys.stdout.flush()
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+            print(f"DEBUG: Successfully created db_dir '{db_dir}'")
+            sys.stdout.flush()
+        except Exception as e:
+            print(f"CRITICAL: Could not create db directory {db_dir}: {e}")
+            sys.stdout.flush()
+            raise
+    else:
+        print(f"DEBUG: db_dir '{db_dir}' already exists or is not specified.")
+        sys.stdout.flush()
+    try:
+        print("DEBUG: Attempting to connect. SQLITE_DB_PATH =", SQLITE_DB_PATH)
+        sys.stdout.flush()
+        return sqlite3.connect(SQLITE_DB_PATH, timeout=10, isolation_level=None)
+    except Exception as e:
+        print(f"CRITICAL: Could not open SQLite DB at {SQLITE_DB_PATH}: {e}")
+        sys.stdout.flush()
+        raise
 
 # === Helper functions restored from your original code ===
 
 def save_session(user_id, session_data):
     conn = get_db_connection()
     cursor = conn.cursor()
+    session_data_json = json.dumps(session_data)
     cursor.execute(
         "INSERT INTO chatbot_sessions (user_id, session_data) VALUES (?, ?)",
-        (user_id, session_data,)
+        (user_id, session_data_json,)
     )
     session_id = cursor.lastrowid
     conn.commit()
@@ -201,7 +202,13 @@ def load_session(session_id):
     row = cursor.fetchone()
     conn.close()
     if row:
-        return row[0]
+        session_data_json = row[0]
+        try:
+            return json.loads(session_data_json)
+        except json.JSONDecodeError as e:
+            print(f"CRITICAL_P_UTILS: Failed to decode JSON from DB: {e}. Data: '{session_data_json}'")
+            sys.stdout.flush()
+            return None # Or handle error appropriately, e.g., return an empty dict or raise
     return None
 
 def delete_session(session_id):
