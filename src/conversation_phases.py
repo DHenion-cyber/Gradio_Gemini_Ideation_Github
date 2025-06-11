@@ -55,10 +55,10 @@ def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
     # Create a representation of the current value proposition from the scratchpad
     # to help the LLM follow Rule 3.
     value_prop_elements = {
-        "problem": updated_scratchpad.get(CANONICAL_KEYS["problem"], "Not yet defined"),
-        "target user": updated_scratchpad.get(CANONICAL_KEYS["customer_segment"], "Not yet defined"),
-        "proposed solution": updated_scratchpad.get(CANONICAL_KEYS["solution"], "Not yet defined"),
-        "core benefit": updated_scratchpad.get(CANONICAL_KEYS["value_prop"], "Not yet defined") # Assuming value_prop key for core benefit
+        "problem": updated_scratchpad.get("problem", "Not yet defined"),
+        "target user": updated_scratchpad.get("customer_segment", "Not yet defined"),
+        "proposed solution": updated_scratchpad.get("solution", "Not yet defined"),
+        "core benefit": updated_scratchpad.get("value_proposition", "Not yet defined") # Corrected key from CANONICAL_KEYS
     }
     
     # Construct a user message that includes the current state for the LLM
