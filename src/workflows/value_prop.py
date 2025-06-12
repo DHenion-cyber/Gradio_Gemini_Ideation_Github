@@ -3,10 +3,19 @@ import random
 
 CHECKLIST = ["problem", "target_user", "solution", "benefit"]
 QMAP = {
-    "problem": "What single problem are we solving?",
-    "target_user": "Who feels that pain the most?",
-    "solution": "Give a one-sentence solution.",
-    "benefit": "What measurable benefit proves value?"
+    "problem": (
+        "Could you describe in one line the main problem you’d like this solution to tackle? "
+        "Example: “Patients miss appointments because reminders are buried.”"
+    ),
+    "target_user": (
+        "Who feels that pain the most? (e.g., “out-patients,” “radiology schedulers,” etc.)"
+    ),
+    "solution": (
+        "What’s your one-sentence solution idea? You can stay high-level for now."
+    ),
+    "benefit": (
+        "Which single measurable benefit would prove success? (e.g., “10 % fewer no-shows.”)"
+    )
 }
 STRENGTH_TEMPL = "Strength: {item} looks solid."
 ALT_POOL = [
@@ -30,7 +39,12 @@ class ValuePropWorkflow:
 
         # If a question was pending, treat current user_msg as the answer
         pending = scratchpad.pop("vp_pending", None)
+
         if pending in CHECKLIST:
+            cleaned = user_msg.strip().lower()
+            if cleaned in {"not sure", "no thanks", ""}:
+                # user declined or unsure → re-ask with gentle reframe
+                return "No worries—take your time. " + QMAP[pending], "development"
             sp_vp[pending] = user_msg.strip()
 
         # Find the first missing slot
