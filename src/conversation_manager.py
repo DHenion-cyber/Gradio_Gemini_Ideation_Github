@@ -322,7 +322,7 @@ def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
     current_phase = st.session_state.get("phase", "exploration")  # Default to exploration
 
     cw = st.session_state.get("current_workflow")
-    if cw in WORKFLOWS:
+    if user_message and cw in WORKFLOWS: # Check for user_message before calling workflow step
         assistant_reply, new_phase = WORKFLOWS[cw].step(user_message, scratchpad)
         return assistant_reply, new_phase
 # Check for affirmative response in exploration phase to confirm value prop
