@@ -3,6 +3,7 @@ from dotenv import load_dotenv # Import load_dotenv
 from openai import OpenAI # Import the OpenAI class
 import streamlit as st
 from typing import Optional
+from src.coach_persona import COACH_PROMPT # Added import
 
 load_dotenv() # Load environment variables from .env file
 
@@ -16,15 +17,27 @@ client = OpenAI()
 def query_openai(messages: list, **kwargs): # Changed 'prompt' to 'messages: list'
     # Ensure API key is available (client instantiation handles this, but good to be aware)
     if not client.api_key:
-        # Log an error or raise an exception if the API key is missing
-        # For now, this will likely result in an API error from the client.create call
         error_handling.log_error("OpenAI API key is not configured.")
-        # Depending on desired behavior, could return a specific error message or raise
         raise ValueError("OpenAI API key not configured.")
 
+    # Prepend COACH_PROMPT
+    final_messages = []
+    # Create a new dictionary for coach_system_message to avoid modifying COACH_PROMPT if it's complex
+    coach_system_message_content = COACH_PROMPT
+    
+    if messages and messages[0]["role"] == "system":
+        # Combine COACH_PROMPT with existing system message
+        coach_system_message_content += "\n" + messages[0]["content"]
+        final_messages.append({"role": "system", "content": coach_system_message_content})
+        final_messages.extend(messages[1:])
+    else:
+        # Prepend COACH_PROMPT as the new system message
+        final_messages.append({"role": "system", "content": coach_system_message_content})
+        final_messages.extend(messages)
+    
     response = client.chat.completions.create(
         model=kwargs.pop('model', 'gpt-4-1106-preview'), # Allow model override via kwargs, default
-        messages=messages, # Use the passed-in messages list
+        messages=final_messages, # Use the modified messages list
         **kwargs # Pass through any other keyword arguments like temperature, max_tokens
     )
     return response.choices[0].message.content.strip() # Ensure stripping
@@ -257,7 +270,7 @@ What is your proposed next conversational turn?
     response = client.chat.completions.create(
         model='gpt-4-1106-preview', # Or your preferred model
         messages=[
-            {"role": "system", "content": system_prompt_content},
+            {"role": "system", "content": COACH_PROMPT + "\n" + system_prompt_content},
             {"role": "user", "content": full_user_prompt}
         ],
         temperature=0.75, # Slightly higher for more creative/natural conversation
@@ -277,7 +290,7 @@ def summarize_response(text: str) -> str:
     """
     summary_prompt = f"Summarize the following text in 100 tokens or less:\n\n{text}"
     # Use a slightly lower temperature for summarization to get more concise results
-    summary = query_openai(summary_prompt, temperature=0.5, max_tokens=100) # Changed max_output_tokens to max_tokens
+    summary = query_openai(messages=[{"role": "user", "content": summary_prompt}], temperature=0.5, max_tokens=100)
     return summary
 
 def generate_contextual_follow_up(advice_text: str) -> str:
@@ -299,7 +312,7 @@ Follow-up question:"""
         response = client.chat.completions.create(
             model='gpt-4-1106-preview', # Or your preferred model for this task
             messages=[
-                {"role": "system", "content": "You are an expert at crafting engaging and contextually relevant follow-up questions."},
+                {"role": "system", "content": COACH_PROMPT + "\n" + "You are an expert at crafting engaging and contextually relevant follow-up questions."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, # Allow for some creativity

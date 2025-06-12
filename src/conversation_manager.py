@@ -13,6 +13,10 @@ from . import search_utils
 from . import conversation_phases # Added for phase routing
 from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
 from .constants import EMPTY_SCRATCHPAD # Import EMPTY_SCRATCHPAD
+from src.coach_persona import COACH_PROMPT
+from src.workflows.value_prop import ValuePropWorkflow
+
+WORKFLOWS = {"value_prop": ValuePropWorkflow()}
 
 def generate_uuid() -> str:
     """Generates a short random string for user_id."""
@@ -59,6 +63,7 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state["perplexity_calls"] = 0
         st.session_state["phase"] = "exploration"
         st.session_state.setdefault("intake_answers", [])
+        st.session_state["current_workflow"] = "value_prop"
         st.session_state["conversation_initialized"] = True # Mark as initialized
         save_session(st.session_state["user_id"], dict(st.session_state))
         return # Explicitly return after handling new_chat
@@ -315,6 +320,11 @@ def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
     st.session_state["scratchpad"] = update_scratchpad(user_message, st.session_state["scratchpad"])
 
     current_phase = st.session_state.get("phase", "exploration")  # Default to exploration
+
+    cw = st.session_state.get("current_workflow")
+    if cw in WORKFLOWS:
+        assistant_reply, new_phase = WORKFLOWS[cw].step(user_message, scratchpad)
+        return assistant_reply, new_phase
 # Check for affirmative response in exploration phase to confirm value prop
     if current_phase == "exploration" and user_message and re.search(r"\b(yes|that.?s it|correct|sounds good)\b", user_message, re.I):
         # Ensure scratchpad exists in session_state, though it should by this point.
