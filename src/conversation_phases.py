@@ -85,6 +85,11 @@ Current Value Proposition Status:
         # Assuming query_openai returns the assistant's message text directly.
         # Adjust if it returns a more complex object.
         assistant_reply = query_openai(messages=messages) # Removed phase="exploration"
+        if not assistant_reply or not assistant_reply.strip():
+            assistant_reply = "I'm processing that. Could you tell me a bit more, or perhaps we can explore another angle?"
+            # Log this occurrence for debugging
+            st.warning("LLM returned an empty or whitespace-only response in exploration phase.")
+            print("DEBUG: LLM returned empty/whitespace response in handle_exploration.")
     except Exception as e:
         st.error(f"Error querying LLM in exploration: {e}")
         assistant_reply = "I encountered an issue. Could you please try rephrasing?"
