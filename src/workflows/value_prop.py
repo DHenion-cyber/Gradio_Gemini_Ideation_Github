@@ -1,19 +1,56 @@
-from src import conversation_phases # Import conversation_phases
+from typing import Tuple, Dict, List
+import random
+
+CHECKLIST = ["problem", "target_user", "solution", "benefit"]
+QMAP = {
+    "problem": "What single problem are we solving?",
+    "target_user": "Who feels that pain the most?",
+    "solution": "Give a one-sentence solution.",
+    "benefit": "What measurable benefit proves value?"
+}
+STRENGTH_TEMPL = "Strength: {item} looks solid."
+ALT_POOL = [
+    "Alternative: pilot with one small clinic first.",
+    "Alternative: focus on peri-op patients before a hospital-wide roll-out.",
+    "Alternative: consider bilingual templates to double reach with little cost.",
+]
 
 class ValuePropWorkflow:
-    """Skeleton workflow: will collect problem / user / solution / benefit in P3"""
     name = "value_prop"
 
-    def step(self, user_msg, scratchpad):
-        # If problem is not in scratchpad, ask the first question.
-        if not scratchpad.get("problem"):
-            return "What single problem are we solving?", "exploration"
-        
-        # If problem is already in scratchpad (e.g. from intake),
-        # delegate to the standard exploration phase handler.
-        # This allows the conversation to proceed through other value prop elements.
-        if user_msg: # Ensure there's a user message to process
-             return conversation_phases.handle_exploration(user_msg, scratchpad)
-        
-        # Fallback or if there's no user_msg but problem exists (should be rare here)
-        return "Great. (Full workflow logic will be added next iteration.)", "development"
+    # -------- helper --------
+    def _vp(self, sp: Dict) -> Dict:
+        if "vp" not in sp:
+            sp["vp"] = {}
+        return sp["vp"]
+
+    # -------- main entry --------
+    def step(self, user_msg: str, scratchpad: Dict) -> Tuple[str, str]:
+        sp_vp = self._vp(scratchpad)
+
+        # If a question was pending, treat current user_msg as the answer
+        pending = scratchpad.pop("vp_pending", None)
+        if pending in CHECKLIST:
+            sp_vp[pending] = user_msg.strip()
+
+        # Find the first missing slot
+        missing: List[str] = [k for k in CHECKLIST if not sp_vp.get(k)]
+        if missing:
+            nxt = missing[0]
+            scratchpad["vp_pending"] = nxt
+            return QMAP[nxt], "development"
+
+        # === Quick Recap phase ===
+        recap = (
+            f"**Quick Recap**\n"
+            f"*Problem*  : {sp_vp['problem']}\n"
+            f"*User*     : {sp_vp['target_user']}\n"
+            f"*Solution* : {sp_vp['solution']}\n"
+            f"*Benefit*  : {sp_vp['benefit']}"
+        )
+        strength = STRENGTH_TEMPL.format(item=random.choice(list(sp_vp.values())))
+        alt      = random.choice(ALT_POOL)
+        recap_block = f"{recap}\n\n{strength}\n{alt}\n\nIterate further or get the full summary?"
+
+        scratchpad["vp_complete"] = True
+        return recap_block, "summary"
