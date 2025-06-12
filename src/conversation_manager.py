@@ -322,8 +322,9 @@ def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
     current_phase = st.session_state.get("phase", "exploration")  # Default to exploration
 
     cw = st.session_state.get("current_workflow")
-    if user_message and cw in WORKFLOWS: # Check for user_message before calling workflow step
-        assistant_reply, new_phase = WORKFLOWS[cw].step(user_message, scratchpad)
+    if cw in WORKFLOWS:
+        assistant_reply, new_phase = WORKFLOWS[cw].step(user_message, st.session_state["scratchpad"])
+        st.session_state["phase"] = new_phase
         return assistant_reply, new_phase
 # Check for affirmative response in exploration phase to confirm value prop
     if current_phase == "exploration" and user_message and re.search(r"\b(yes|that.?s it|correct|sounds good)\b", user_message, re.I):
