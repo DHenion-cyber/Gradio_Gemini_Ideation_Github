@@ -4,6 +4,9 @@ from .constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS
 from .llm_utils import query_openai, propose_next_conversation_turn # Import query_openai and propose_next_conversation_turn
 import json
 import textwrap
+CHECKLIST = ["problem", "target_user", "solution", "benefit"]
+def missing_items(sp):
+    return [k for k in CHECKLIST if not sp.get(k)]
 EXPLORATION_PROMPT = textwrap.dedent("""
 You are a strategy coach. The ONLY goal of the exploration phase
 is to lock in a concise VALUE PROPOSITION:
@@ -95,35 +98,29 @@ Current Value Proposition Status:
     return assistant_reply, next_phase
 
 def handle_development(user_message: str, scratchpad: dict) -> tuple[str, str]:
-    updated_scratchpad = update_scratchpad(user_message, scratchpad)
-    st.session_state["scratchpad"] = updated_scratchpad
-
-    development_turns = st.session_state.get("development_turns", 0)
-    intake_answers = st.session_state.get("intake_answers", [])
-
-    if development_turns >= 4 and any(word in user_message.lower() for word in ["summary", "complete", "finish", "wrap up"]):
-        st.session_state["development_turns"] = 0  # reset for next phase
-        assistant_reply = propose_next_conversation_turn(
-            intake_answers=st.session_state.get("intake_answers", []),
-            scratchpad=updated_scratchpad,
-            phase="summary", # Transitioning to summary
-            conversation_history=st.session_state.get("conversation_history", [])
-        )
-        next_phase = "summary"
+    needed = missing_items(scratchpad)
+    if needed:
+        next_item = needed[0]
+        prompts = {
+            "problem": "What single problem are we solving?",
+            "target_user": "Who feels that pain the most?",
+            "solution": "Describe the one-sentence solution.",
+            "benefit": "What core benefit or metric proves value?"
+        }
+        return prompts[next_item], "development"
     else:
-        assistant_reply = propose_next_conversation_turn(
-            intake_answers=st.session_state.get("intake_answers", []),
-            scratchpad=updated_scratchpad,
-            phase="development", # Still in development
-            conversation_history=st.session_state.get("conversation_history", [])
-        )
-        st.session_state["development_turns"] = development_turns + 1
-        next_phase = "development"
-
-    return assistant_reply, next_phase
+        return "Great, let's refine wording.", "refinement"
 
 def handle_summary(user_message: str, scratchpad: dict) -> tuple[str, str]:
-    updated_scratchpad = update_scratchpad(user_message, scratchpad)
+    vp = scratchpad
+    summary = (
+        f"**Value Proposition**\n\n"
+        f"*Problem*: {vp.get('problem')}\n"
+        f"*User*: {vp.get('target_user')}\n"
+        f"*Solution*: {vp.get('solution')}\n"
+        f"*Benefit*: {vp.get('benefit')}"
+    )
+    return summary + "\n\nDoes this capture it? (yes / no)", "summary"
     st.session_state["scratchpad"] = updated_scratchpad
 
     snapshot = {key: updated_scratchpad.get(key, "N/A") for key in [
