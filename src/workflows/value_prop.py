@@ -37,33 +37,73 @@ class ValuePropWorkflow:
     def step(self, user_msg: str, scratchpad: Dict) -> Tuple[str, str]:
         sp_vp = self._vp(scratchpad)
 
-        # If a question was pending, treat current user_msg as the answer
+        # ---------- existing pending-answer pop ----------
         pending = scratchpad.pop("vp_pending", None)
 
-        if pending in CHECKLIST:
-            cleaned = user_msg.strip().lower()
-            if cleaned in {"not sure", "no thanks", ""}:
-                # user declined or unsure → re-ask with gentle reframe
-                return "No worries—take your time. " + QMAP[pending], "development"
-            sp_vp[pending] = user_msg.strip()
+        # ---------- NEW: stance-logic block ----------
+        def is_uncertain(txt: str) -> bool:
+            txt = txt.lower()
+            return any(k in txt for k in ["not sure", "don't know", "idk", "?", "maybe"])
 
-        # Find the first missing slot
-        missing: List[str] = [k for k in CHECKLIST if not sp_vp.get(k)]
+        stance = "raw"
+        txt_lc = user_msg.lower()
+        if any(k in txt_lc for k in ["open to", "explore", "any ideas"]):
+            stance = "open"
+        elif any(k in txt_lc for k in ["decided", "locked", "keep as is", "that's it"]):
+            stance = "decided"
+        elif is_uncertain(txt_lc):
+            stance = "uncertain"
+        else:
+            stance = "interest"
+
+        if pending in CHECKLIST:
+            if stance == "uncertain":
+                # encourage + same question
+                return "No worries—here’s one angle you could consider. " + QMAP[pending], "development"
+
+            if stance == "open":
+                # offer strategic suggestion based on element
+                if pending == "problem":
+                    sugg = "Consider narrowing to appointment-coordination confusion first."
+                elif pending == "target_user":
+                    sugg = "High-visit dialysis patients often show scheduling pain."
+                elif pending == "solution":
+                    sugg = "A multilingual SMS itinerary is fast to prototype."
+                else:  # benefit
+                    sugg = "Aim for ≥10 % no-show reduction as a clear win."
+                return f"Great idea! {sugg} Does that resonate, or do you prefer something else?", "development"
+
+            if stance == "decided":
+                sp_vp[pending] = user_msg.strip()
+                # move on silently
+            else:  # stance == "interest"
+                sp_vp[pending] = user_msg.strip()
+                if pending != "benefit":
+                    nxt = CHECKLIST[CHECKLIST.index(pending) + 1]
+                    scratchpad["vp_pending"] = nxt
+                    return "Great—got it. " + QMAP[nxt], "development"
+
+        # ---------- ORIGINAL missing-slot logic ----------
+        missing = [k for k in CHECKLIST if not sp_vp.get(k)]
         if missing:
             nxt = missing[0]
             scratchpad["vp_pending"] = nxt
             return QMAP[nxt], "development"
 
-        # === Quick Recap phase ===
+        # ---------- ORIGINAL recap block (unchanged) ----------
+        def clean(k):
+            val = sp_vp.get(k, "")
+            return "" if val.lower() in {"", "not sure"} else val
         recap = (
-            f"**Quick Recap**\n"
-            f"*Problem*  : {sp_vp['problem']}\n"
-            f"*User*     : {sp_vp['target_user']}\n"
-            f"*Solution* : {sp_vp['solution']}\n"
-            f"*Benefit*  : {sp_vp['benefit']}"
+            "**Quick Recap**\n"
+            f"*Problem*  : {clean('problem')}\n"
+            f"*User*     : {clean('target_user')}\n"
+            f"*Solution* : {clean('solution')}\n"
+            f"*Benefit*  : {clean('benefit')}"
         )
-        strength = STRENGTH_TEMPL.format(item=random.choice(list(sp_vp.values())))
-        alt      = random.choice(ALT_POOL)
+        first_solid = next((clean(k) for k in CHECKLIST if clean(k)), "early clarity")
+        strength = f"Strength: “{first_solid}” looks solid."
+        alt = random.choice(ALT_POOL)
         recap_block = f"{recap}\n\n{strength}\n{alt}\n\nIterate further or get the full summary?"
 
         scratchpad["vp_complete"] = True
