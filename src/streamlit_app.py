@@ -196,6 +196,10 @@ def main():
                         with st.chat_message("assistant"):
                             with st.spinner("Thinking..."):
                                 assistant_response, _ = route_conversation(user_input, st.session_state.get("scratchpad", {}))
+                                if assistant_response is None:
+                                    logging.error("route_conversation returned None for assistant_response. User input: %s", user_input)
+                                    assistant_response = "I'm sorry, I encountered an issue and couldn't generate a response. Please try again."
+                                    # Potentially add a more specific error to the UI or history if needed
                                 st.session_state["conversation_history"].append({"role": "assistant", "text": assistant_response})
                                 render_response_with_citations(assistant_response, [])
                         st.rerun()
