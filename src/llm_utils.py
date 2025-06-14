@@ -3,7 +3,7 @@ from dotenv import load_dotenv # Import load_dotenv
 from openai import OpenAI # Import the OpenAI class
 import streamlit as st
 from typing import Optional
-from src.coach_persona import COACH_PROMPT # Added import
+# from src.coach_persona import COACH_PROMPT # Removed import as COACH_PROMPT is no longer defined there
 
 load_dotenv() # Load environment variables from .env file
 
@@ -20,24 +20,13 @@ def query_openai(messages: list, **kwargs): # Changed 'prompt' to 'messages: lis
         error_handling.log_error("OpenAI API key is not configured.")
         raise ValueError("OpenAI API key not configured.")
 
-    # Prepend COACH_PROMPT
-    final_messages = []
-    # Create a new dictionary for coach_system_message to avoid modifying COACH_PROMPT if it's complex
-    coach_system_message_content = COACH_PROMPT
-    
-    if messages and messages[0]["role"] == "system":
-        # Combine COACH_PROMPT with existing system message
-        coach_system_message_content += "\n" + messages[0]["content"]
-        final_messages.append({"role": "system", "content": coach_system_message_content})
-        final_messages.extend(messages[1:])
-    else:
-        # Prepend COACH_PROMPT as the new system message
-        final_messages.append({"role": "system", "content": coach_system_message_content})
-        final_messages.extend(messages)
+    # COACH_PROMPT was previously prepended here.
+    # System messages are now expected to be part of the 'messages' input if needed,
+    # or handled by specific functions like build_prompt.
     
     response = client.chat.completions.create(
         model=kwargs.pop('model', 'gpt-4-1106-preview'), # Allow model override via kwargs, default
-        messages=final_messages, # Use the modified messages list
+        messages=messages, # Use the original messages list
         **kwargs # Pass through any other keyword arguments like temperature, max_tokens
     )
     return response.choices[0].message.content.strip() # Ensure stripping
@@ -270,7 +259,7 @@ What is your proposed next conversational turn?
     response = client.chat.completions.create(
         model='gpt-4-1106-preview', # Or your preferred model
         messages=[
-            {"role": "system", "content": COACH_PROMPT + "\n" + system_prompt_content},
+            {"role": "system", "content": system_prompt_content},
             {"role": "user", "content": full_user_prompt}
         ],
         temperature=0.75, # Slightly higher for more creative/natural conversation
@@ -312,7 +301,7 @@ Follow-up question:"""
         response = client.chat.completions.create(
             model='gpt-4-1106-preview', # Or your preferred model for this task
             messages=[
-                {"role": "system", "content": COACH_PROMPT + "\n" + "You are an expert at crafting engaging and contextually relevant follow-up questions."},
+                {"role": "system", "content": "You are an expert at crafting engaging and contextually relevant follow-up questions."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7, # Allow for some creativity
