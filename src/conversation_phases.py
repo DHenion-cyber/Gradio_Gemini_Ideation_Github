@@ -1,7 +1,8 @@
 import streamlit as st
 from .utils.scratchpad_extractor import update_scratchpad
 from .constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS
-from .llm_utils import query_openai, propose_next_conversation_turn # Import query_openai and propose_next_conversation_turn
+from .llm_utils import query_openai, propose_next_conversation_turn
+from .value_prop_workflow import ValuePropWorkflow # Import ValuePropWorkflow
 import json
 import textwrap
 CHECKLIST = ["problem", "target_user", "solution", "benefit"]
@@ -116,44 +117,58 @@ def handle_development(user_message: str, scratchpad: dict) -> tuple[str, str]:
     else:
         return "Great, let's refine wording.", "refinement"
 
-def handle_summary(user_message: str, scratchpad: dict) -> tuple[str, str]:
-    vp = scratchpad
-    summary = (
-        f"**Value Proposition**\n\n"
-        f"*Problem*: {vp.get('problem')}\n"
-        f"*User*: {vp.get('target_user')}\n"
-        f"*Solution*: {vp.get('solution')}\n"
-        f"*Benefit*: {vp.get('benefit')}"
-    )
-    return summary + "\n\nDoes this capture it? (yes / no)", "summary"
-    st.session_state["scratchpad"] = updated_scratchpad
+def handle_summary(user_message: str, scratchpad: dict, vp_workflow_instance: ValuePropWorkflow = None) -> tuple[str, str]:
+    assistant_reply = ""
+    next_phase = "summary" # Default to stay in summary phase
 
-    snapshot = {key: updated_scratchpad.get(key, "N/A") for key in [
-        "problem", "customer_segment", "solution", "differentiator", "impact_metrics"
-    ]}
+    if vp_workflow_instance and vp_workflow_instance.is_complete():
+        summary_text = vp_workflow_instance.generate_summary()
+        recommendations_text = vp_workflow_instance.actionable_recommendations()
+        
+        assistant_reply = f"**Value Proposition Summary**\n{summary_text}\n\n"
+        assistant_reply += f"**Actionable Recommendations**\n{recommendations_text}\n\n"
+        
+        # Check user_message to see if they want to refine or conclude
+        if user_message:
+            user_message_lower = user_message.lower()
+            if any(kw in user_message_lower for kw in ["yes", "correct", "looks good", "proceed", "next"]):
+                # User confirms summary, perhaps offer to refine or end.
+                # For now, let's assume this means they are ready to move on from the summary.
+                # The UI/streamlit_app.py will handle final feedback prompts.
+                # We can transition to a conceptual "post_summary" or "end" phase if needed,
+                # or simply let the UI handle the next steps.
+                # For now, let's keep it simple and stay in "summary" but indicate completion.
+                assistant_reply += "This concludes the value proposition development. You can review the summary and recommendations. What would you like to do next? (e.g., start a new idea, or provide feedback on this session)"
+                # next_phase could be 'refinement' if we want to allow further iteration,
+                # or a new phase like 'conclusion'. For now, stay in 'summary'.
+            elif any(kw in user_message_lower for kw in ["no", "change", "edit", "revisit"]):
+                assistant_reply += "What part would you like to revisit or change? We can go back to any step of the value proposition."
+                # To allow revisiting, we might need to reset vp_workflow_instance.completed = False
+                # and set its current_step. This is more complex than current scope.
+                # For now, we'll just acknowledge.
+            else: # General comment on summary
+                 assistant_reply += "Thanks for your feedback. You can review the summary and recommendations. What would you like to do next?"
+        else: # No user message, just presenting the summary
+            assistant_reply += "Does this capture your idea? You can ask to refine any part, or we can conclude this section."
 
-    teaser = (
-        "As you take this idea forward, consider exploring potential revenue streams, "
-        "effective channels for reaching your audience, and how to establish a competitive advantage."
-    )
+    else:
+        # Fallback if vp_workflow_instance is not available or not complete (should not happen if logic in conversation_manager is correct)
+        assistant_reply = "I'm ready to generate a summary, but it seems the value proposition isn't fully complete yet. "
+        assistant_reply += "Let's ensure all steps (Problem, Target User, Solution, Benefit) are covered."
+        # Attempt to find the current step from scratchpad if VP workflow failed.
+        # This is a defensive measure.
+        missing = missing_items(scratchpad)
+        if missing:
+            next_phase = missing[0] # Try to go back to the first missing step
+            assistant_reply += f" It looks like we still need to define the '{next_phase}'. Shall we work on that?"
+        else: # All items seem present in scratchpad, but workflow isn't complete.
+            next_phase = "exploration" # Fallback to general exploration
+            assistant_reply += " Let's try to refine the value proposition."
 
-    structured_summary = json.dumps(snapshot, indent=2)
 
-    # For the transition from summary to refinement, use propose_next_conversation_turn
-    assistant_reply = propose_next_conversation_turn(
-        intake_answers=st.session_state.get("intake_answers", []),
-        scratchpad=updated_scratchpad, # Pass the most current scratchpad
-        phase="refinement", # Transitioning to refinement
-        conversation_history=st.session_state.get("conversation_history", [])
-    )
-    # The structured_summary and teaser can be part of the context for the LLM if needed,
-    # or displayed separately in the UI before this LLM-generated prompt.
-    # For now, the LLM will generate the next turn based on the scratchpad.
-    # We might want to prepend the JSON summary to the assistant_reply if it's crucial for the user to see it *before* the next question.
-    # Example:
-    # assistant_reply = f"Here's a concise summary of your refined idea:\n\n```json\n{structured_summary}\n```\n\n{teaser}\n\n{llm_proposed_next_turn}"
-
-    next_phase = "refinement"
+    # The old logic for transitioning to "refinement" via propose_next_conversation_turn
+    # is removed as the ValuePropWorkflow now handles the ideation flow.
+    # The 'summary' phase is now more about presenting the completed VP.
     return assistant_reply, next_phase
 
 def handle_refinement(user_message: str, scratchpad: dict) -> tuple[str, str]:

@@ -16,7 +16,7 @@ from .constants import EMPTY_SCRATCHPAD # Import EMPTY_SCRATCHPAD
 # from src.coach_persona import COACH_PROMPT # Removed as COACH_PROMPT is no longer defined there
 from src.value_prop_workflow import ValuePropWorkflow
 
-WORKFLOWS = {"value_prop": ValuePropWorkflow()}
+# WORKFLOWS = {"value_prop": ValuePropWorkflow()} # Removed: ValuePropWorkflow is now directly managed
 
 def generate_uuid() -> str:
     """Generates a short random string for user_id."""
@@ -63,7 +63,8 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state["perplexity_calls"] = 0
         st.session_state["phase"] = "exploration"
         st.session_state.setdefault("intake_answers", [])
-        st.session_state["current_workflow"] = "value_prop"
+        # st.session_state["current_workflow"] = "value_prop" # Removed
+        st.session_state["value_prop_workflow_instance"] = ValuePropWorkflow()
         st.session_state["conversation_initialized"] = True # Mark as initialized
         save_session(st.session_state["user_id"], dict(st.session_state))
         return # Explicitly return after handling new_chat
@@ -76,7 +77,8 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state.setdefault("turn_count", 0)
         st.session_state.setdefault("intake_index", 0)
         st.session_state.setdefault("user_id", generate_uuid())
-        st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy())
+        st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy()) # Ensure scratchpad exists
+        st.session_state.setdefault("value_prop_workflow_instance", None) # Ensure key exists, might be loaded
         st.session_state.setdefault("conversation_history", [])
         st.session_state.setdefault("summaries", [])
         st.session_state.setdefault("token_usage", {"session": 0, "daily": 0})
@@ -112,7 +114,8 @@ def initialize_conversation_state(new_chat: bool = False):
     if not loaded_successfully:
         # Initialize a new session (either no UID, or UID load failed)
         st.session_state["user_id"] = uid_from_url if uid_from_url else generate_uuid()
-        st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy())
+        st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy()) # Ensure scratchpad exists
+        st.session_state.setdefault("value_prop_workflow_instance", ValuePropWorkflow()) # Initialize if not loaded
         st.session_state.setdefault("conversation_history", [])
         st.session_state.setdefault("summaries", [])
         st.session_state.setdefault("token_usage", {"session": 0, "daily": 0})
@@ -305,92 +308,82 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     save_session(st.session_state["user_id"], dict(st.session_state))
     return final_response_text, search_results
 
-def route_conversation(user_message: str, scratchpad: dict) -> tuple[str, str]:
+def route_conversation(user_message: str, scratchpad_arg: dict) -> tuple[str, str]: # Renamed scratchpad_arg
     """
-    Routes the conversation to the appropriate handler based on the current phase.
-
-    Args:
-        user_message: The user's latest message.
-        scratchpad: The current scratchpad data.
-
-    Returns:
-        A tuple containing the assistant's reply and the next phase.
+    Routes the conversation, prioritizing ValuePropWorkflow during the 'ideation' stage.
     """
-    # Update scratchpad at the top of route_conversation before phase helpers
-    st.session_state["scratchpad"] = update_scratchpad(user_message, st.session_state["scratchpad"])
-
-    current_phase = st.session_state.get("phase", "exploration")  # Default to exploration
-
-    cw = st.session_state.get("current_workflow")
-    if cw in WORKFLOWS:
-        assistant_reply, new_phase = WORKFLOWS[cw].step(user_message, st.session_state["scratchpad"])
-        st.session_state["phase"] = new_phase
-        return assistant_reply, new_phase
-# Check for affirmative response in exploration phase to confirm value prop
-    if current_phase == "exploration" and user_message and re.search(r"\b(yes|that.?s it|correct|sounds good)\b", user_message, re.I):
-        # Ensure scratchpad exists in session_state, though it should by this point.
-        if "scratchpad" not in st.session_state:
-            st.session_state["scratchpad"] = EMPTY_SCRATCHPAD.copy() # Or some other default
-        
-        # The 'scratchpad' variable passed into this function might be a copy or stale.
-        # It's safer to update st.session_state["scratchpad"] directly as it's the source of truth.
-        st.session_state["scratchpad"]["value_prop_confirmed"] = True
-        # No need to update the local `scratchpad` variable here as it might not propagate as expected.
-        # The `handle_exploration` function will read from st.session_state["scratchpad"].
-    assistant_reply = "An unexpected error occurred." # Default reply
-    next_phase = current_phase # Default next_phase
-
-    # Check if this is the initial call for the exploration phase after intake
-    if not user_message and current_phase == "exploration" and st.session_state.get("stage") == "ideation":
-        # This is the transition from intake to ideation (exploration phase starts here)
-        # Remove the marker that was set at the end of intake
-        st.session_state.pop("best_intake_answer_for_transition", None)
-
-        # Remove any existing "maturity-score" or similar system message if present
-        if st.session_state.get("conversation_history"):
-            # This cleanup might be better handled in streamlit_app.py when transitioning stages
-            pass
-
-        assistant_reply = propose_next_conversation_turn(
-            intake_answers=st.session_state.get("intake_answers", []),
-            scratchpad=st.session_state.get("scratchpad", EMPTY_SCRATCHPAD.copy()),
-            phase=current_phase, # Should be "exploration"
-            conversation_history=st.session_state.get("conversation_history", [])
-        )
-        # The phase remains "exploration" as this is the first turn of exploration
-        next_phase = "exploration"
-        # The calling function in streamlit_app.py will append this to history.
-        save_session(st.session_state["user_id"], dict(st.session_state))
-        return assistant_reply, next_phase
-
-    if current_phase == "exploration":
-        assistant_reply, next_phase = conversation_phases.handle_exploration(user_message, st.session_state["scratchpad"])
-    elif current_phase == "development":
-        assistant_reply, next_phase = conversation_phases.handle_development(user_message, st.session_state["scratchpad"])
-    elif current_phase == "refinement":
-        assistant_reply, next_phase = conversation_phases.handle_refinement(user_message, st.session_state["scratchpad"])
-    elif current_phase == "summary":
-        assistant_reply, next_phase = conversation_phases.handle_summary(user_message, st.session_state["scratchpad"])
-    else:
-        # Fallback for unknown phase
-        assistant_reply = f"Debug: Unknown phase '{current_phase}'. Resetting to exploration."
-        next_phase = "exploration"
-        st.session_state["phase"] = "exploration" # Explicitly reset
-
-    # Update phase in session state after getting the reply and next_phase
-    st.session_state["phase"] = next_phase
+    current_stage = st.session_state.get("stage")
+    vp_workflow = st.session_state.get("value_prop_workflow_instance")
     
-    # Note: The research cap (MAX_PERPLEXITY_CALLS) logic is intended to be
-    # implemented within the specific phase handler functions in 
-    # conversation_phases.py if they call search_utils.search_perplexity.
-    # Example placeholder for this is in conversation_phases.handle_exploration.
+    assistant_reply = "An unexpected error occurred." # Default reply
+    # Initialize next_phase with the current phase from session_state, or default to "exploration"
+    next_phase = st.session_state.get("phase", "exploration")
 
-    # Append user message and assistant reply to conversation history
-    # This might be handled by the calling function (e.g., in streamlit_app.py)
-    # or could be centralized here if route_conversation is the primary entry point
-    # for generating all non-intake replies. For now, assuming the calling function handles history.
+    # If in 'ideation' stage and ValuePropWorkflow instance exists
+    if current_stage == "ideation" and vp_workflow:
+        if not vp_workflow.is_complete():
+            # Pass empty string if user_message is None/empty (e.g., initial call from streamlit_app)
+            # ValuePropWorkflow.process_user_input should handle this to provide the current step's prompt.
+            actual_input_for_vp = user_message if user_message else ""
+            assistant_reply = vp_workflow.process_user_input(actual_input_for_vp)
+            
+            # Sync the main scratchpad with the workflow's scratchpad
+            if hasattr(vp_workflow, 'scratchpad') and isinstance(vp_workflow.scratchpad, dict):
+                st.session_state.get("scratchpad", {}).update(vp_workflow.scratchpad)
 
-    save_session(st.session_state["user_id"], dict(st.session_state)) # Persist state changes
+            if vp_workflow.is_complete():
+                next_phase = "summary"
+            else:
+                next_phase = vp_workflow.get_step() # Phase is the current step of VP workflow
+            
+            st.session_state["phase"] = next_phase
+            save_session(st.session_state["user_id"], dict(st.session_state))
+            return assistant_reply, next_phase
+        else: # ValuePropWorkflow is complete
+            st.session_state["phase"] = "summary"
+            next_phase = "summary" # Ensure next_phase is set for the handlers below
+            # If user_message is present, it will be passed to handle_summary.
+            # If user_message is empty, handle_summary should provide the summary.
+            # The assistant_reply will be generated by handle_summary.
+
+    # General phase handling (if not handled by active VP workflow in ideation stage)
+    current_phase_for_handlers = st.session_state.get("phase") # Get potentially updated phase
+
+    if current_phase_for_handlers == "summary":
+        # Pass vp_workflow_instance to handle_summary.
+        # handle_summary will need to be updated to use vp_workflow.generate_summary()
+        # and vp_workflow.actionable_recommendations().
+        assistant_reply, next_phase = conversation_phases.handle_summary(
+            user_message,
+            st.session_state.get("scratchpad", EMPTY_SCRATCHPAD.copy()),
+            vp_workflow_instance=vp_workflow
+        )
+    # The old "exploration", "development", "refinement" phases are now superseded by
+    # ValuePropWorkflow steps ("problem", "target_user", etc.) during the "ideation" stage.
+    # If st.session_state["phase"] is one of these VP steps, it means the VP workflow is active
+    # and should have returned earlier in this function.
+    # Calls to handle_exploration, handle_development, handle_refinement are thus
+    # only relevant if NOT in "ideation" stage with an active VP workflow.
+    elif current_stage != "ideation":
+        if current_phase_for_handlers == "exploration":
+            assistant_reply, next_phase = conversation_phases.handle_exploration(user_message, st.session_state.get("scratchpad", EMPTY_SCRATCHPAD.copy()))
+        elif current_phase_for_handlers == "development":
+            assistant_reply, next_phase = conversation_phases.handle_development(user_message, st.session_state.get("scratchpad", EMPTY_SCRATCHPAD.copy()))
+        elif current_phase_for_handlers == "refinement":
+            assistant_reply, next_phase = conversation_phases.handle_refinement(user_message, st.session_state.get("scratchpad", EMPTY_SCRATCHPAD.copy()))
+        else:
+            # Fallback for unknown phases outside of ideation
+            logging.warning(f"Unhandled phase '{current_phase_for_handlers}' outside ideation. Resetting.")
+            assistant_reply = f"Debug: Unhandled phase '{current_phase_for_handlers}'. Resetting to exploration."
+            next_phase = "exploration"
+    elif current_phase_for_handlers not in ["summary", "problem", "target_user", "solution", "benefit"] : # Should not happen if ideation
+        logging.warning(f"Unexpected phase '{current_phase_for_handlers}' in ideation stage. VP workflow should manage steps.")
+        # assistant_reply remains "An unexpected error occurred."
+        next_phase = current_phase_for_handlers # Keep current phase to avoid loops, but log it.
+
+
+    st.session_state["phase"] = next_phase
+    save_session(st.session_state["user_id"], dict(st.session_state))
     return assistant_reply, next_phase
 # Deleted navigate_value_prop_elements function
 
