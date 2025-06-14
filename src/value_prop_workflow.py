@@ -22,47 +22,47 @@ class ValuePropWorkflow:
         else:
             self.completed = True
 
-def process_user_input(self, user_input: str):
-    stance = self.behavior.detect_user_stance(user_input, self.current_step)
-    maturity = self.behavior.assess_idea_maturity(user_input)
-    response = ""
+    def process_user_input(self, user_input: str):
+        stance = self.behavior.detect_user_stance(user_input, self.current_step)
+        maturity = self.behavior.assess_idea_maturity(user_input)
+        response = ""
 
-    if stance == "uncertain":
-        response += self.behavior.diplomatic_acknowledgement(stance) + " "
-        response += self.behavior.offer_example(self.current_step) + " "
-        response += "Could you give it a try, or want a quick brainstorm?"
-    elif stance == "open":
-        response += self.behavior.diplomatic_acknowledgement(stance) + " "
-        response += self.behavior.offer_strategic_suggestion(self.current_step) + " "
-        response += "What do you think?"
-    elif stance == "interest":
-        response += self.behavior.diplomatic_acknowledgement(stance) + " "
-        response += "Would you like to dive deeper, or move to the next step?"
-    elif stance == "decided":
-        # 1. Diplomatic acknowledgement
-        response += self.behavior.diplomatic_acknowledgement(stance) + " "
-        # 2. Echo/reflect the user's answer
-        response += f"You’ve chosen: '{user_input.strip()}'. "
-        # 3. Offer feedback, examples, or benchmarking/research
-        if self.current_step in ["solution", "benefit"]:
-            response += (
-                "Would you like quick feedback, a relevant example, or to see benchmarks/research for your answer? "
-                "Or should we move to the next step?"
-            )
+        if stance == "uncertain":
+            response += self.behavior.diplomatic_acknowledgement(stance) + " "
+            response += self.behavior.offer_example(self.current_step) + " "
+            response += "Could you give it a try, or want a quick brainstorm?"
+        elif stance == "open":
+            response += self.behavior.diplomatic_acknowledgement(stance) + " "
+            response += self.behavior.offer_strategic_suggestion(self.current_step) + " "
+            response += "What do you think?"
+        elif stance == "interest":
+            response += self.behavior.diplomatic_acknowledgement(stance) + " "
+            response += "Would you like to dive deeper, or move to the next step?"
+        elif stance == "decided":
+            # 1. Diplomatic acknowledgement
+            response += self.behavior.diplomatic_acknowledgement(stance) + " "
+            # 2. Echo/reflect the user's answer
+            response += f"You’ve chosen: '{user_input.strip()}'. "
+            # 3. Offer feedback, examples, or benchmarking/research
+            if self.current_step in ["solution", "benefit"]:
+                response += (
+                    "Would you like quick feedback, a relevant example, or to see benchmarks/research for your answer? "
+                    "Or should we move to the next step?"
+                )
+            else:
+                response += (
+                    "Would you like quick feedback, an example, or just move ahead?"
+                )
+            # Only advance if the user explicitly says to do so in next input (handled elsewhere)
+            self.scratchpad[self.current_step] = user_input
+            # Do NOT call self.next_step() here—wait for user direction!
         else:
-            response += (
-                "Would you like quick feedback, an example, or just move ahead?"
-            )
-        # Only advance if the user explicitly says to do so in next input (handled elsewhere)
-        self.scratchpad[self.current_step] = user_input
-        # Do NOT call self.next_step() here—wait for user direction!
-    else:
-        response += self.behavior.active_listening(user_input) + " "
-        response += "Ready to move on, or want to explore further?"
+            response += self.behavior.active_listening(user_input) + " "
+            response += "Ready to move on, or want to explore further?"
 
-    # For all stances, if user asks for research or feedback in their followup, you can add that handling elsewhere.
+        # For all stances, if user asks for research or feedback in their followup, you can add that handling elsewhere.
 
-    return response.strip()
+        return response.strip()
 
     def add_research_request(self, step: str, details: str = ""):
         self.scratchpad["research_requests"].append({"step": step, "details": details})
