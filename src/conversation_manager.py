@@ -64,7 +64,11 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state["phase"] = "exploration"
         st.session_state.setdefault("intake_answers", [])
         # st.session_state["current_workflow"] = "value_prop" # Removed
-        st.session_state["value_prop_workflow_instance"] = ValuePropWorkflow()
+        # Initialize a new ValuePropWorkflow and store its initial state
+        vp_workflow = ValuePropWorkflow()
+        st.session_state["vp_workflow_scratchpad"] = vp_workflow.scratchpad
+        st.session_state["vp_workflow_current_step"] = vp_workflow.current_step
+        st.session_state["vp_workflow_completed"] = vp_workflow.completed
         st.session_state["conversation_initialized"] = True # Mark as initialized
         save_session(st.session_state["user_id"], dict(st.session_state))
         return # Explicitly return after handling new_chat
@@ -78,7 +82,10 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state.setdefault("intake_index", 0)
         st.session_state.setdefault("user_id", generate_uuid())
         st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy()) # Ensure scratchpad exists
-        st.session_state.setdefault("value_prop_workflow_instance", None) # Ensure key exists, might be loaded
+        # Set defaults for VP workflow state
+        st.session_state.setdefault("vp_workflow_scratchpad", ValuePropWorkflow().scratchpad)
+        st.session_state.setdefault("vp_workflow_current_step", ValuePropWorkflow().current_step)
+        st.session_state.setdefault("vp_workflow_completed", ValuePropWorkflow().completed)
         st.session_state.setdefault("conversation_history", [])
         st.session_state.setdefault("summaries", [])
         st.session_state.setdefault("token_usage", {"session": 0, "daily": 0})
@@ -115,7 +122,10 @@ def initialize_conversation_state(new_chat: bool = False):
         # Initialize a new session (either no UID, or UID load failed)
         st.session_state["user_id"] = uid_from_url if uid_from_url else generate_uuid()
         st.session_state.setdefault("scratchpad", EMPTY_SCRATCHPAD.copy()) # Ensure scratchpad exists
-        st.session_state.setdefault("value_prop_workflow_instance", ValuePropWorkflow()) # Initialize if not loaded
+        # Set defaults for VP workflow state
+        st.session_state.setdefault("vp_workflow_scratchpad", ValuePropWorkflow().scratchpad)
+        st.session_state.setdefault("vp_workflow_current_step", ValuePropWorkflow().current_step)
+        st.session_state.setdefault("vp_workflow_completed", ValuePropWorkflow().completed)
         st.session_state.setdefault("conversation_history", [])
         st.session_state.setdefault("summaries", [])
         st.session_state.setdefault("token_usage", {"session": 0, "daily": 0})
@@ -313,29 +323,37 @@ def route_conversation(user_message: str, scratchpad_arg: dict) -> tuple[str, st
     Routes the conversation, prioritizing ValuePropWorkflow during the 'ideation' stage.
     """
     current_stage = st.session_state.get("stage")
-    vp_workflow = st.session_state.get("value_prop_workflow_instance")
-    
+
+    # Create a ValuePropWorkflow instance using the stored state
+    vp_workflow = ValuePropWorkflow(st.session_state.get("vp_workflow_scratchpad"))
+    vp_workflow.current_step = st.session_state.get("vp_workflow_current_step", "problem")
+    vp_workflow.completed = st.session_state.get("vp_workflow_completed", False)
+
     assistant_reply = "An unexpected error occurred." # Default reply
     # Initialize next_phase with the current phase from session_state, or default to "exploration"
     next_phase = st.session_state.get("phase", "exploration")
 
-    # If in 'ideation' stage and ValuePropWorkflow instance exists
-    if current_stage == "ideation" and vp_workflow:
-        if not vp_workflow.is_complete():
+    # If in 'ideation' stage
+    if current_stage == "ideation":
+        if not vp_workflow.completed:
             # Pass empty string if user_message is None/empty (e.g., initial call from streamlit_app)
             # ValuePropWorkflow.process_user_input should handle this to provide the current step's prompt.
             actual_input_for_vp = user_message if user_message else ""
             assistant_reply = vp_workflow.process_user_input(actual_input_for_vp)
-            
-            # Sync the main scratchpad with the workflow's scratchpad
-            if hasattr(vp_workflow, 'scratchpad') and isinstance(vp_workflow.scratchpad, dict):
-                st.session_state.get("scratchpad", {}).update(vp_workflow.scratchpad)
 
-            if vp_workflow.is_complete():
+            # Sync the main scratchpad with the workflow's scratchpad
+            st.session_state.get("scratchpad", {}).update(vp_workflow.scratchpad)
+
+            # Update the stored workflow state
+            st.session_state["vp_workflow_scratchpad"] = vp_workflow.scratchpad
+            st.session_state["vp_workflow_current_step"] = vp_workflow.current_step
+            st.session_state["vp_workflow_completed"] = vp_workflow.completed
+
+            if vp_workflow.completed:
                 next_phase = "summary"
             else:
-                next_phase = vp_workflow.get_step() # Phase is the current step of VP workflow
-            
+                next_phase = vp_workflow.current_step # Phase is the current step of VP workflow
+
             st.session_state["phase"] = next_phase
             save_session(st.session_state["user_id"], dict(st.session_state))
             return assistant_reply, next_phase
