@@ -232,7 +232,7 @@ Scenario 1: Surfacing multiple elements, peer excitement
 Context:
   Intake: "I'm passionate about mental wellness for students." "I think technology can make support more accessible." "Maybe something with AI."
   Scratchpad: Problem_Statement: "Students lack accessible mental wellness resources."
-Your Output: "This is great! I'm really picking up on your passion for student mental wellness and the idea of using tech, especially AI, to make support more accessible. That's a super relevant area. Would you like to brainstorm some specific ways AI could play a role here, or perhaps explore different student populations that might benefit most?"
+Your Output: "This is great! I'm really picking up on your passion for student mental wellness and the idea of using tech, especially AI, to make support more accessible. That's a super relevant area. Would you like to brainstorm some specific ways AI could play a role here, or perhaps explore different student populations that might see the main benefit most?"
 
 Scenario 2: Handling "no" gracefully, suggesting new angle
 Context:

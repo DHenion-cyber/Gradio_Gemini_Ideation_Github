@@ -11,7 +11,6 @@ SYNONYMS = {
     "revenue_hypotheses": "revenue_model",
     "compliance_snapshot": "problem", # Placeholder, might need refinement
     "top_3_risks_and_mitigations": "problem", # Placeholder, might need refinement
-    "differentiator": "value_proposition",
     "market_size": "impact_metrics",
 }
 
@@ -36,11 +35,13 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
             r"\b(?:solution|idea|product) is\s+(.+?)(?:\.|$)",
             r"\bwe propose\s+(.+?)(?:\.|$)",
         ],
-        "value_proposition": [
-            r"\b(?:differentiator|unique selling point|usp|key difference|secret sauce|unique benefit) is\s+(.+?)(?:\.|$)",
-            r"\b(?:sets us apart|makes us different) by\s+(.+?)(?:\.|$)",
-            r"\bour key differentiator is\s+(.+?)(?:\.|$)",
+        "main_benefit": [
+            r"\b(?:unique selling point|usp|key difference|secret sauce|unique benefit) is\s+(.+?)(?:\.|$)",
             r"\b(?:our|my|the)?\s*unique benefit is\s+(.+?)(?:\.|$)",
+        ],
+        "differentiator": [
+            r"\b(?:differentiator|sets us apart|makes us different) is\s+(.+?)(?:\.|$)",
+            r"\b(?:our|my|the)?\s*key differentiator is\s+(.+?)(?:\.|$)",
         ],
         "impact_metrics": [
             r"\bimpact\b.*(\d+%|\$|days|hours|readmission|adhere)",
@@ -65,6 +66,11 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
         "competitive_moat": [
             r"\b(?:competitive moat|barrier to entry|sustainable advantage) (?:is|will be)\s+(.+?)(?:\.|$)",
             r"\b(?:our advantage|what protects us) is\s+(.+?)(?:\.|$)",
+        ],
+        "use_case": [
+            r"\b(?:use case|scenario|application) is\s+(.+?)(?:\.|$)",
+            r"\b(?:people will use it to|users can)\s+(.+?)(?:\.|$)",
+            r"\b(?:envision people using it for|real-world scenario is)\s+(.+?)(?:\.|$)",
         ],
     }
 

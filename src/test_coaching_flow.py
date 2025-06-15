@@ -67,22 +67,29 @@ def test_development_loop_continues_with_refinement():
     user_message = "Let's flesh out features for onboarding."
     reply, phase = conversation_phases.handle_development(user_message, st.session_state["scratchpad"])
     assert phase == "development"
-    assert any(kw in reply.lower() for kw in ["flesh", "aspect", "practice", "benefit"])
+    assert any(kw in reply.lower() for kw in ["flesh", "aspect", "practice", "main_benefit"])
 
 def test_summary_phase_provides_structured_summary():
     """Summary phase provides an overview and invites next steps."""
-    # Simulate filled scratchpad
+    # Simulate scratchpad with "use_case" as the only missing item
     scratchpad = {
         "problem": "Missed medications",
-        "customer_segment": "Older adults",
+        "target_user": "Older adults",  # Corrected key for CHECKLIST
         "solution": "SMS reminders",
-        "differentiator": "Integrates with pharmacy",
-        "impact_metrics": "Improved adherence"
+        "main_benefit": "Ensures medication adherence", # Added
+        "differentiator": "Integrates with pharmacy"
+        # "use_case" is missing
     }
+    # This test calls handle_summary without a vp_workflow_instance,
+    # so it will hit the fallback logic which checks for missing items.
     reply, phase = conversation_phases.handle_summary("Summarize our work.", scratchpad)
-    assert phase == "refinement"
-    assert "summary" in reply.lower()
-    assert "sms reminders" in reply.lower()  # Example from scratchpad
+
+    # Assert that the phase is now 'use_case' (the first missing item)
+    assert phase == "use_case"
+    # Assert that the reply indicates 'use_case' needs to be defined
+    assert "define the 'use_case'" in reply
+    # Assert that the reply lists all required components, including "Use Case"
+    assert "Problem, Target User, Solution, Benefit, Differentiator, Use Case" in reply
 
 def test_refinement_allows_new_idea_restart():
     """Refinement phase lets user restart with a new idea."""
@@ -94,7 +101,7 @@ def test_refinement_allows_new_idea_restart():
 
 def test_refinement_loops_on_normal_input():
     """Refinement continues, allowing more detailed discussion."""
-    user_message = "Can we clarify who benefits most?"
+    user_message = "Can we clarify who gets the main benefit?"
     reply, phase = conversation_phases.handle_refinement(user_message, st.session_state["scratchpad"])
     assert phase == "refinement"
     assert "refine" in reply.lower() or "expand" in reply.lower() or "clarify" in reply.lower()

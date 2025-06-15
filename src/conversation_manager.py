@@ -103,7 +103,7 @@ def initialize_conversation_state(new_chat: bool = False):
     st.session_state["stage"] = "intake" # Default initial stage
     st.session_state["turn_count"] = 0
     st.session_state["intake_index"] = 0
-    
+
     query_params = st.query_params
     uid_from_url = query_params.get("uid")
 
@@ -136,18 +136,18 @@ def initialize_conversation_state(new_chat: bool = False):
         st.session_state.setdefault("phase", "exploration")
         st.session_state.setdefault("intake_answers", [])
         logging.info(f"DEBUG: New session initialized for user_id {st.session_state['user_id']}.")
-    
+
     st.session_state["conversation_initialized"] = True # Mark as initialized
     save_session(st.session_state["user_id"], dict(st.session_state)) # Save whatever state we ended up with
-
 
 def get_intake_questions() -> list[str]:
     """
     Returns the list of intake questions.
     """
     return [
-        "Hello! I’m trained to help you explore ideas for digital health innovation! Please describe any experience or familiarity you have within the health landscape. This may come from positions on your resume, training you've recieved, or experiences you've had.", 
-        "Are there problems that you’re particularly interested in addressing?",
+        "Hello! I'm digital health innovation agent! I'll start by asking you a series of intake questions to get to know you and customize your experience. Please describe any experience or familiarity you have within the health landscape. This may come from positions on your resume, training you've recieved, or experiences you've had.",
+        "What specific areas of digital health are you most interested in? (e.g., telemedicine, wearable tech, AI in diagnostics, etc.)",
+        "Are there problems that you're particularly interested in addressing?",
         "Some people naturally focus on patient impact, where others naturally focus more on processes, efficiency, finances, etc. Do you find yourself naturally oriented towards one of the following areas?\n- Patient Impact\n- Quality (may not be directly patients)\n- Finance/savings\n- Efficiency\n- New Technology",
         "Do you already have some ideas or topics you want to explore?",
         "Are there any potential business qualities that matter to you? For example, some people are interested in smaller scale innovations that could be launched quickly with minimum funding while others may be more interested in exploring big ideas with longer timelines and external funding."
@@ -201,9 +201,8 @@ def run_intake_flow(user_input: str):
         if not answers_texts:
             answers_texts = [""]
         st.session_state["best_intake_answer_for_transition"] = max(answers_texts, key=len, default="")
-    
-    save_session(st.session_state["user_id"], st.session_state.to_dict())
 
+    save_session(st.session_state["user_id"], st.session_state.to_dict())
 
 async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     """
@@ -227,7 +226,7 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     st.session_state.setdefault("turn_count", 0) # Ensure turn_count exists
 
     print(f"DEBUG: In generate_assistant_response. Event loop running: {asyncio.get_event_loop().is_running()}")
-    
+
     search_results = [] # Initialize with no results
     perform_web_search = False
     user_input_lower = user_input.lower()
@@ -252,7 +251,6 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
              # This part needs careful consideration to avoid over-searching.
              # For now, let's be conservative and only search on explicit request or question in refinement.
              pass
-
 
     if perform_web_search:
         # Check research cap BEFORE attempting search
@@ -306,7 +304,6 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
     final_response_text = f"{empathetic_prepend}{main_advice_text}"
     if follow_up_question:
         final_response_text += f" {follow_up_question}"
-
 
     # Store result in conversation history
     st.session_state["conversation_history"].append({
@@ -394,16 +391,14 @@ def route_conversation(user_message: str, scratchpad_arg: dict) -> tuple[str, st
             logging.warning(f"Unhandled phase '{current_phase_for_handlers}' outside ideation. Resetting.")
             assistant_reply = f"Debug: Unhandled phase '{current_phase_for_handlers}'. Resetting to exploration."
             next_phase = "exploration"
-    elif current_phase_for_handlers not in ["summary", "problem", "target_user", "solution", "benefit"] : # Should not happen if ideation
+    elif current_phase_for_handlers not in ["summary", "problem", "target_user", "solution", "main_benefit", "differentiator", "use_case"] : # Should not happen if ideation
         logging.warning(f"Unexpected phase '{current_phase_for_handlers}' in ideation stage. VP workflow should manage steps.")
         # assistant_reply remains "An unexpected error occurred."
         next_phase = current_phase_for_handlers # Keep current phase to avoid loops, but log it.
 
-
     st.session_state["phase"] = next_phase
     save_session(st.session_state["user_id"], dict(st.session_state))
     return assistant_reply, next_phase
-# Deleted navigate_value_prop_elements function
 
 def generate_actionable_recommendations(element: str, context: str):
     """
@@ -429,7 +424,6 @@ def generate_actionable_recommendations(element: str, context: str):
     save_session(st.session_state["user_id"], st.session_state.to_dict())
     return recommendations # Return the list of recommendations
 
-
 def trim_conversation_history():
     """
     Trims the conversation history based on the number of summaries or token count.
@@ -451,7 +445,6 @@ def trim_conversation_history():
             st.session_state["conversation_history"] = st.session_state["conversation_history"][5:]
             st.session_state["summaries"] = st.session_state["summaries"][1:] # Remove oldest summary if it covers these turns
             save_session(st.session_state["user_id"], st.session_state.to_dict())
-
 
 def create_turn_summary(text: str) -> str:
     """
@@ -491,97 +484,52 @@ def build_summary_from_scratchpad(scratchpad: dict) -> str:
     Returns the full summary from current scratchpad content for export or simulation logs.
     """
     summary_report = []
-    summary_report.append("Problem Statement:\n" + scratchpad.get("problem", "N/A"))
-    summary_report.append("\nCustomer Segment:\n" + scratchpad.get("customer_segment", "N/A"))
+    summary_report.append("Problem:\n" + scratchpad.get("problem", "N/A"))
+    summary_report.append("\nTarget User:\n" + scratchpad.get("customer_segment", "N/A"))
     summary_report.append("\nSolution:\n" + scratchpad.get("solution", "N/A"))
+    summary_report.append("\nMain Benefit:\n" + scratchpad.get("main_benefit", "N/A"))
     summary_report.append("\nDifferentiator:\n" + scratchpad.get("differentiator", "N/A"))
+    summary_report.append("\nUse Case:\n" + scratchpad.get("use_case", "N/A"))
     summary_report.append("\nImpact Metrics:\n" + scratchpad.get("impact_metrics", "N/A"))
     summary_report.append("\nRevenue Model:\n" + scratchpad.get("revenue_model", "N/A"))
-    summary_report.append("\nChannels:\n" + scratchpad.get("channels", "N/A"))
-    summary_report.append("\nCompetitive Moat:\n" + scratchpad.get("competitive_moat", "N/A"))
     return "\n".join(summary_report)
 
 def generate_final_summary_report() -> str:
     """
-    Generates a plain-text session recap with headings based on the scratchpad content.
-    Ends the report with a concluding question.
+    Generates a final summary report for export or display.
     """
-    report = build_summary_from_scratchpad(st.session_state["scratchpad"])
-    report += "\n\nQuestions for Consideration:\n" # Placeholder for LLM-generated questions
-    report += "\nWould you like to revisit any element or conclude?"
-    return report
-
+    scratchpad = st.session_state.get("scratchpad", {})
+    return build_summary_from_scratchpad(scratchpad)
 
 def is_out_of_scope(msg: str) -> bool:
     """
-    Checks if a message is out of scope based on predefined keywords.
-    Returns True if the message includes PHI, TAM/SAM/SOM modeling, or other off-topic queries.
+    Determines if a message is out of scope for the assistant.
     """
-    import re # Add import for regular expressions
-    msg_lower = msg.lower()
-    # Simple keyword matching for demonstration. A more robust solution would use NLP.
     out_of_scope_keywords = [
-        "personal health information", "phi", "pii",
-        "health records", "medical history", "diabetes records",
-        "privacy policy", "health data",
-        "tam", "sam", "som", "market size", "financial projection"
+        "order", "book", "schedule", "reserve", "payment", "purchase",
+        "shipping", "refund", "cancel", "return", "exchange", "track"
     ]
-    
-    short_sensitive_keywords = ["phi", "pii", "tam", "sam", "som"]
-
-    for keyword in out_of_scope_keywords:
-        if keyword in short_sensitive_keywords:
-            # Use regex word boundaries for short, sensitive keywords
-            # \b ensures that the keyword is a whole word
-            pattern = r"\b" + re.escape(keyword) + r"\b"
-            match = re.search(pattern, msg_lower)
-            if match:
-                return True
-        elif keyword in msg_lower: # For longer, less ambiguous keywords
-            return True
-    
-    # If none of the out-of-scope keywords are found, the message is considered in-scope.
-    return False
+    msg_lower = msg.lower()
+    return any(keyword in msg_lower for keyword in out_of_scope_keywords)
 
 def update_token_usage(tokens: int):
     """
-    Updates session and daily token usage. Enforces a daily token cap.
+    Updates the token usage tracking in session state.
     """
-    # Only update if not already over daily cap
-    daily_cap_str = os.environ.get("DAILY_TOKEN_CAP", "100000")
     try:
-        daily_cap = int(daily_cap_str)
-    except ValueError:
-        daily_cap = 100000 # Fallback if env var is invalid
-
-    if st.session_state["token_usage"]["daily"] + tokens <= daily_cap:
+        st.session_state.setdefault("token_usage", {"session": 0, "daily": 0})
         st.session_state["token_usage"]["session"] += tokens
         st.session_state["token_usage"]["daily"] += tokens
-    else:
-        # If adding tokens would exceed the cap, set to cap and trigger limit_exceeded stage
-        st.session_state["token_usage"]["daily"] = daily_cap
-        st.session_state["stage"] = "limit_exceeded"
-        st.error("You’ve hit today’s usage limit. Please come back tomorrow to continue refining your ideas!")
-
-    daily_cap_str = os.environ.get("DAILY_TOKEN_CAP", "100000") # Default cap
-    try:
-        daily_cap = int(daily_cap_str)
-    except ValueError:
-        daily_cap = 100000 # Fallback if env var is invalid
-
-    if st.session_state["token_usage"]["daily"] > daily_cap:
-        st.session_state["stage"] = "limit_exceeded" # Set a stage to indicate limit hit
-        st.error("You’ve hit today’s usage limit. Please come back tomorrow to continue refining your ideas!")
-        # In a real app, you might disable input or redirect.
-    save_session(st.session_state["user_id"], st.session_state.to_dict())
-
+        save_session(st.session_state["user_id"], st.session_state.to_dict())
+    except Exception as e:
+        logging.error(f"Error updating token usage: {e}")
 
 def enforce_session_time():
     """
-    Checks if 45 minutes have passed since start_timestamp and prompts the user to wrap up.
+    Enforces a maximum session time of 2 hours.
     """
-    current_time = datetime.datetime.now(datetime.timezone.utc)
-    time_elapsed = current_time - st.session_state["start_timestamp"]
-    if time_elapsed.total_seconds() >= 45 * 60: # 45 minutes in seconds
-        st.warning("You’ve been working for 45 minutes. Would you like to save your progress and wrap up?")
-        # In a real app, you might offer options to save/conclude.
+    if st.session_state.get("start_timestamp"):
+        session_duration = datetime.datetime.now(datetime.timezone.utc) - st.session_state["start_timestamp"]
+        if session_duration > datetime.timedelta(hours=2):
+            st.error("Session has expired due to inactivity. Please start a new chat.")
+            st.stop()

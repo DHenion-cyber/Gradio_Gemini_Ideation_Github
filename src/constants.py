@@ -2,11 +2,12 @@ CANONICAL_KEYS = [
     "problem",
     "customer_segment",
     "solution",
-    "value_proposition",
+    "main_benefit",
     "impact_metrics",
     "revenue_model",
     "channels",
-    "competitive_moat",
+    "use_case",
+    "differentiator",
 ]
 EMPTY_SCRATCHPAD = {k: "" for k in CANONICAL_KEYS}
 

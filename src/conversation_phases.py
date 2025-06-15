@@ -5,7 +5,7 @@ from .llm_utils import query_openai, propose_next_conversation_turn
 from .value_prop_workflow import ValuePropWorkflow # Import ValuePropWorkflow
 import json
 import textwrap
-CHECKLIST = ["problem", "target_user", "solution", "benefit"]
+CHECKLIST = ["problem", "target_user", "solution", "main_benefit", "differentiator", "use_case"]
 def missing_items(sp):
     return [k for k in CHECKLIST if not sp.get(k)]
 EXPLORATION_PROMPT = textwrap.dedent("""
@@ -15,7 +15,9 @@ is to lock in a concise VALUE PROPOSITION:
 • problem (one line)
 • target user
 • proposed solution
-• one measurable core benefit
+• one measurable main benefit
+• differentiator
+• use case
 
 Rules:
 1. Give a MAXIMUM of **one** short acknowledgment sentence.
@@ -62,7 +64,9 @@ def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
         "problem": updated_scratchpad.get("problem", "Not yet defined"),
         "target user": updated_scratchpad.get("customer_segment", "Not yet defined"),
         "proposed solution": updated_scratchpad.get("solution", "Not yet defined"),
-        "core benefit": updated_scratchpad.get("value_proposition", "Not yet defined") # Corrected key from CANONICAL_KEYS
+        "main benefit": updated_scratchpad.get("main_benefit", "Not yet defined"),
+        "differentiator": updated_scratchpad.get("differentiator", "Not yet defined"),
+        "use case": updated_scratchpad.get("use_case", "Not yet defined")
     }
     
     # Construct a user message that includes the current state for the LLM
@@ -74,7 +78,9 @@ Current Value Proposition Status:
 - Problem: {value_prop_elements['problem']}
 - Target User: {value_prop_elements['target user']}
 - Proposed Solution: {value_prop_elements['proposed solution']}
-- Core Benefit: {value_prop_elements['core benefit']}
+- Main Benefit: {value_prop_elements['main benefit']}
+- Differentiator: {value_prop_elements['differentiator']}
+- Use Case: {value_prop_elements['use case']}
 """
 
     messages = [
@@ -111,7 +117,8 @@ def handle_development(user_message: str, scratchpad: dict) -> tuple[str, str]:
             "problem": "What single problem are we solving?",
             "target_user": "Who feels that pain the most?",
             "solution": "Describe the one-sentence solution.",
-            "benefit": "What core benefit or metric proves value?"
+            "main_benefit": "What core benefit or metric proves value?",
+            "use_case": "How do you envision people using your solution in real-world scenarios?"
         }
         return prompts[next_item], "development"
     else:
@@ -154,7 +161,7 @@ def handle_summary(user_message: str, scratchpad: dict, vp_workflow_instance: Va
     else:
         # Fallback if vp_workflow_instance is not available or not complete (should not happen if logic in conversation_manager is correct)
         assistant_reply = "I'm ready to generate a summary, but it seems the value proposition isn't fully complete yet. "
-        assistant_reply += "Let's ensure all steps (Problem, Target User, Solution, Benefit) are covered."
+        assistant_reply += "Let's ensure all steps (Problem, Target User, Solution, Benefit, Differentiator, Use Case) are covered."
         # Attempt to find the current step from scratchpad if VP workflow failed.
         # This is a defensive measure.
         missing = missing_items(scratchpad)
