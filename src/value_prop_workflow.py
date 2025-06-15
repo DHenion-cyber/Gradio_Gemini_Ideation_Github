@@ -17,24 +17,37 @@ class ValuePropWorkflow:
         self.completed = False
         self.intake_complete = False  # Flag for the initial intake message
 
-    def next_step(self):
-        steps = ["problem", "target_customer", "solution", "main_benefit", "differentiator", "use_case"] # Changed back to original keys
-        try:
-            current_idx = steps.index(self.current_step)
-            if current_idx + 1 < len(steps):
-                self.current_step = steps[current_idx + 1]
-            else:
-                self.completed = True
-        except ValueError:
-            self.completed = True # Should not happen if current_step is always valid
+    def suggest_next_step(self, user_input=None):
+        """
+        Suggest the next most relevant step based on current scratchpad content and user intent.
+        Allow user to revisit or expand previous steps if desired.
+        """
+        steps = ["problem", "target_customer", "solution", "main_benefit", "differentiator", "use_case"]
+        # If the user input clearly refers to a previous or later step, honor that
+        # (you can use simple keyword matching or a more advanced intent detector)
+        if user_input:
+            for step in steps:
+                if step in user_input.lower(): # Simple keyword matching
+                    self.current_step = step
+                    return step
+        # Otherwise, suggest the next incomplete step, but do not force it
+        for step in steps:
+            if not self.scratchpad.get(step):
+                self.current_step = step
+                return step
+        # If all steps have content, remain flexible and ask what the user wants to focus on next
+        self.current_step = "review"
+        return "review"
 
     def process_user_input(self, user_input: str):
-        generated_response_parts = []
+        preliminary_messages = []
         user_input_stripped = user_input.strip()
+        core_response = ""
+        is_intro_only_turn = False
 
         # 1. Handle intake-to-ideation transition message (once at the beginning)
         if self.current_step == "problem" and not self.intake_complete:
-            generated_response_parts.append(
+            preliminary_messages.append(
                 "Thanks for sharing! I'll help you develop and vet your ideas now. "
                 "I will continue to ask you questions, but you're welcome to ask me for ideas, analysis, or feedback at any point."
             )
@@ -45,87 +58,85 @@ class ValuePropWorkflow:
         if self.current_step == "differentiator" and \
            self.scratchpad.get("main_benefit") and \
            not self.scratchpad.get("differentiator"):
-
             differentiator_intro_message = (
                 "Let's define what makes your solution unique. "
                 "This helps clarify your competitive advantage and will later help to position your idea effectively.\n"
                 "What specific aspects set your solution apart from alternatives?"
             )
-            if not generated_response_parts or differentiator_intro_message not in generated_response_parts[-1]:
-                 generated_response_parts.append(differentiator_intro_message)
-
-            if not user_input_stripped: # If user_input is empty after this intro, we are done for this turn.
-                 return "\n\n".join(filter(None, generated_response_parts)).strip()
+            if not preliminary_messages or differentiator_intro_message not in preliminary_messages[-1]:
+                 preliminary_messages.append(differentiator_intro_message)
+            if not user_input_stripped:
+                is_intro_only_turn = True # Intro is the main response for this turn
 
         # Show intro if it's the use_case step, differentiator is filled, and use_case in scratchpad is still empty.
         elif self.current_step == "use_case" and \
              self.scratchpad.get("differentiator") and \
              not self.scratchpad.get("use_case"):
-
             use_case_intro_message = (
                 "Now let's think about specific use cases. "
                 "How do you envision people using your solution in real-world scenarios?"
             )
-            if not generated_response_parts or use_case_intro_message not in generated_response_parts[-1]:
-                generated_response_parts.append(use_case_intro_message)
+            if not preliminary_messages or use_case_intro_message not in preliminary_messages[-1]:
+                preliminary_messages.append(use_case_intro_message)
+            if not user_input_stripped:
+                is_intro_only_turn = True # Intro is the main response for this turn
+        
+        if not is_intro_only_turn:
+            # 3. Handle empty user input if not an intro-only response and current step needs input
+            if not user_input_stripped:
+                # Check if the current step is genuinely awaiting input (i.e., not yet filled in scratchpad).
+                if not self.scratchpad.get(self.current_step) and \
+                   (self.current_step != "problem" or self.intake_complete):
+                    step_display_name = self.current_step.replace("_", " ")
+                    article = "an" if step_display_name.lower().startswith(("a", "e", "i", "o", "u")) else "a"
+                    prompt_message = (
+                        f"It seems we're working on defining {article} {step_display_name}, "
+                        f"but I didn't receive your input for it. Could you please share your thoughts on the {step_display_name}?"
+                    )
+                    core_response = prompt_message
+                # else: user_input_stripped is empty, but no specific prompt needed (e.g., step filled, or problem before intake)
+                # core_response remains empty, preliminary_messages (if any) will be shown.
+            else: # user_input_stripped is NOT empty
+                # 4. General stance handling and coaching
+                stance = self.behavior.detect_user_stance(user_input_stripped, self.current_step)
 
-            if not user_input_stripped: # If user_input is empty after this intro, we are done for this turn.
-                return "\n\n".join(filter(None, generated_response_parts)).strip()
+                # Store user input based on stance and step
+                if stance == "decided":
+                    self.scratchpad[self.current_step] = user_input_stripped
+                elif self.current_step == "differentiator" and \
+                     self.scratchpad.get("main_benefit") and \
+                     user_input_stripped and \
+                     not self.scratchpad.get("differentiator"):
+                    self.scratchpad["differentiator"] = user_input_stripped
+                    if stance != "decided": stance = "decided" # Treat as decided for coaching
+                elif self.current_step == "use_case" and \
+                     self.scratchpad.get("differentiator") and \
+                     user_input_stripped and \
+                     not self.scratchpad.get("use_case"):
+                    self.scratchpad["use_case"] = user_input_stripped
+                    if stance != "decided": stance = "decided" # Treat as decided for coaching
 
-        # NEW BLOCK: Ensure non-empty input if current step's value is expected and not yet provided.
-        # This check is applied if the user's input for the current turn is empty.
-        # It won't interfere with the early returns on lines 58 and 73 because if those were triggered,
-        # this code block wouldn't be reached with an empty user_input_stripped for those specific intro scenarios.
-        if not user_input_stripped:
-            # Check if the current step is genuinely awaiting input (i.e., not yet filled in scratchpad).
-            # The condition `(self.current_step != "problem" or self.intake_complete)` ensures that for the "problem" step,
-            # we only prompt if the intake phase is done. If it's the very first message and it's empty,
-            # this prompt won't fire, assuming upstream handling or that initial input won't be empty.
-            if not self.scratchpad.get(self.current_step) and \
-               (self.current_step != "problem" or self.intake_complete):
-                step_display_name = self.current_step.replace("_", " ")
-                # Ensure correct indefinite article 'a' or 'an'
-                article = "an" if step_display_name.lower().startswith(("a", "e", "i", "o", "u")) else "a"
-                prompt_message = (
-                    f"It seems we're working on defining {article} {step_display_name}, "
-                    f"but I didn't receive your input for it. Could you please share your thoughts on the {step_display_name}?"
-                )
+                if stance == "decided":
+                    core_response = self.behavior.coach_on_decision(self.current_step, user_input_stripped)
+                else: # uncertain, open, interest, neutral
+                    core_response = self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step)
 
-                if generated_response_parts: # If intake or other messages were already queued for this turn
-                    current_turn_messages = generated_response_parts + [prompt_message]
-                    return "\n\n".join(filter(None, current_turn_messages)).strip()
-                else:
-                    return prompt_message
-        # END OF NEW BLOCK
+        # Combine preliminary_messages and core_response
+        full_response_parts = []
+        if preliminary_messages:
+            full_response_parts.extend(preliminary_messages)
+        
+        if core_response: # Only add core_response if it's not empty and not redundant with preliminary
+            # Avoid adding core_response if it's identical to the last preliminary message (e.g. intro was the core)
+            if not (preliminary_messages and preliminary_messages[-1] == core_response):
+                 full_response_parts.append(core_response)
 
-        # 3. General stance handling and coaching
-        stance = self.behavior.detect_user_stance(user_input_stripped, self.current_step)
+        final_response_str = "\n\n".join(filter(None, full_response_parts)).strip()
 
-        # Store user input if it's a "decided" stance.
-        # Also, if it's a dedicated step (differentiator, use_case) and user provided input for it (and it's not yet in scratchpad).
-        if stance == "decided":
-            self.scratchpad[self.current_step] = user_input_stripped
-        elif self.current_step == "differentiator" and \
-             self.scratchpad.get("main_benefit") and \
-             user_input_stripped and \
-             not self.scratchpad.get("differentiator"):
-            self.scratchpad["differentiator"] = user_input_stripped
-            if stance != "decided": # If stance wasn't 'decided' but we captured differentiator, treat as 'decided'.
-                stance = "decided"
-        elif self.current_step == "use_case" and \
-             self.scratchpad.get("differentiator") and \
-             user_input_stripped and \
-             not self.scratchpad.get("use_case"):
-            self.scratchpad["use_case"] = user_input_stripped
-            if stance != "decided": # If stance wasn't 'decided' but we captured use_case, treat as 'decided'.
-                stance = "decided"
-
-        if stance == "decided":
-            return self.behavior.coach_on_decision(self.current_step, user_input_stripped)
-        else:
-            # For all other stances (uncertain, open, interest, neutral),
-            # paraphrase_user_input will now generate the full, single response.
-            return self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step)
+        reflection_prompt = "\n\nWhat do you think? Would you like to explore this direction, or focus on another aspect?"
+        if final_response_str: # Only add reflection if there's a base response
+            return final_response_str + reflection_prompt
+        return "" # Return empty string if nothing was generated
 
     def add_research_request(self, step: str, details: str = ""):
         self.scratchpad["research_requests"].append({"step": step, "details": details})

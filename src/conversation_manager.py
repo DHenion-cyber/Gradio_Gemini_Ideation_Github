@@ -335,10 +335,14 @@ def route_conversation(user_message: str, scratchpad_arg: dict) -> tuple[str, st
     # If in 'ideation' stage
     if current_stage == "ideation":
         if not vp_workflow.completed:
+            # Allow workflow to adjust step based on user input before processing
+            # The user_message itself is passed to suggest_next_step for intent detection
+            vp_workflow.suggest_next_step(user_message) # This updates vp_workflow.current_step
+
             # Pass empty string if user_message is None/empty (e.g., initial call from streamlit_app)
             # ValuePropWorkflow.process_user_input should handle this to provide the current step's prompt.
             actual_input_for_vp = user_message if user_message else ""
-            assistant_reply = vp_workflow.process_user_input(actual_input_for_vp)
+            assistant_reply = vp_workflow.process_user_input(actual_input_for_vp) # Uses the potentially updated current_step
 
             # Sync the main scratchpad with the workflow's scratchpad
             st.session_state.get("scratchpad", {}).update(vp_workflow.scratchpad)
