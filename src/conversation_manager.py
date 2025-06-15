@@ -192,16 +192,22 @@ def run_intake_flow(user_input: str):
 
     if st.session_state["intake_index"] >= len(intake_questions):
         st.session_state["stage"] = "ideation"
-        # Compute and store best_answer from intake_answers for the transition
+        
         answers_texts = [
             ans.get("text", "")
             for ans in st.session_state.get("intake_answers", [])
             if isinstance(ans, dict)
         ]
+        intake_summary = "Summary of your background and interests: " + " ".join(answers_texts)
+        st.session_state["context_summary"] = intake_summary
+        
+        # Compute and store best_answer from intake_answers for the transition
         # Ensure answers_texts is not empty for max() to prevent error, default to empty string
-        if not answers_texts:
-            answers_texts = [""]
-        st.session_state["best_intake_answer_for_transition"] = max(answers_texts, key=len, default="")
+        if not answers_texts: # This check should use the original answers_texts
+            answers_texts_for_max = [""] # Use a different variable if answers_texts was modified for summary
+        else:
+            answers_texts_for_max = answers_texts
+        st.session_state["best_intake_answer_for_transition"] = max(answers_texts_for_max, key=len, default="")
 
     save_session(st.session_state["user_id"], st.session_state.to_dict())
 

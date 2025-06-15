@@ -113,16 +113,16 @@ def format_citations(search_results: list) -> tuple[str, str]:
 
 
 def build_conversation_messages(scratchpad, latest_user_input, current_phase):
-    """
-    Constructs the conversation message list for OpenAI, ensuring natural context is provided.
-    """
-    # Build a natural summary of the user journey so far
     context_lines = []
     for key, value in scratchpad.items():
-        if value and key != "research_requests":  # skip empty or non-conversational fields
+        if value and key != "research_requests":
             context_lines.append(f"{key.replace('_', ' ').title()}: {value}")
 
-    context = (
+    intake_summary = st.session_state.get("context_summary", "")
+    context = ""
+    if intake_summary:
+        context += intake_summary + "\n\n"
+    context += (
         "Here’s what the user has shared about their idea so far:\n"
         + "\n".join(context_lines)
         + f"\n\nMost recent user message: {latest_user_input}\n"
