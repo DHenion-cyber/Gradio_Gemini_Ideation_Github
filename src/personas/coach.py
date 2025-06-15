@@ -161,10 +161,11 @@ class CoachPersona: # Renamed from BehaviorEngine
             print(f"Error in offer_strategic_suggestion LLM call: {e}")
             return f"Have you considered how to best approach the {step}?" # Fallback
 
-    def paraphrase_user_input(self, user_input: str, stance: str, current_step: str = "the current topic", scratchpad: dict = None) -> str:
+    def paraphrase_user_input(self, user_input: str, stance: str, current_step: str = "the current topic", scratchpad: dict = None, search_results: list = None) -> str: # Added search_results
         """
         Paraphrases the user's input using an LLM, reflecting the detected stance
         and current step, and provides initial context-aware feedback.
+        Can optionally use search_results to inform the LLM.
         Now accepts scratchpad for richer context.
         """
         maturity = self.assess_idea_maturity(user_input)
@@ -177,6 +178,8 @@ Your response should have two parts:
 1. First, acknowledge and briefly paraphrase the user's input for '{current_step}'. Do not use direct quotation. Refer to their input conceptually, for example, as 'your idea about {current_step} being {user_input[:30]}...' or 'your thoughts on {current_step} focusing on [paraphrased essence]'.
 2. Second, provide brief, context-aware feedback based on their input's specificity and its relevance to the '{current_step}', potentially drawing context from the scratchpad.
 """
+        if search_results:
+            system_prompt_base += f"\nRelevant search results for context: {search_results}\n"
 
         if maturity == "novice":
             system_prompt_base += (
@@ -217,10 +220,11 @@ Your response should have two parts:
                  return f"I've noted your thoughts on {current_step}: '{user_input[:50]}...'. Let's consider how to refine this."
             return f"I'm processing your thoughts on {current_step}."
 
-    def coach_on_decision(self, current_step: str, user_input: str, scratchpad: dict = None, stance: str = "decided") -> str:
+    def coach_on_decision(self, current_step: str, user_input: str, scratchpad: dict = None, stance: str = "decided", search_results: list = None) -> str: # Added search_results
         """
         Coaches the user after they've made a decision, using an LLM,
         referencing their specific input and explaining the 'why' of feedback.
+        Can optionally use search_results to inform the LLM.
         Now accepts scratchpad and an explicit stance.
         """
         maturity = self.assess_idea_maturity(user_input)
@@ -231,6 +235,8 @@ The user has made a decision for the '{current_step}' (stance: {stance}). Their 
 The current state of their value proposition development (scratchpad) is: {scratchpad}.
 Your task is to provide feedback. DO NOT quote the user's input '{user_input}' directly. Instead, refer to it as 'your decision about {current_step}', 'your idea of {user_input[:30]}...', or 'your focus on [paraphrased essence of user_input]'. Explain *why* your feedback or suggestions are helpful for them to build a strong value proposition.
 """
+        if search_results:
+            system_prompt_base += f"\nRelevant search results for context: {search_results}\n"
 
         if maturity == "novice":
             system_prompt = system_prompt_base + (
