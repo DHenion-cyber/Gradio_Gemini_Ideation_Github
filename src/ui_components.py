@@ -1,3 +1,4 @@
+"""Provides reusable Streamlit UI components for the chatbot application."""
 import streamlit as st
 import time
 

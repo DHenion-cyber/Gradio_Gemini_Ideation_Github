@@ -1,3 +1,4 @@
+"""Provides utilities for performing web searches using the Perplexity API, including caching and formatting results."""
 import asyncio
 import httpx
 import hashlib

@@ -1,6 +1,4 @@
-"""
-Defines the BusinessPlanWorkflow class, which manages the business plan creation process.
-"""
+"""Defines the BusinessPlanWorkflow class, managing the business plan coaching process."""
 # Persona will be passed in, no direct import needed here unless for type hinting
 # from src.personas.coach import CoachPersona
 

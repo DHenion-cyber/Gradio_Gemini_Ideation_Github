@@ -1,3 +1,4 @@
+"""Main Streamlit application file for the Digital Health Innovation Chatbot UI."""
 import os
 import sys
 import streamlit as st

@@ -1,3 +1,4 @@
+"""Tests edge cases for scratchpad handling, including incomplete fields and empty contexts."""
 from src import conversation_manager as cm
 from src.constants import EMPTY_SCRATCHPAD
 

@@ -1,3 +1,4 @@
+"""Simulates user interactions with the chatbot based on a JSONL input file."""
 import sys
 import os
 

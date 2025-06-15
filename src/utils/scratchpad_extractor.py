@@ -1,3 +1,4 @@
+"""Extracts information from user messages to update the scratchpad using regex and LLM fallback."""
 import re
 import json
 from src.llm_utils import get_llm_response

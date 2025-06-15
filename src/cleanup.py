@@ -1,3 +1,4 @@
+"""Removes specified runtime-generated directories to reclaim disk space on Hugging Face Spaces."""
 import os
 import shutil
 

@@ -1,3 +1,4 @@
+"""Tests the coaching flow, focusing on transitions between conversation phases and persona interactions."""
 import streamlit as st
 import pytest
 

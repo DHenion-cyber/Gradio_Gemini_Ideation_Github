@@ -1,6 +1,4 @@
-"""
-Defines the ValuePropWorkflow class, which manages the value proposition development process.
-"""
+"""Defines the ValuePropWorkflow class, managing the value proposition coaching process."""
 import streamlit as st
 # Persona will be passed in, no direct import needed here unless for type hinting
 # from src.personas.coach import CoachPersona

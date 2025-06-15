@@ -1,3 +1,4 @@
+"""Tests for various utility functions across the application."""
 # tests/test_utils.py
 
 from src import llm_utils, search_utils, database

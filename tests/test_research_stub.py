@@ -1,3 +1,4 @@
+"""Tests the stub response behavior of search_perplexity when the API key is missing."""
 import os
 from src.search_utils import search_perplexity
 

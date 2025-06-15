@@ -1,3 +1,4 @@
+"""Manages the registration and retrieval of Workflow and Persona classes."""
 """
 Registry for Workflows and Personas.
 

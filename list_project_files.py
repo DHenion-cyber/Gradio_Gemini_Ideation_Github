@@ -1,3 +1,4 @@
+"""Lists all files in the project and saves the structure to project_file_structure.txt."""
 import os
 
 with open("project_file_structure.txt", "w", encoding="utf-8") as f:

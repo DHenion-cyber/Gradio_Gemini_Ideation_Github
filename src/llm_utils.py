@@ -1,3 +1,4 @@
+"""Provides utility functions for interacting with OpenAI's LLMs, managing prompts, and token counting."""
 import os
 from dotenv import load_dotenv # Import load_dotenv
 from openai import OpenAI # Import the OpenAI class

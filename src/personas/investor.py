@@ -1,6 +1,4 @@
-"""
-Defines the InvestorPersona class, which provides the conversation style and coaching behavior for this persona type.
-"""
+"""Defines the InvestorPersona class, providing its specific conversation style and behavior."""
 class InvestorPersona:
     def __init__(self):
         pass  # TODO: implement persona logic

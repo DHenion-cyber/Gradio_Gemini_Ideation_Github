@@ -1,6 +1,4 @@
-"""
-Defines the BetaTestingWorkflow class, which manages the beta testing process.
-"""
+"""Defines the BetaTestingWorkflow class, managing the beta testing coaching process."""
 # Persona will be passed in, no direct import needed here unless for type hinting
 # from src.personas.coach import CoachPersona
 # from src.personas.tester import TesterPersona

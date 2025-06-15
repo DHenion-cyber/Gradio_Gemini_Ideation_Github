@@ -1,3 +1,4 @@
+"""Tests the research call cap functionality in search_utils."""
 import streamlit as st
 import os # Added for os.environ
 import asyncio # Added for asyncio.Future mock

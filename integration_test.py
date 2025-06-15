@@ -1,3 +1,4 @@
+"""Tests logging and differentiation of real vs. simulated user sessions in the database."""
 # integration_test.py
 #
 # Purpose:

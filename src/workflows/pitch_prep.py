@@ -1,6 +1,4 @@
-"""
-Defines the PitchPrepWorkflow class, which manages the pitch preparation process.
-"""
+"""Defines the PitchPrepWorkflow class, managing the pitch preparation coaching process."""
 # Persona will be passed in, no direct import needed here unless for type hinting
 # from src.personas.coach import CoachPersona
 

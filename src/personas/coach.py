@@ -1,6 +1,4 @@
-"""
-Defines the CoachPersona class (formerly BehaviorEngine), which provides the conversation style and coaching behavior for this persona type.
-"""
+"""Defines the CoachPersona class, providing conversation style and coaching behavior."""
 import re
 from ..llm_utils import query_openai # Updated import
 

@@ -1,3 +1,1 @@
-"""
-Initializes the personas module.
-"""
+"""Initializes the personas Python package."""

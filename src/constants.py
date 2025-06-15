@@ -1,3 +1,4 @@
+"""Defines constants used throughout the application, such as scratchpad keys and API limits."""
 REQUIRED_SCRATCHPAD_KEYS = [
     "problem",
     "target_customer", # Changed from target_user

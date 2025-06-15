@@ -1,3 +1,4 @@
+"""Simulates persona responses using OpenAI GPT-3.5-turbo for testing and development."""
 import os
 from openai import OpenAI
 

@@ -1,3 +1,4 @@
+"""Exports conversation exchanges from session JSON files to a JSONL file for evals."""
 import os
 import json
 

@@ -1,3 +1,4 @@
+"""Handles database interactions, including session saving/loading and schema creation for SQLite."""
 import os
 import sqlite3
 import sys

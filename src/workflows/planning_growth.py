@@ -1,6 +1,4 @@
-"""
-Defines the PlanningGrowthWorkflow class, which manages the growth planning process.
-"""
+"""Defines the PlanningGrowthWorkflow class, managing the growth planning coaching process."""
 # Persona will be passed in, no direct import needed here unless for type hinting
 # from src.personas.coach import CoachPersona
 

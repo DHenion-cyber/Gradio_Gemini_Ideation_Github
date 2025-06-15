@@ -1,3 +1,4 @@
+"""Inspects the chatbot_sessions.sqlite database, printing table names and first 5 rows of each."""
 import sqlite3
 conn = sqlite3.connect('chatbot_sessions.sqlite')
 cur = conn.cursor()

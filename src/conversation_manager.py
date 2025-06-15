@@ -1,3 +1,4 @@
+"""Manages conversation state, user interactions, and integrates with workflows and personas."""
 import streamlit as st
 import datetime
 import uuid

@@ -1,6 +1,4 @@
-"""
-Defines the TesterPersona class, which provides the conversation style and coaching behavior for this persona type.
-"""
+"""Defines the TesterPersona class, providing its specific conversation style and behavior."""
 class TesterPersona:
     def __init__(self):
         pass  # TODO: implement persona logic

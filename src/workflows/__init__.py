@@ -1,3 +1,1 @@
-"""
-Initializes the workflows module.
-"""
+"""Initializes the workflows Python package."""

@@ -1,3 +1,4 @@
+"""Connects to SQLite DB, lists tables, and queries for simulated user/feedback entries."""
 # test_sqlite_log.py
 #
 # Purpose:

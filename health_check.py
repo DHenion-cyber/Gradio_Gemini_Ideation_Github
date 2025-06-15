@@ -1,3 +1,4 @@
+"""Performs a series of health checks on the application environment and dependencies."""
 import os
 import sys
 import sqlite3

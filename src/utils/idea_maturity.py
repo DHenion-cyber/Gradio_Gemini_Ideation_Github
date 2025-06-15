@@ -1,3 +1,4 @@
+"""Calculates the maturity score of an idea based on a rubric and scratchpad content."""
 from ..constants import CANONICAL_KEYS
 
 RUBRIC = {

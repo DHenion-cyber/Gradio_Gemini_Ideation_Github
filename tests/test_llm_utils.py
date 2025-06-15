@@ -1,3 +1,4 @@
+"""Tests for the llm_utils module, covering prompt building, token counting, and citation formatting."""
 import pytest
 import os
 from src import llm_utils

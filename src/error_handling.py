@@ -1,3 +1,4 @@
+"""Provides a simple error logging function for the application."""
 import datetime
 
 def log_error(message: str, e: Exception = None):

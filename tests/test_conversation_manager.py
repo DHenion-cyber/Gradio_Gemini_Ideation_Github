@@ -1,3 +1,4 @@
+"""Tests for the conversation_manager module, covering state initialization, response generation, and flow control."""
 import pytest
 import datetime
 from src import conversation_manager as cm

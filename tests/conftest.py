@@ -1,3 +1,4 @@
+"""Pytest configuration file for shared fixtures and hooks."""
 import pytest
 import streamlit as st
 from unittest.mock import MagicMock

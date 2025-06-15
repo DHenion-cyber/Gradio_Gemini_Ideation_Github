@@ -1,6 +1,4 @@
-"""
-Defines the MarketAnalysisWorkflow class, which manages the market analysis process.
-"""
+"""Defines the MarketAnalysisWorkflow class, managing the market analysis coaching process."""
 # Persona will be passed in, no direct import needed here unless for type hinting
 # from src.personas.coach import CoachPersona
 
