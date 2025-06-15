@@ -120,40 +120,12 @@ class ValuePropWorkflow:
             if stance != "decided": # If stance wasn't 'decided' but we captured use_case, treat as 'decided'.
                 stance = "decided"
 
-        if stance == "uncertain":
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step))
-            generated_response_parts.append(self.behavior.offer_example(self.current_step))
-            generated_response_parts.append(
-                f"Could you try to define the {self.current_step.replace('_', ' ')} more clearly, or would you like to brainstorm some ideas together for it?"
-            )
-        elif stance == "open":
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step))
-            generated_response_parts.append(self.behavior.offer_strategic_suggestion(self.current_step))
-            generated_response_parts.append(
-                f"What are your thoughts on that suggestion, or would you like to explore other angles for the {self.current_step.replace('_', ' ')}?"
-            )
-        elif stance == "interest":
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step))
-            generated_response_parts.append(
-                f"It sounds like you're making good progress on the {self.current_step.replace('_', ' ')}. "
-                "Would you like to refine this further, or shall we consider how this connects to the next part of your value proposition?"
-            )
-        elif stance == "decided":
-            # For "decided" stance, paraphrase_user_input is called first, then coach_on_decision.
-            # The paraphrase will provide the initial acknowledgement and context-aware feedback.
-            # coach_on_decision will then provide deeper coaching.
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step))
-            generated_response_parts.append(
-                self.behavior.coach_on_decision(self.current_step, user_input_stripped)
-            )
-        else:  # Fallback for other/unclear stances
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, "neutral", self.current_step))
-            generated_response_parts.append(
-                f"That's an interesting perspective on the {self.current_step.replace('_', ' ')}. "
-                "Could you elaborate a bit more on your reasoning, or would you like to consider some alternative ways to approach this?"
-            )
-
-        return "\n\n".join(filter(None, generated_response_parts)).strip()
+        if stance == "decided":
+            return self.behavior.coach_on_decision(self.current_step, user_input_stripped)
+        else:
+            # For all other stances (uncertain, open, interest, neutral),
+            # paraphrase_user_input will now generate the full, single response.
+            return self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step)
 
     def add_research_request(self, step: str, details: str = ""):
         self.scratchpad["research_requests"].append({"step": step, "details": details})

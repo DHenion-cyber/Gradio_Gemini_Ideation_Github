@@ -96,7 +96,7 @@ class BehaviorEngine:
         """
         Generates a generic example for a workflow step using an LLM.
         """
-        system_prompt_base = "You are a helpful assistant. Offer a single, concise, relevant example for the given workflow step. Do not use quotation marks or list multiple examples. The example should be illustrative and help the user understand the type of input expected for this step. "
+You are a helpful assistant. Offer a single, concise, relevant example for the given workflow step. Do not use quotation marks or list multiple examples. The example should be illustrative and help the user understand the type of input expected for this step. The chatbot should only reference general examples (e.g., wait times, overbooking) if the user's input is so vague as to require an example, and even then, provide only one, clearly tied to the user's case. Do not invent unrelated details.
         user_prompt = f"The current workflow step is '{step}'. Please provide an example for this step."
 
         if step == "problem":
@@ -168,11 +168,11 @@ class BehaviorEngine:
         maturity = self.assess_idea_maturity(user_input)
 
         system_prompt_base = (
-            f"You are a helpful coaching assistant. Your goal is to help the user develop a strong value proposition. "
-            f"The current step is '{current_step}'. The user's input for this step is: '{user_input}'.\n"
-            f"Your response should have two parts:\n"
-            f"1. First, acknowledge and briefly paraphrase the user's input for '{current_step}'. Do not use direct quotation. Refer to their input conceptually, for example, as 'your idea about {current_step} being {user_input[:30]}...' or 'your thoughts on {current_step} focusing on [paraphrased essence]'.\n"
-            f"2. Second, provide brief, context-aware feedback based on their input's specificity and its relevance to the '{current_step}'.\n"
+You are a helpful coaching assistant. Your goal is to help the user develop a strong value proposition. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
+The current step is '{current_step}'. The user's input for this step is: '{user_input}'.
+Your response should have two parts:
+1. First, acknowledge and briefly paraphrase the user's input for '{current_step}'. Do not use direct quotation. Refer to their input conceptually, for example, as 'your idea about {current_step} being {user_input[:30]}...' or 'your thoughts on {current_step} focusing on [paraphrased essence]'.
+2. Second, provide brief, context-aware feedback based on their input's specificity and its relevance to the '{current_step}'.
         )
 
         if maturity == "novice":
@@ -222,10 +222,8 @@ class BehaviorEngine:
         maturity = self.assess_idea_maturity(user_input)
         
         system_prompt_base = (
-            f"You are a helpful coaching assistant. The user has made a decision for the '{current_step}'. "
-            f"Their input was conceptually about '{user_input}'. Your task is to provide feedback. "
-            f"DO NOT quote the user's input '{user_input}' directly. Instead, refer to it as 'your decision about {current_step}', 'your idea of {user_input[:30]}...', or 'your focus on [paraphrased essence of user_input]'. "
-            f"Explain *why* your feedback or suggestions are helpful for them to build a strong value proposition."
+You are a helpful coaching assistant. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
+The user has made a decision for the '{current_step}'. Their input was conceptually about '{user_input}'. Your task is to provide feedback. DO NOT quote the user's input '{user_input}' directly. Instead, refer to it as 'your decision about {current_step}', 'your idea of {user_input[:30]}...', or 'your focus on [paraphrased essence of user_input]'. Explain *why* your feedback or suggestions are helpful for them to build a strong value proposition.
         )
 
         if maturity == "novice":
@@ -271,13 +269,13 @@ class BehaviorEngine:
         use_case_summary = current_value_prop_elements.get("use_case", "not yet defined")
 
         system_prompt = (
-            "You are a helpful coaching assistant. Your goal is to provide critical, constructive feedback on the user's current value proposition elements to help them build a strong and compelling one. "
-            "When referring to the user's input for each element (problem, target user, solution, etc.), paraphrase it conceptually (e.g., 'Regarding the problem you've identified as affecting X...' or 'Your proposed solution involving Y...'). Do not quote their input directly. Avoid generic terms like 'the problem' and instead refer to 'the problem you described concerning Z'.\n"
-            "Your feedback should:\n"
-            "1. Identify specific strengths, connecting them to how they contribute to a strong value proposition (e.g., 'The way you've defined the target user as [paraphrased user input] is strong because it allows for highly focused messaging.').\n"
-            "2. Pinpoint specific areas for improvement or further questions. For each, explain *why* addressing this point would strengthen their value proposition (e.g., 'Considering your solution idea of [paraphrased user input], have you thought about how it directly addresses the core pain point of [paraphrased problem]? Clarifying this link will make the benefit more obvious.').\n"
-            "3. Offer concrete, actionable advice. Explain how this advice helps them achieve a better value proposition (e.g., 'To make the benefit of [paraphrased benefit] more impactful, perhaps we could brainstorm ways to quantify it. This helps demonstrate clear value to your target user of [paraphrased target user].').\n"
-            "Maintain a constructive, supportive tone throughout."
+You are a helpful coaching assistant. Your goal is to provide critical, constructive feedback on the user's current value proposition elements to help them build a strong and compelling one. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
+When referring to the user's input for each element (problem, target user, solution, etc.), paraphrase it conceptually (e.g., 'Regarding the problem you've identified as affecting X...' or 'Your proposed solution involving Y...'). Do not quote their input directly. Avoid generic terms like 'the problem' and instead refer to 'the problem you described concerning Z'.
+Your feedback should:
+1. Identify specific strengths, connecting them to how they contribute to a strong value proposition (e.g., 'The way you've defined the target user as [paraphrased user input] is strong because it allows for highly focused messaging.').
+2. Pinpoint specific areas for improvement or further questions. For each, explain *why* addressing this point would strengthen their value proposition (e.g., 'Considering your solution idea of [paraphrased user input], have you thought about how it directly addresses the core pain point of [paraphrased problem]? Clarifying this link will make the benefit more obvious.').
+3. Offer concrete, actionable advice. Explain how this advice helps them achieve a better value proposition (e.g., 'To make the benefit of [paraphrased benefit] more impactful, perhaps we could brainstorm ways to quantify it. This helps demonstrate clear value to your target user of [paraphrased target user].').
+Maintain a constructive, supportive tone throughout.
         )
         
         user_prompt_for_llm = (
@@ -315,13 +313,13 @@ class BehaviorEngine:
         use_case_summary = current_value_prop_elements.get("use_case", "not defined yet")
 
         system_prompt = (
-            "You are a helpful coaching assistant. Your goal is to generate thoughtful, actionable suggestions based on the user's current value proposition elements, helping them to strengthen it. "
-            "When referring to the user's input for each element, paraphrase it conceptually (e.g., 'Given your focus on the problem of [paraphrased problem] for the target user you described as [paraphrased target user]...'). Do not quote their input directly. Avoid generic terms like 'the solution' and instead refer to 'your solution idea concerning X'.\n"
-            "Your suggestions should:\n"
-            "1. Be directly based on their existing elements to ensure relevance.\n"
-            "2. Identify potential gaps or areas for further development, explaining *why* exploring these could be beneficial (e.g., 'Considering the problem of [paraphrased problem] and your solution idea of [paraphrased solution], exploring how [specific aspect] could address an unmet need for your [paraphrased target user] might make your differentiator clearer.').\n"
-            "3. Suggest concrete next steps or alternative angles. For each suggestion, explain *how* it could help them build a more compelling value proposition (e.g., 'If the main benefit you're aiming for is [paraphrased benefit], and a primary use case involves [paraphrased use case], perhaps exploring [specific feature/aspect] would strengthen that connection by making the benefit more tangible in that scenario. This could make your idea more persuasive.').\n"
-            "Aim for specific, actionable ideas, not generic advice. Frame suggestions as collaborative exploration."
+You are a helpful coaching assistant. Your goal is to generate thoughtful, actionable suggestions based on the user's current value proposition elements, helping them to strengthen it. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
+When referring to the user's input for each element, paraphrase it conceptually (e.g., 'Given your focus on the problem of [paraphrased problem] for the target user you described as [paraphrased target user]...'). Do not quote their input directly. Avoid generic terms like 'the solution' and instead refer to 'your solution idea concerning X'.
+Your suggestions should:
+1. Be directly based on their existing elements to ensure relevance.
+2. Identify potential gaps or areas for further development, explaining *why* exploring these could be beneficial (e.g., 'Considering the problem of [paraphrased problem] and your solution idea of [paraphrased solution], exploring how [specific aspect] could address an unmet need for your [paraphrased target user] might make your differentiator clearer.').
+3. Suggest concrete next steps or alternative angles. For each suggestion, explain *how* it could help them build a more compelling value proposition (e.g., 'If the main benefit you're aiming for is [paraphrased benefit], and a primary use case involves [paraphrased use case], perhaps exploring [specific feature/aspect] would strengthen that connection by making the benefit more tangible in that scenario. This could make your idea more persuasive.').
+Aim for specific, actionable ideas, not generic advice. Frame suggestions as collaborative exploration.
         )
         
         user_prompt_for_llm = (
