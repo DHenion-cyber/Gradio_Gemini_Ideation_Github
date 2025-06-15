@@ -112,6 +112,29 @@ def format_citations(search_results: list) -> tuple[str, str]:
     return " ".join(citations_text), "\n".join(reference_block_content)
 
 
+def build_conversation_messages(scratchpad, latest_user_input, current_phase):
+    """
+    Constructs the conversation message list for OpenAI, ensuring natural context is provided.
+    """
+    # Build a natural summary of the user journey so far
+    context_lines = []
+    for key, value in scratchpad.items():
+        if value and key != "research_requests":  # skip empty or non-conversational fields
+            context_lines.append(f"{key.replace('_', ' ').title()}: {value}")
+
+    context = (
+        "Here’s what the user has shared about their idea so far:\n"
+        + "\n".join(context_lines)
+        + f"\n\nMost recent user message: {latest_user_input}\n"
+        + f"Current focus: {current_phase}.\n"
+        "Your job is to advance the conversation in a natural, helpful, and opportunity-oriented way."
+    )
+
+    messages = [
+        {"role": "system", "content": COACH_SYSTEM_PROMPT},
+        {"role": "user", "content": context},
+    ]
+    return messages
 def build_prompt(conversation_history: list, scratchpad: dict, summaries: list, user_input: str, phase: str, search_results: list = None, element_focus: dict = None) -> tuple[str, str]:
     """
     Builds a comprehensive prompt for the LLM, separating system instructions

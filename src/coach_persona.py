@@ -45,7 +45,7 @@ class BehaviorEngine:
         """
         Generates a brief active listening statement using an LLM.
         """
-        system_prompt = "You are a helpful assistant. Your task is to acknowledge the user's input by paraphrasing or summarizing its essence naturally and conversationally. Avoid direct quotation of the user's input. For example, 'Okay, I understand you're saying...' or 'Got it, so the main point is...'"
+        system_prompt = "You are a helpful and encouraging assistant. Your task is to acknowledge the user's input by briefly paraphrasing or summarizing its essence in a natural, warm, and conversational way. Avoid direct quotation. Your aim is to make the user feel heard and understood. For example, 'Okay, I'm with you on that...' or 'That's clear, so you're thinking about...'"
         
         messages = [
             {"role": "system", "content": system_prompt},
@@ -70,13 +70,13 @@ class BehaviorEngine:
             user_context += f" Their input was: '{user_input}'"
 
         if stance == "interest":
-            system_prompt = system_prompt_base + "The user is showing interest. Convey enthusiasm and readiness to keep the momentum going. For example, 'Great—got it. Let's keep the momentum going.'"
+            system_prompt = system_prompt_base + "The user is showing interest. Convey enthusiasm and readiness to keep the momentum going. For example, 'That's great to hear! Sounds like we're on the same page. Ready to explore what's next?'"
         elif stance == "uncertain":
-            system_prompt = system_prompt_base + "The user seems uncertain. Offer reassurance and normalize this feeling. For example, 'No worries, it's normal to feel uncertain at this stage.'"
+            system_prompt = system_prompt_base + "The user seems uncertain. Offer reassurance and normalize this feeling. For example, 'No problem at all, it's completely normal to feel a bit unsure sometimes. We can take a moment to clarify, or look at it from a different angle – whatever helps!'"
         elif stance == "open":
-            system_prompt = system_prompt_base + "The user is open to suggestions. Express appreciation for their openness and willingness to explore. For example, 'Love that openness. Let's explore together.'"
+            system_prompt = system_prompt_base + "The user is open to suggestions. Express appreciation for their openness and willingness to explore. For example, 'That's a fantastic approach! Being open to different ideas is key. What aspects are you most curious to explore first?'"
         elif stance == "decided":
-            system_prompt = system_prompt_base + "The user seems to have made a decision. Acknowledge their clarity and indicate readiness to proceed based on their decision. For example, 'Sounds like you know what you want. We'll move forward on that.'"
+            system_prompt = system_prompt_base + "The user seems to have made a decision. Acknowledge their clarity and indicate readiness to proceed based on their decision. For example, 'Excellent, that's a clear direction. We can definitely build on that. What's the next step in your mind, or would you like a suggestion?'"
         else: # neutral
             system_prompt = system_prompt_base + "Offer a neutral, encouraging acknowledgement of the user's input."
         
@@ -96,7 +96,7 @@ class BehaviorEngine:
         """
         Generates a generic example for a workflow step using an LLM.
         """
-        system_prompt_base = """You are a helpful assistant. Offer a single, concise, relevant example for the given workflow step. Do not use quotation marks or list multiple examples. The example should be illustrative and help the user understand the type of input expected for this step. The chatbot should only reference general examples (e.g., wait times, overbooking) if the user's input is so vague as to require an example, and even then, provide only one, clearly tied to the user's case. Do not invent unrelated details."""
+        system_prompt_base = """You are a helpful assistant. Your goal is to provide a single, concise, and relevant example for the given workflow step to help the user understand the type of input expected for this step. Do not use quotation marks or list multiple examples. The example should be illustrative. The chatbot should only reference general examples (e.g., wait times, overbooking) if the user's input is so vague as to require an example, and even then, provide only one, clearly tied to the user's case. Do not invent unrelated details."""
         user_prompt = f"The current workflow step is '{step}'. Please provide an example for this step."
 
         if step == "problem":

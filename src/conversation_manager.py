@@ -8,7 +8,7 @@ import random # Added for empathetic statements
 import re
 
 from .persistence_utils import save_session, load_session, ensure_db
-from .llm_utils import build_prompt, query_openai, propose_next_conversation_turn, generate_contextual_follow_up # Added generate_contextual_follow_up
+from .llm_utils import build_prompt, query_openai, propose_next_conversation_turn, generate_contextual_follow_up, build_conversation_messages # Added generate_contextual_follow_up
 from . import search_utils
 from . import conversation_phases # Added for phase routing
 from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
@@ -271,22 +271,17 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
             # Optionally, inform the user that the search cap has been reached.
             # search_results can remain empty or carry a message.
 
-    # Build the prompt, now returns (system_instructions, user_prompt_content)
-    system_instructions, user_prompt_content = build_prompt(
-        conversation_history=st.session_state["conversation_history"],
-        scratchpad=st.session_state["scratchpad"],
-        summaries=st.session_state["summaries"],
-        user_input=user_input,
-        phase=st.session_state["phase"], # Pass the current phase
-        search_results=search_results, # Pass search results to build_prompt
-        element_focus=None
-    )
+    # build_prompt call and messages_for_llm construction (lines 275-289)
+    # are replaced by build_conversation_messages.
+    # Search results are not directly used by build_conversation_messages,
+    # but the context it builds should implicitly guide the LLM.
+    # Empathetic prepend logic will be applied after the LLM call.
 
-    # Construct messages list for query_openai
-    messages_for_llm = [
-        {"role": "system", "content": system_instructions},
-        {"role": "user", "content": user_prompt_content}
-    ]
+    messages_for_llm = build_conversation_messages(
+        scratchpad=st.session_state["scratchpad"],
+        latest_user_input=user_input,
+        current_phase=st.session_state["phase"]
+    )
 
     # Check for empathetic trigger phrases
     empathetic_prepend = ""

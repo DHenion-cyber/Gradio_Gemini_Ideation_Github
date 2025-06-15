@@ -1,7 +1,7 @@
 import streamlit as st
 from .utils.scratchpad_extractor import update_scratchpad
 from .constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS
-from .llm_utils import query_openai, propose_next_conversation_turn
+from .llm_utils import query_openai, propose_next_conversation_turn, build_conversation_messages
 from .value_prop_workflow import ValuePropWorkflow # Import ValuePropWorkflow
 import json
 import textwrap
@@ -61,38 +61,19 @@ def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
     
     # Create a representation of the current value proposition from the scratchpad
     # to help the LLM follow Rule 3.
-    value_prop_elements = {
-        "problem": updated_scratchpad.get("problem", "Not yet defined"),
-        "target_customer": updated_scratchpad.get("target_customer", "Not yet defined"), # Changed to target_customer
-        "proposed solution": updated_scratchpad.get("solution", "Not yet defined"),
-        "main_benefit": updated_scratchpad.get("main_benefit", "Not yet defined"), # Changed back to main_benefit
-        "differentiator": updated_scratchpad.get("differentiator", "Not yet defined"),
-        "use_case": updated_scratchpad.get("use_case", "Not yet defined")
-    }
-    
-    # Construct a user message that includes the current state for the LLM
-    # This is a way to feed current state to the LLM if it doesn't directly access scratchpad
-    contextual_user_message = f"""
-Current User Input: {user_message}
-
-Current Value Proposition Status:
-- Problem: {value_prop_elements['problem']}
-- Target Customer: {value_prop_elements['target_customer']}
-- Proposed Solution: {value_prop_elements['proposed solution']}
-- Main Benefit: {value_prop_elements['main_benefit']}
-- Differentiator: {value_prop_elements['differentiator']}
-- Use Case: {value_prop_elements['use_case']}
-"""
-
-    messages = [
-        {"role": "system", "content": EXPLORATION_PROMPT},
-        {"role": "user", "content": contextual_user_message.strip()}
-    ]
+    # Value prop elements and contextual_user_message construction (lines 64-90)
+    # are removed as build_conversation_messages now handles context creation.
+    # The EXPLORATION_PROMPT is also no longer directly passed to this LLM call.
 
     try:
         # Assuming query_openai returns the assistant's message text directly.
         # Adjust if it returns a more complex object.
-        assistant_reply = query_openai(messages=messages) # Removed phase="exploration"
+        messages_for_llm = build_conversation_messages(
+            scratchpad=updated_scratchpad,
+            latest_user_input=user_message,
+            current_phase="exploration"  # Phase for build_conversation_messages
+        )
+        assistant_reply = query_openai(messages=messages_for_llm)
         if not assistant_reply or not assistant_reply.strip():
             assistant_reply = "I'm processing that. Could you tell me a bit more, or perhaps we can explore another angle?"
             # Log this occurrence for debugging
