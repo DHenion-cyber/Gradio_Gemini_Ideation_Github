@@ -99,15 +99,13 @@ def format_citations(search_results: list) -> tuple[str, str]:
     return " ".join(citations_text), "\n".join(reference_block_content)
 
 
-def build_prompt(conversation_history: list, scratchpad: dict, summaries: list, user_input: str, phase: str, search_results: list = None, element_focus: dict = None) -> str:
+def build_prompt(conversation_history: list, scratchpad: dict, summaries: list, user_input: str, phase: str, search_results: list = None, element_focus: dict = None) -> tuple[str, str]:
     """
-    Builds a comprehensive prompt for the LLM, incorporating system preamble,
-    current focus, scratchpad content, and formatted search results.
+    Builds a comprehensive prompt for the LLM, separating system instructions
+    from user-facing content.
+    Returns a tuple: (system_instructions, user_prompt_content)
     """
-    prompt_parts = []
-
-    # System preamble
-    prompt_parts.append("""SYSTEM GOALS
+    system_instructions = """SYSTEM GOALS
 1. Conduct a natural, conversational coaching session.
 2. Internally maximise:
    a) Idea maturity score
@@ -119,54 +117,55 @@ RESEARCH POLICY: Use web_search() only when (a) the user explicitly requests it
 or (b) current phase == 'refinement' and missing fact is identified.
 Hard limit: 3 calls per session.
 
-When weaknesses arise, state them plainly, followed by at least one mitigation or alternative.""")
+When weaknesses arise, state them plainly, followed by at least one mitigation or alternative."""
+
+    user_prompt_parts = []
 
     # Inject current focus from conversation_manager.navigate_value_prop_elements()
 
-    # Context from scratchpad
     # Add conversation phase
-    prompt_parts.append(f"Conversation Phase: {phase}")
+    user_prompt_parts.append(f"Conversation Phase: {phase}")
 
     # Context from scratchpad
     if scratchpad and any(scratchpad.values()):
-        prompt_parts.append("\n--- Current Value Proposition Elements ---")
+        user_prompt_parts.append("\n--- Current Value Proposition Elements ---")
         for key, value in scratchpad.items():
             if value:
-                prompt_parts.append(f"{key.replace('_', ' ').title()}: {value}")
-        prompt_parts.append("------------------------------------------")
+                user_prompt_parts.append(f"{key.replace('_', ' ').title()}: {value}")
+        user_prompt_parts.append("------------------------------------------")
 
     # Formats Perplexity results as [^n] inline citations + reference block.
     citations_inline = ""
     references_block = ""
     if search_results:
         citations_inline, references_block = format_citations(search_results)
-        prompt_parts.append("\n--- Search Results Context ---")
+        user_prompt_parts.append("\n--- Search Results Context ---")
         for i, result in enumerate(search_results):
-            prompt_parts.append(f"Result {i+1}: {result.get('snippet', 'No snippet available.')}")
-        prompt_parts.append("------------------------------")
+            user_prompt_parts.append(f"Result {i+1}: {result.get('snippet', 'No snippet available.')}")
+        user_prompt_parts.append("------------------------------")
 
     # Add conversation history
     if conversation_history:
-        prompt_parts.append("\n--- Conversation History ---")
+        user_prompt_parts.append("\n--- Conversation History ---")
         for turn in conversation_history:
-            prompt_parts.append(f"{turn['role'].title()}: {turn['text']}")
-        prompt_parts.append("----------------------------")
+            user_prompt_parts.append(f"{turn['role'].title()}: {turn['text']}")
+        user_prompt_parts.append("----------------------------")
 
     # Add summaries
     if summaries:
-        prompt_parts.append("\n--- Summaries ---")
+        user_prompt_parts.append("\n--- Summaries ---")
         for summary in summaries:
-            prompt_parts.append(summary)
-        prompt_parts.append("-------------------")
+            user_prompt_parts.append(summary)
+        user_prompt_parts.append("-------------------")
 
     # Add the current user input
-    prompt_parts.append(f"\nUser Input: {user_input}")
+    user_prompt_parts.append(f"\nUser Input: {user_input}")
 
     # Append references block at the end if present
     if references_block:
-        prompt_parts.append(references_block)
+        user_prompt_parts.append(references_block)
 
-    return "\n".join(prompt_parts)
+    return system_instructions, "\n".join(user_prompt_parts)
 
 def propose_next_conversation_turn(intake_answers: list, scratchpad: dict, phase: str, conversation_history: list = None) -> str:
     """

@@ -20,3 +20,16 @@ EMPTY_SCRATCHPAD = {
 }
 
 MAX_PERPLEXITY_CALLS = 3
+
+# Canonical keys for scratchpad extraction
+CANONICAL_KEYS = [
+    "problem",
+    "target_customer",
+    "solution",
+    "main_benefit",
+    "differentiator",
+    "revenue_model",
+    "channels",
+    "competitive_moat",
+    "use_case"
+]

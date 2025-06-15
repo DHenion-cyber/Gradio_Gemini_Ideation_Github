@@ -271,8 +271,8 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
             # Optionally, inform the user that the search cap has been reached.
             # search_results can remain empty or carry a message.
 
-    # Build the full prompt
-    full_prompt = build_prompt(
+    # Build the prompt, now returns (system_instructions, user_prompt_content)
+    system_instructions, user_prompt_content = build_prompt(
         conversation_history=st.session_state["conversation_history"],
         scratchpad=st.session_state["scratchpad"],
         summaries=st.session_state["summaries"],
@@ -281,6 +281,12 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
         search_results=search_results, # Pass search results to build_prompt
         element_focus=None
     )
+
+    # Construct messages list for query_openai
+    messages_for_llm = [
+        {"role": "system", "content": system_instructions},
+        {"role": "user", "content": user_prompt_content}
+    ]
 
     # Check for empathetic trigger phrases
     empathetic_prepend = ""
@@ -294,7 +300,7 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
         empathetic_prepend = random.choice(empathetic_statements)
 
     # Query Gemini for main advice
-    main_advice_text = query_openai(full_prompt)
+    main_advice_text = query_openai(messages_for_llm)
 
     # Generate contextual follow-up question
     follow_up_question = ""
