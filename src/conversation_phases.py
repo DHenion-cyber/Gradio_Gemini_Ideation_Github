@@ -6,7 +6,7 @@ from .value_prop_workflow import ValuePropWorkflow # Import ValuePropWorkflow
 import json
 import textwrap
 # Updated CHECKLIST to align with new scratchpad keys
-CHECKLIST = ["problem", "target_user", "solution", "benefit", "differentiator", "use_case"]
+CHECKLIST = ["problem", "target_customer", "solution", "main_benefit", "differentiator", "use_case"]
 def missing_items(sp):
     return [k for k in CHECKLIST if not sp.get(k)]
 EXPLORATION_PROMPT = textwrap.dedent("""
@@ -14,9 +14,9 @@ You are a strategy coach. The ONLY goal of the exploration phase
 is to lock in a concise VALUE PROPOSITION:
 
 • problem (one line)
-• target_user
+• target_customer
 • proposed solution
-• one measurable benefit
+• one measurable main benefit
 • differentiator
 • use_case
 
@@ -63,9 +63,9 @@ def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
     # to help the LLM follow Rule 3.
     value_prop_elements = {
         "problem": updated_scratchpad.get("problem", "Not yet defined"),
-        "target_user": updated_scratchpad.get("target_user", "Not yet defined"), # Changed from customer_segment
+        "target_customer": updated_scratchpad.get("target_customer", "Not yet defined"), # Changed to target_customer
         "proposed solution": updated_scratchpad.get("solution", "Not yet defined"),
-        "benefit": updated_scratchpad.get("benefit", "Not yet defined"), # Changed from main_benefit
+        "main_benefit": updated_scratchpad.get("main_benefit", "Not yet defined"), # Changed back to main_benefit
         "differentiator": updated_scratchpad.get("differentiator", "Not yet defined"),
         "use_case": updated_scratchpad.get("use_case", "Not yet defined")
     }
@@ -77,9 +77,9 @@ Current User Input: {user_message}
 
 Current Value Proposition Status:
 - Problem: {value_prop_elements['problem']}
-- Target User: {value_prop_elements['target_user']}
+- Target Customer: {value_prop_elements['target_customer']}
 - Proposed Solution: {value_prop_elements['proposed solution']}
-- Benefit: {value_prop_elements['benefit']}
+- Main Benefit: {value_prop_elements['main_benefit']}
 - Differentiator: {value_prop_elements['differentiator']}
 - Use Case: {value_prop_elements['use_case']}
 """
@@ -116,9 +116,9 @@ def handle_development(user_message: str, scratchpad: dict) -> tuple[str, str]:
         next_item = needed[0]
         prompts = {
             "problem": "What single problem are we solving?",
-            "target_user": "Who feels that pain the most?", # This was okay, target_user is the new key
+            "target_customer": "Who feels that pain the most?", # Changed to target_customer
             "solution": "Describe the one-sentence solution.",
-            "benefit": "What core benefit or metric proves value?", # Changed from main_benefit
+            "main_benefit": "What core benefit or metric proves value?", # Changed back to main_benefit
             "use_case": "How do you envision people using your solution in real-world scenarios?"
         }
         return prompts[next_item], "development"

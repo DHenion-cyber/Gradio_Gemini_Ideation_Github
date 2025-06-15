@@ -7,9 +7,9 @@ class ValuePropWorkflow:
         self.current_step = "problem"  # Initial step
         self.scratchpad = {
             "problem": "",
-            "target_user": "",
+            "target_customer": "", # Changed from target_user
             "solution": "",
-            "benefit": "", # Changed from main_benefit
+            "main_benefit": "", # Changed back to main_benefit
             "differentiator": "",
             "use_case": "", # Will store natural language description of use case(s)
             "research_requests": [] # List of strings or dicts
@@ -18,7 +18,7 @@ class ValuePropWorkflow:
         self.intake_complete = False  # Flag for the initial intake message
 
     def next_step(self):
-        steps = ["problem", "target_user", "solution", "benefit", "differentiator", "use_case"] # Changed main_benefit to benefit
+        steps = ["problem", "target_customer", "solution", "main_benefit", "differentiator", "use_case"] # Changed back to original keys
         try:
             current_idx = steps.index(self.current_step)
             if current_idx + 1 < len(steps):
@@ -41,9 +41,9 @@ class ValuePropWorkflow:
             self.intake_complete = True
 
         # 2. Handle dedicated step introductions
-        # Show intro if it's the differentiator step, benefit is filled, and differentiator in scratchpad is still empty.
+        # Show intro if it's the differentiator step, main_benefit is filled, and differentiator in scratchpad is still empty.
         if self.current_step == "differentiator" and \
-           self.scratchpad.get("benefit") and \
+           self.scratchpad.get("main_benefit") and \
            not self.scratchpad.get("differentiator"):
 
             differentiator_intro_message = (
@@ -80,7 +80,7 @@ class ValuePropWorkflow:
         if stance == "decided":
             self.scratchpad[self.current_step] = user_input_stripped
         elif self.current_step == "differentiator" and \
-             self.scratchpad.get("benefit") and \
+             self.scratchpad.get("main_benefit") and \
              user_input_stripped and \
              not self.scratchpad.get("differentiator"):
             self.scratchpad["differentiator"] = user_input_stripped

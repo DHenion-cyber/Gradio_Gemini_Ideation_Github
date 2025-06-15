@@ -392,7 +392,7 @@ def route_conversation(user_message: str, scratchpad_arg: dict) -> tuple[str, st
             logging.warning(f"Unhandled phase '{current_phase_for_handlers}' outside ideation. Resetting.")
             assistant_reply = f"Debug: Unhandled phase '{current_phase_for_handlers}'. Resetting to exploration."
             next_phase = "exploration"
-    elif current_phase_for_handlers not in ["summary", "problem", "target_user", "solution", "benefit", "differentiator", "use_case"] : # Should not happen if ideation; main_benefit -> benefit
+    elif current_phase_for_handlers not in ["summary", "problem", "target_customer", "solution", "main_benefit", "differentiator", "use_case"] : # Should not happen if ideation; reverted to original keys
         logging.warning(f"Unexpected phase '{current_phase_for_handlers}' in ideation stage. VP workflow should manage steps.")
         # assistant_reply remains "An unexpected error occurred."
         next_phase = current_phase_for_handlers # Keep current phase to avoid loops, but log it.

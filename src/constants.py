@@ -1,8 +1,8 @@
 REQUIRED_SCRATCHPAD_KEYS = [
     "problem",
-    "target_user",
+    "target_customer", # Changed from target_user
     "solution",
-    "benefit",
+    "main_benefit", # Changed from benefit
     "differentiator",
     "use_case", # Will be a string, potentially holding multiple use cases described in natural language
     "research_requests" # Will be a list of strings or dicts
@@ -11,9 +11,9 @@ REQUIRED_SCRATCHPAD_KEYS = [
 # Initialize with correct types
 EMPTY_SCRATCHPAD = {
     "problem": "",
-    "target_user": "",
+    "target_customer": "", # Changed from target_user
     "solution": "",
-    "benefit": "",
+    "main_benefit": "", # Changed from benefit
     "differentiator": "",
     "use_case": "",
     "research_requests": []

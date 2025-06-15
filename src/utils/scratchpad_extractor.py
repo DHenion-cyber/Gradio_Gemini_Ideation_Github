@@ -27,7 +27,7 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
             r"\b(?:problem|issue|challenge|difficulty) is\s+(.+?)(?:\.|$)",
             r"\bwe are facing\s+(.+?)(?:\.|$)",
         ],
-        "customer_segment": [
+        "target_customer": [ # Changed from customer_segment
             r"\b(?:customer|target|user)s?\s+(?:are|is)\s+(.+?)(?:\.|$)",
             r"\bfor\s+(.+?)\s+(?:customers|users)",
         ],
@@ -35,7 +35,7 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
             r"\b(?:solution|idea|product) is\s+(.+?)(?:\.|$)",
             r"\bwe propose\s+(.+?)(?:\.|$)",
         ],
-        "main_benefit": [
+        "main_benefit": [ # Changed back to main_benefit
             r"\b(?:unique selling point|usp|key difference|secret sauce|unique benefit) is\s+(.+?)(?:\.|$)",
             r"\b(?:our|my|the)?\s*unique benefit is\s+(.+?)(?:\.|$)",
         ],
@@ -43,7 +43,7 @@ def update_scratchpad(user_message: str, scratchpad: dict) -> dict:
             r"\b(?:differentiator|sets us apart|makes us different) is\s+(.+?)(?:\.|$)",
             r"\b(?:our|my|the)?\s*key differentiator is\s+(.+?)(?:\.|$)",
         ],
-        "impact_metrics": [
+        "main_benefit": [ # Changed from impact_metrics
             r"\bimpact\b.*(\d+%|\$|days|hours|readmission|adhere)",
             r"\bKPI(s)?\b",
             r"\b(?:impact metrics|key performance indicators|kpis|measures success) (?:are|will be)\s+(.+?)(?:\.|$)",
