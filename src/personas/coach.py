@@ -1,9 +1,10 @@
-# src/coach_persona.py
-
+"""
+Defines the CoachPersona class (formerly BehaviorEngine), which provides the conversation style and coaching behavior for this persona type.
+"""
 import re
-from .llm_utils import query_openai # Import query_openai
+from ..llm_utils import query_openai # Updated import
 
-class BehaviorEngine:
+class CoachPersona: # Renamed from BehaviorEngine
     """
     Provides reusable, topic-agnostic behaviors and utilities for chatbot conversation.
     """
@@ -340,3 +341,4 @@ Aim for specific, actionable ideas, not generic advice. Frame suggestions as col
         except Exception as e:
             print(f"Error in generate_ideas LLM call: {e}")
             return "Let's brainstorm some possibilities for your idea and see how we can enhance it." # Fallback
+    # TODO: add behavior methods (paraphrase, feedback, etc.) - These seem to be well covered above.

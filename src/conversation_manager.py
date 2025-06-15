@@ -14,7 +14,7 @@ from . import conversation_phases # Added for phase routing
 from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
 from .constants import EMPTY_SCRATCHPAD, REQUIRED_SCRATCHPAD_KEYS # Import EMPTY_SCRATCHPAD and REQUIRED_SCRATCHPAD_KEYS
 # from src.coach_persona import COACH_PROMPT # Removed as COACH_PROMPT is no longer defined there
-from src.value_prop_workflow import ValuePropWorkflow
+from src.workflows.value_prop import ValuePropWorkflow
 
 # WORKFLOWS = {"value_prop": ValuePropWorkflow()} # Removed: ValuePropWorkflow is now directly managed
 

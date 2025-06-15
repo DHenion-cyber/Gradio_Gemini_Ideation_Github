@@ -1,5 +1,5 @@
 import streamlit as st
-from src.value_prop_workflow import ValuePropWorkflow # Import ValuePropWorkflow
+from src.workflows.value_prop import ValuePropWorkflow # Import ValuePropWorkflow
 from src.constants import EMPTY_SCRATCHPAD # Import for default scratchpad if needed
 
 def display_summary_panel():
