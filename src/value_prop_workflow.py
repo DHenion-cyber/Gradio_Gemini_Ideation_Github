@@ -122,22 +122,12 @@ class ValuePropWorkflow:
                 else: # uncertain, open, interest, neutral
                     core_response = self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step)
 
-        # Combine preliminary_messages and core_response
-        full_response_parts = []
-        if preliminary_messages:
-            full_response_parts.extend(preliminary_messages)
-        
-        if core_response: # Only add core_response if it's not empty and not redundant with preliminary
-            # Avoid adding core_response if it's identical to the last preliminary message (e.g. intro was the core)
-            if not (preliminary_messages and preliminary_messages[-1] == core_response):
-                 full_response_parts.append(core_response)
-
-        final_response_str = "\n\n".join(filter(None, full_response_parts)).strip()
+        final_response_str = core_response.strip() if core_response else ""
+        if preliminary_messages and not user_input_stripped: # This condition takes precedence
+            final_response_str = preliminary_messages[-1].strip()
 
         reflection_prompt = "\n\nWhat do you think? Would you like to explore this direction, or focus on another aspect?"
-        if final_response_str: # Only add reflection if there's a base response
-            return final_response_str + reflection_prompt
-        return "" # Return empty string if nothing was generated
+        return (final_response_str + reflection_prompt) if final_response_str else ""
 
     def add_research_request(self, step: str, details: str = ""):
         self.scratchpad["research_requests"].append({"step": step, "details": details})
