@@ -5,7 +5,8 @@ from .llm_utils import query_openai, propose_next_conversation_turn
 from .value_prop_workflow import ValuePropWorkflow # Import ValuePropWorkflow
 import json
 import textwrap
-CHECKLIST = ["problem", "target_user", "solution", "main_benefit", "differentiator", "use_case"]
+# Updated CHECKLIST to align with new scratchpad keys
+CHECKLIST = ["problem", "target_user", "solution", "benefit", "differentiator", "use_case"]
 def missing_items(sp):
     return [k for k in CHECKLIST if not sp.get(k)]
 EXPLORATION_PROMPT = textwrap.dedent("""
@@ -13,11 +14,11 @@ You are a strategy coach. The ONLY goal of the exploration phase
 is to lock in a concise VALUE PROPOSITION:
 
 • problem (one line)
-• target user
+• target_user
 • proposed solution
-• one measurable main benefit
+• one measurable benefit
 • differentiator
-• use case
+• use_case
 
 Rules:
 1. Give a MAXIMUM of **one** short acknowledgment sentence.
@@ -62,11 +63,11 @@ def handle_exploration(user_message: str, scratchpad: dict) -> tuple[str, str]:
     # to help the LLM follow Rule 3.
     value_prop_elements = {
         "problem": updated_scratchpad.get("problem", "Not yet defined"),
-        "target user": updated_scratchpad.get("customer_segment", "Not yet defined"),
+        "target_user": updated_scratchpad.get("target_user", "Not yet defined"), # Changed from customer_segment
         "proposed solution": updated_scratchpad.get("solution", "Not yet defined"),
-        "main benefit": updated_scratchpad.get("main_benefit", "Not yet defined"),
+        "benefit": updated_scratchpad.get("benefit", "Not yet defined"), # Changed from main_benefit
         "differentiator": updated_scratchpad.get("differentiator", "Not yet defined"),
-        "use case": updated_scratchpad.get("use_case", "Not yet defined")
+        "use_case": updated_scratchpad.get("use_case", "Not yet defined")
     }
     
     # Construct a user message that includes the current state for the LLM
@@ -76,11 +77,11 @@ Current User Input: {user_message}
 
 Current Value Proposition Status:
 - Problem: {value_prop_elements['problem']}
-- Target User: {value_prop_elements['target user']}
+- Target User: {value_prop_elements['target_user']}
 - Proposed Solution: {value_prop_elements['proposed solution']}
-- Main Benefit: {value_prop_elements['main benefit']}
+- Benefit: {value_prop_elements['benefit']}
 - Differentiator: {value_prop_elements['differentiator']}
-- Use Case: {value_prop_elements['use case']}
+- Use Case: {value_prop_elements['use_case']}
 """
 
     messages = [
@@ -115,9 +116,9 @@ def handle_development(user_message: str, scratchpad: dict) -> tuple[str, str]:
         next_item = needed[0]
         prompts = {
             "problem": "What single problem are we solving?",
-            "target_user": "Who feels that pain the most?",
+            "target_user": "Who feels that pain the most?", # This was okay, target_user is the new key
             "solution": "Describe the one-sentence solution.",
-            "main_benefit": "What core benefit or metric proves value?",
+            "benefit": "What core benefit or metric proves value?", # Changed from main_benefit
             "use_case": "How do you envision people using your solution in real-world scenarios?"
         }
         return prompts[next_item], "development"
@@ -129,13 +130,10 @@ def handle_summary(user_message: str, scratchpad: dict, vp_workflow_instance: Va
     next_phase = "summary" # Default to stay in summary phase
 
     if vp_workflow_instance and vp_workflow_instance.is_complete():
-        summary_text = vp_workflow_instance.generate_summary()
-        recommendations_text = vp_workflow_instance.actionable_recommendations()
+        # generate_summary() now returns the full, formatted string including recommendations
+        assistant_reply = vp_workflow_instance.generate_summary()
         
-        assistant_reply = f"**Value Proposition Summary**\n{summary_text}\n\n"
-        assistant_reply += f"**Actionable Recommendations**\n{recommendations_text}\n\n"
-        
-        # Check user_message to see if they want to refine or conclude
+        # Append interaction prompts based on user_message
         if user_message:
             user_message_lower = user_message.lower()
             if any(kw in user_message_lower for kw in ["yes", "correct", "looks good", "proceed", "next"]):
@@ -145,26 +143,27 @@ def handle_summary(user_message: str, scratchpad: dict, vp_workflow_instance: Va
                 # We can transition to a conceptual "post_summary" or "end" phase if needed,
                 # or simply let the UI handle the next steps.
                 # For now, let's keep it simple and stay in "summary" but indicate completion.
-                assistant_reply += "This concludes the value proposition development. You can review the summary and recommendations. What would you like to do next? (e.g., start a new idea, or provide feedback on this session)"
+                assistant_reply += "\n\nThis concludes the value proposition development. You can review the summary and recommendations. What would you like to do next? (e.g., start a new idea, or provide feedback on this session)"
                 # next_phase could be 'refinement' if we want to allow further iteration,
                 # or a new phase like 'conclusion'. For now, stay in 'summary'.
             elif any(kw in user_message_lower for kw in ["no", "change", "edit", "revisit"]):
-                assistant_reply += "What part would you like to revisit or change? We can go back to any step of the value proposition."
+                assistant_reply += "\n\nWhat part would you like to revisit or change? We can go back to any step of the value proposition."
                 # To allow revisiting, we might need to reset vp_workflow_instance.completed = False
                 # and set its current_step. This is more complex than current scope.
                 # For now, we'll just acknowledge.
             else: # General comment on summary
-                 assistant_reply += "Thanks for your feedback. You can review the summary and recommendations. What would you like to do next?"
+                 assistant_reply += "\n\nThanks for your feedback. You can review the summary and recommendations. What would you like to do next?"
         else: # No user message, just presenting the summary
-            assistant_reply += "Does this capture your idea? You can ask to refine any part, or we can conclude this section."
+            assistant_reply += "\n\nDoes this capture your idea? You can ask to refine any part, or we can conclude this section."
 
     else:
         # Fallback if vp_workflow_instance is not available or not complete (should not happen if logic in conversation_manager is correct)
         assistant_reply = "I'm ready to generate a summary, but it seems the value proposition isn't fully complete yet. "
-        assistant_reply += "Let's ensure all steps (Problem, Target User, Solution, Benefit, Differentiator, Use Case) are covered."
+        # Ensure the checklist items here match the updated CHECKLIST
+        assistant_reply += f"Let's ensure all steps ({', '.join(CHECKLIST)}) are covered."
         # Attempt to find the current step from scratchpad if VP workflow failed.
         # This is a defensive measure.
-        missing = missing_items(scratchpad)
+        missing = missing_items(scratchpad) # missing_items uses the updated CHECKLIST
         if missing:
             next_phase = missing[0] # Try to go back to the first missing step
             assistant_reply += f" It looks like we still need to define the '{next_phase}'. Shall we work on that?"

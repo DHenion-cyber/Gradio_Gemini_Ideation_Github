@@ -1,14 +1,22 @@
-CANONICAL_KEYS = [
+REQUIRED_SCRATCHPAD_KEYS = [
     "problem",
-    "customer_segment",
+    "target_user",
     "solution",
-    "main_benefit",
-    "impact_metrics",
-    "revenue_model",
-    "channels",
-    "use_case",
+    "benefit",
     "differentiator",
+    "use_case", # Will be a string, potentially holding multiple use cases described in natural language
+    "research_requests" # Will be a list of strings or dicts
 ]
-EMPTY_SCRATCHPAD = {k: "" for k in CANONICAL_KEYS}
+
+# Initialize with correct types
+EMPTY_SCRATCHPAD = {
+    "problem": "",
+    "target_user": "",
+    "solution": "",
+    "benefit": "",
+    "differentiator": "",
+    "use_case": "",
+    "research_requests": []
+}
 
 MAX_PERPLEXITY_CALLS = 3

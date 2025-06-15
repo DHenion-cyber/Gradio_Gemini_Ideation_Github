@@ -12,7 +12,7 @@ from .llm_utils import build_prompt, query_openai, propose_next_conversation_tur
 from . import search_utils
 from . import conversation_phases # Added for phase routing
 from .utils.scratchpad_extractor import update_scratchpad # Added for scratchpad extraction
-from .constants import EMPTY_SCRATCHPAD # Import EMPTY_SCRATCHPAD
+from .constants import EMPTY_SCRATCHPAD, REQUIRED_SCRATCHPAD_KEYS # Import EMPTY_SCRATCHPAD and REQUIRED_SCRATCHPAD_KEYS
 # from src.coach_persona import COACH_PROMPT # Removed as COACH_PROMPT is no longer defined there
 from src.value_prop_workflow import ValuePropWorkflow
 
@@ -185,7 +185,8 @@ def run_intake_flow(user_input: str):
         # For now, we'll keep it as pass, as it's more about intent.
         pass
     elif current_intake_index == 4: # Business qualities
-        st.session_state["scratchpad"]["revenue_model"] = user_input # Mapped to canonical 'revenue_model'
+        # st.session_state["scratchpad"]["revenue_model"] = user_input # Removed: 'revenue_model' is not a required scratchpad key.
+        pass # This information can be captured in conversation_history if needed, but not in the core scratchpad.
 
     st.session_state["intake_index"] += 1
 
@@ -391,7 +392,7 @@ def route_conversation(user_message: str, scratchpad_arg: dict) -> tuple[str, st
             logging.warning(f"Unhandled phase '{current_phase_for_handlers}' outside ideation. Resetting.")
             assistant_reply = f"Debug: Unhandled phase '{current_phase_for_handlers}'. Resetting to exploration."
             next_phase = "exploration"
-    elif current_phase_for_handlers not in ["summary", "problem", "target_user", "solution", "main_benefit", "differentiator", "use_case"] : # Should not happen if ideation
+    elif current_phase_for_handlers not in ["summary", "problem", "target_user", "solution", "benefit", "differentiator", "use_case"] : # Should not happen if ideation; main_benefit -> benefit
         logging.warning(f"Unexpected phase '{current_phase_for_handlers}' in ideation stage. VP workflow should manage steps.")
         # assistant_reply remains "An unexpected error occurred."
         next_phase = current_phase_for_handlers # Keep current phase to avoid loops, but log it.
@@ -482,17 +483,32 @@ def reconstruct_context_from_summaries() -> str:
 def build_summary_from_scratchpad(scratchpad: dict) -> str:
     """
     Returns the full summary from current scratchpad content for export or simulation logs.
+    Reflects the new scratchpad structure.
     """
     summary_report = []
-    summary_report.append("Problem:\n" + scratchpad.get("problem", "N/A"))
-    summary_report.append("\nTarget User:\n" + scratchpad.get("customer_segment", "N/A"))
-    summary_report.append("\nSolution:\n" + scratchpad.get("solution", "N/A"))
-    summary_report.append("\nMain Benefit:\n" + scratchpad.get("main_benefit", "N/A"))
-    summary_report.append("\nDifferentiator:\n" + scratchpad.get("differentiator", "N/A"))
-    summary_report.append("\nUse Case:\n" + scratchpad.get("use_case", "N/A"))
-    summary_report.append("\nImpact Metrics:\n" + scratchpad.get("impact_metrics", "N/A"))
-    summary_report.append("\nRevenue Model:\n" + scratchpad.get("revenue_model", "N/A"))
-    return "\n".join(summary_report)
+    # Iterate over REQUIRED_SCRATCHPAD_KEYS to ensure all required keys are checked
+    # and to maintain a consistent order, similar to how EMPTY_SCRATCHPAD is defined.
+    for key in REQUIRED_SCRATCHPAD_KEYS:
+        value = scratchpad.get(key)
+        if key == "research_requests":
+            if value and isinstance(value, list):
+                # Format research requests for the log
+                formatted_requests = []
+                for item in value:
+                    if isinstance(item, dict):
+                        formatted_requests.append(f"- Step: {item.get('step', 'N/A')}, Details: {item.get('details', 'N/A')}")
+                    else:
+                        formatted_requests.append(f"- {str(item)}")
+                summary_report.append(f"\n{key.replace('_', ' ').title()}:\n" + "\n".join(formatted_requests) if formatted_requests else f"\n{key.replace('_', ' ').title()}:\nN/A")
+            else:
+                summary_report.append(f"\n{key.replace('_', ' ').title()}:\nN/A")
+        elif value:
+            summary_report.append(f"\n{key.replace('_', ' ').title()}:\n{value}")
+        else:
+            summary_report.append(f"\n{key.replace('_', ' ').title()}:\nN/A")
+
+    return "\n".join(summary_report).strip()
+
 
 def generate_final_summary_report() -> str:
     """

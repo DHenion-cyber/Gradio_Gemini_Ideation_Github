@@ -9,16 +9,16 @@ class ValuePropWorkflow:
             "problem": "",
             "target_user": "",
             "solution": "",
-            "main_benefit": "",
+            "benefit": "", # Changed from main_benefit
             "differentiator": "",
-            "use_case": "",
-            "research_requests": []
+            "use_case": "", # Will store natural language description of use case(s)
+            "research_requests": [] # List of strings or dicts
         }
         self.completed = False
         self.intake_complete = False  # Flag for the initial intake message
 
     def next_step(self):
-        steps = ["problem", "target_user", "solution", "main_benefit", "differentiator", "use_case"]
+        steps = ["problem", "target_user", "solution", "benefit", "differentiator", "use_case"] # Changed main_benefit to benefit
         try:
             current_idx = steps.index(self.current_step)
             if current_idx + 1 < len(steps):
@@ -41,9 +41,9 @@ class ValuePropWorkflow:
             self.intake_complete = True
 
         # 2. Handle dedicated step introductions
-        # Show intro if it's the differentiator step, main_benefit is filled, and differentiator in scratchpad is still empty.
+        # Show intro if it's the differentiator step, benefit is filled, and differentiator in scratchpad is still empty.
         if self.current_step == "differentiator" and \
-           self.scratchpad.get("main_benefit") and \
+           self.scratchpad.get("benefit") and \
            not self.scratchpad.get("differentiator"):
 
             differentiator_intro_message = (
@@ -80,7 +80,7 @@ class ValuePropWorkflow:
         if stance == "decided":
             self.scratchpad[self.current_step] = user_input_stripped
         elif self.current_step == "differentiator" and \
-             self.scratchpad.get("main_benefit") and \
+             self.scratchpad.get("benefit") and \
              user_input_stripped and \
              not self.scratchpad.get("differentiator"):
             self.scratchpad["differentiator"] = user_input_stripped
@@ -131,43 +131,67 @@ class ValuePropWorkflow:
 
     def actionable_recommendations(self):
         recs = []
-        for req in self.scratchpad["research_requests"]:
-            recs.append(f"Suggested research regarding the {req['step']}: {req.get('details', 'TBD')}")
+        for req in self.scratchpad.get("research_requests", []):
+            # Ensuring natural language for recommendations
+            if isinstance(req, dict):
+                 recs.append(f"It's recommended to research the {req.get('step', 'relevant area')} further, focusing on: {req.get('details', 'specific aspects not yet defined')}.")
+            elif isinstance(req, str):
+                 recs.append(f"Further research is suggested for: {req}.")
+            else:
+                 recs.append("Additional research may be beneficial.")
         if not recs:
-            return "No additional research was requested."
+            return "" # Return empty string if no recommendations, to be handled by generate_summary
         return "\n".join(recs)
 
     def generate_summary(self):
-        # LLM Behavior Guideline:
-        # Generate a concise summary of the value proposition.
-        # Incorporate the problem, target user, solution, main benefit, differentiator, and use_case
-        # using the information gathered from the scratchpad.
-        # Paraphrase or summarize these elements in your own words, naturally and conversationally.
-        # Do not directly quote the scratchpad values.
+        # Generates a structured summary string with a main paragraph, use cases, and recommendations.
+        # This method now constructs the final user-facing summary directly.
 
-        # Constructing a context string for the LLM, not the final summary itself.
-        # The LLM will use this context to generate the actual conversational summary.
-        problem_desc = self.scratchpad.get('problem', 'not yet defined')
-        target_user_desc = self.scratchpad.get('target_user', 'not yet defined')
-        solution_desc = self.scratchpad.get('solution', 'not yet defined')
-        benefit_desc = self.scratchpad.get('main_benefit', 'not yet defined')
-        differentiator_desc = self.scratchpad.get('differentiator', 'not yet defined')
-        use_case_desc = self.scratchpad.get('use_case', 'not yet defined')
+        problem_desc = self.scratchpad.get('problem')
+        target_user_desc = self.scratchpad.get('target_user')
+        solution_desc = self.scratchpad.get('solution')
+        benefit_desc = self.scratchpad.get('benefit') # Changed from main_benefit
+        differentiator_desc = self.scratchpad.get('differentiator')
+        use_case_desc = self.scratchpad.get('use_case')
 
-        # Behavioral instruction for the LLM to generate a summary
-        # The LLM should paraphrase the elements, not quote them
-        instruction = (
-            "Behavioral instruction: Generate a concise, conversational summary of the value proposition. "
-            "Paraphrase the following elements in your own words: "
-            f"Problem: {problem_desc}, "
-            f"Target user: {target_user_desc}, "
-            f"Solution: {solution_desc}, "
-            f"Main benefit: {benefit_desc}, "
-            f"Differentiator: {differentiator_desc}, "
-            f"Use Case: {use_case_desc}. "
-            "Do not quote these elements directly. "
-        )
-        return instruction
+        summary_parts = []
+
+        # 1. Main Summary Paragraph
+        # Only include elements if they are defined.
+        # Using more natural phrasing.
+        main_summary_elements = []
+        if problem_desc:
+            main_summary_elements.append(f"The core problem being addressed is {problem_desc}.")
+        if target_user_desc:
+            main_summary_elements.append(f"This primarily affects {target_user_desc}.")
+        if solution_desc:
+            main_summary_elements.append(f"The proposed solution involves {solution_desc}.")
+        if benefit_desc:
+            main_summary_elements.append(f"The key benefit this offers is {benefit_desc}.")
+        if differentiator_desc:
+            main_summary_elements.append(f"What sets this apart is {differentiator_desc}.")
+        
+        if main_summary_elements:
+            summary_paragraph = " ".join(main_summary_elements)
+            summary_parts.append(summary_paragraph)
+        else:
+            summary_parts.append("The value proposition is still under development.")
+
+        # 2. Use Case Section
+        if use_case_desc:
+            # Ensure natural language, not bullets.
+            # If use_case_desc might contain multiple points, they should already be in natural language.
+            summary_parts.append(f"\n\n**Use Case(s):**\n{use_case_desc}")
+        else:
+            summary_parts.append("\n\n**Use Case(s):**\nNot yet defined.")
+
+
+        # 3. Actionable Recommendations Section
+        recommendations_text = self.actionable_recommendations()
+        if recommendations_text:
+            summary_parts.append(f"\n\n**Actionable Recommendations:**\n{recommendations_text}")
+        
+        return "".join(summary_parts).strip()
 
     def is_complete(self):
         return self.completed
