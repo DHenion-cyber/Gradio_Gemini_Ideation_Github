@@ -161,18 +161,21 @@ class CoachPersona: # Renamed from BehaviorEngine
             print(f"Error in offer_strategic_suggestion LLM call: {e}")
             return f"Have you considered how to best approach the {step}?" # Fallback
 
-    def paraphrase_user_input(self, user_input: str, stance: str, current_step: str = "the current topic") -> str:
+    def paraphrase_user_input(self, user_input: str, stance: str, current_step: str = "the current topic", scratchpad: dict = None) -> str:
         """
         Paraphrases the user's input using an LLM, reflecting the detected stance
         and current step, and provides initial context-aware feedback.
+        Now accepts scratchpad for richer context.
         """
         maturity = self.assess_idea_maturity(user_input)
+        scratchpad = scratchpad or {}
 
         system_prompt_base = f"""You are a helpful coaching assistant. Your goal is to help the user develop a strong value proposition. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
 The current step is '{current_step}'. The user's input for this step is: '{user_input}'.
+The current state of their value proposition development (scratchpad) is: {scratchpad}.
 Your response should have two parts:
 1. First, acknowledge and briefly paraphrase the user's input for '{current_step}'. Do not use direct quotation. Refer to their input conceptually, for example, as 'your idea about {current_step} being {user_input[:30]}...' or 'your thoughts on {current_step} focusing on [paraphrased essence]'.
-2. Second, provide brief, context-aware feedback based on their input's specificity and its relevance to the '{current_step}'.
+2. Second, provide brief, context-aware feedback based on their input's specificity and its relevance to the '{current_step}', potentially drawing context from the scratchpad.
 """
 
         if maturity == "novice":
@@ -214,15 +217,19 @@ Your response should have two parts:
                  return f"I've noted your thoughts on {current_step}: '{user_input[:50]}...'. Let's consider how to refine this."
             return f"I'm processing your thoughts on {current_step}."
 
-    def coach_on_decision(self, current_step: str, user_input: str) -> str:
+    def coach_on_decision(self, current_step: str, user_input: str, scratchpad: dict = None, stance: str = "decided") -> str:
         """
         Coaches the user after they've made a decision, using an LLM,
         referencing their specific input and explaining the 'why' of feedback.
+        Now accepts scratchpad and an explicit stance.
         """
         maturity = self.assess_idea_maturity(user_input)
+        scratchpad = scratchpad or {}
         
         system_prompt_base = f"""You are a helpful coaching assistant. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
-The user has made a decision for the '{current_step}'. Their input was conceptually about '{user_input}'. Your task is to provide feedback. DO NOT quote the user's input '{user_input}' directly. Instead, refer to it as 'your decision about {current_step}', 'your idea of {user_input[:30]}...', or 'your focus on [paraphrased essence of user_input]'. Explain *why* your feedback or suggestions are helpful for them to build a strong value proposition.
+The user has made a decision for the '{current_step}' (stance: {stance}). Their input was conceptually about '{user_input}'.
+The current state of their value proposition development (scratchpad) is: {scratchpad}.
+Your task is to provide feedback. DO NOT quote the user's input '{user_input}' directly. Instead, refer to it as 'your decision about {current_step}', 'your idea of {user_input[:30]}...', or 'your focus on [paraphrased essence of user_input]'. Explain *why* your feedback or suggestions are helpful for them to build a strong value proposition.
 """
 
         if maturity == "novice":
@@ -341,4 +348,108 @@ Aim for specific, actionable ideas, not generic advice. Frame suggestions as col
         except Exception as e:
             print(f"Error in generate_ideas LLM call: {e}")
             return "Let's brainstorm some possibilities for your idea and see how we can enhance it." # Fallback
+
+    def get_intake_to_ideation_transition_message(self) -> str:
+        """
+        Returns the introductory message for transitioning from intake to ideation.
+        """
+        return (
+            "Thanks for sharing! I'll help you develop and vet your ideas now. "
+            "I will continue to ask you questions, but you're welcome to ask me for ideas, analysis, or feedback at any point."
+        )
+
+    def get_step_intro_message(self, current_step: str, scratchpad: dict) -> str:
+        """
+        Returns a step-specific introduction message if appropriate, otherwise empty string.
+        """
+        if current_step == "differentiator" and \
+           scratchpad.get("main_benefit") and \
+           not scratchpad.get("differentiator"):
+            return (
+                "Let's define what makes your solution unique. "
+                "This helps clarify your competitive advantage and will later help to position your idea effectively.\n"
+                "What specific aspects set your solution apart from alternatives?"
+            )
+        elif current_step == "use_case" and \
+             scratchpad.get("differentiator") and \
+             not scratchpad.get("use_case"):
+            return (
+                "Now let's think about specific use cases. "
+                "How do you envision people using your solution in real-world scenarios?"
+            )
+        return ""
+
+    def get_prompt_for_empty_input(self, current_step: str) -> str:
+        """
+        Returns a prompt when the user provides empty input for a step that needs it.
+        """
+        step_display_name = current_step.replace("_", " ")
+        article = "an" if step_display_name.lower().startswith(("a", "e", "i", "o", "u")) else "a"
+        return (
+            f"It seems we're working on defining {article} {step_display_name}, "
+            f"but I didn't receive your input for it. Could you please share your thoughts on the {step_display_name}?"
+        )
+
+    def get_reflection_prompt(self) -> str:
+        """
+        Returns a standard reflection prompt to append to responses.
+        """
+        return "\n\nWhat do you think? Would you like to explore this direction, or focus on another aspect?"
+
+    def generate_value_prop_summary(self, scratchpad: dict) -> str:
+        """
+        Generates a structured summary string with a main paragraph, use cases, and recommendations
+        based on the provided scratchpad. This method formats the data and does not call an LLM.
+        """
+        problem_desc = scratchpad.get('problem')
+        target_user_desc = scratchpad.get('target_customer')
+        solution_desc = scratchpad.get('solution')
+        benefit_desc = scratchpad.get('main_benefit')
+        differentiator_desc = scratchpad.get('differentiator')
+        use_case_desc = scratchpad.get('use_case')
+        research_requests = scratchpad.get("research_requests", [])
+
+        summary_parts = []
+
+        # 1. Main Summary Paragraph
+        main_summary_elements = []
+        if problem_desc:
+            main_summary_elements.append(f"The core problem being addressed is {problem_desc}.")
+        if target_user_desc:
+            main_summary_elements.append(f"This primarily affects {target_user_desc}.")
+        if solution_desc:
+            main_summary_elements.append(f"The proposed solution involves {solution_desc}.")
+        if benefit_desc:
+            main_summary_elements.append(f"The key benefit this offers is {benefit_desc}.")
+        if differentiator_desc:
+            main_summary_elements.append(f"What sets this apart is {differentiator_desc}.")
+        
+        if main_summary_elements:
+            summary_paragraph = " ".join(main_summary_elements)
+            summary_parts.append(summary_paragraph)
+        else:
+            summary_parts.append("The value proposition is still under development.")
+
+        # 2. Use Case Section
+        if use_case_desc:
+            summary_parts.append(f"\n\n**Use Case(s):**\n{use_case_desc}")
+        else:
+            summary_parts.append("\n\n**Use Case(s):**\nNot yet defined.")
+
+        # 3. Actionable Recommendations Section (formerly actionable_recommendations method)
+        recs_text_parts = []
+        if research_requests:
+            for req in research_requests:
+                if isinstance(req, dict):
+                    recs_text_parts.append(f"It's recommended to research the {req.get('step', 'relevant area')} further, focusing on: {req.get('details', 'specific aspects not yet defined')}.")
+                elif isinstance(req, str):
+                    recs_text_parts.append(f"Further research is suggested for: {req}.")
+                else:
+                    recs_text_parts.append("Additional research may be beneficial.")
+        
+        if recs_text_parts:
+            recommendations_text = "\n".join(recs_text_parts)
+            summary_parts.append(f"\n\n**Actionable Recommendations:**\n{recommendations_text}")
+        
+        return "".join(summary_parts).strip()
     # TODO: add behavior methods (paraphrase, feedback, etc.) - These seem to be well covered above.
