@@ -13,34 +13,10 @@ from . import search_utils
 # Removed: from . import conversation_phases - Phase logic will be handled by workflows
 from .utils.scratchpad_extractor import update_scratchpad
 from .constants import EMPTY_SCRATCHPAD, REQUIRED_SCRATCHPAD_KEYS
+from .registry import get_workflow, get_persona, populate_registries, get_available_workflows, get_available_personas
 
-# Workflow Imports
-from src.workflows.value_prop import ValuePropWorkflow
-from src.workflows.pitch_prep import PitchPrepWorkflow
-from src.workflows.market_analysis import MarketAnalysisWorkflow
-from src.workflows.business_plan import BusinessPlanWorkflow
-from src.workflows.planning_growth import PlanningGrowthWorkflow
-from src.workflows.beta_testing import BetaTestingWorkflow
-
-# Persona Imports
-from src.personas.coach import CoachPersona
-from src.personas.investor import InvestorPersona
-from src.personas.tester import TesterPersona
-
-WORKFLOW_CLASSES = {
-    "value_prop": ValuePropWorkflow,
-    "pitch_prep": PitchPrepWorkflow,
-    "market_analysis": MarketAnalysisWorkflow,
-    "business_plan": BusinessPlanWorkflow,
-    "planning_growth": PlanningGrowthWorkflow,
-    "beta_testing": BetaTestingWorkflow,
-}
-
-PERSONA_CLASSES = {
-    "coach": CoachPersona,
-    "investor": InvestorPersona,
-    "tester": TesterPersona,
-}
+# Populate the registries when this module is loaded
+populate_registries()
 
 def generate_uuid() -> str:
     """Generates a short random string for user_id."""
@@ -184,11 +160,11 @@ def initialize_workflow_and_persona():
         logging.error("Attempted to initialize workflow/persona without selection.")
         return False
 
-    PersonaClass = PERSONA_CLASSES.get(p_name)
-    WorkflowClass = WORKFLOW_CLASSES.get(wf_name)
+    PersonaClass = get_persona(p_name)
+    WorkflowClass = get_workflow(wf_name)
 
     if not PersonaClass or not WorkflowClass:
-        st.error(f"Invalid workflow ('{wf_name}') or persona ('{p_name}') selection.")
+        st.error(f"Invalid workflow ('{wf_name}') or persona ('{p_name}') selection. Available workflows: {get_available_workflows()}, Available personas: {get_available_personas()}")
         logging.error(f"Invalid workflow/persona class for names: {wf_name}, {p_name}")
         return False
 
