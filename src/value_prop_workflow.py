@@ -72,6 +72,32 @@ class ValuePropWorkflow:
             if not user_input_stripped: # If user_input is empty after this intro, we are done for this turn.
                 return "\n\n".join(filter(None, generated_response_parts)).strip()
 
+        # NEW BLOCK: Ensure non-empty input if current step's value is expected and not yet provided.
+        # This check is applied if the user's input for the current turn is empty.
+        # It won't interfere with the early returns on lines 58 and 73 because if those were triggered,
+        # this code block wouldn't be reached with an empty user_input_stripped for those specific intro scenarios.
+        if not user_input_stripped:
+            # Check if the current step is genuinely awaiting input (i.e., not yet filled in scratchpad).
+            # The condition `(self.current_step != "problem" or self.intake_complete)` ensures that for the "problem" step,
+            # we only prompt if the intake phase is done. If it's the very first message and it's empty,
+            # this prompt won't fire, assuming upstream handling or that initial input won't be empty.
+            if not self.scratchpad.get(self.current_step) and \
+               (self.current_step != "problem" or self.intake_complete):
+                step_display_name = self.current_step.replace("_", " ")
+                # Ensure correct indefinite article 'a' or 'an'
+                article = "an" if step_display_name.lower().startswith(("a", "e", "i", "o", "u")) else "a"
+                prompt_message = (
+                    f"It seems we're working on defining {article} {step_display_name}, "
+                    f"but I didn't receive your input for it. Could you please share your thoughts on the {step_display_name}?"
+                )
+
+                if generated_response_parts: # If intake or other messages were already queued for this turn
+                    current_turn_messages = generated_response_parts + [prompt_message]
+                    return "\n\n".join(filter(None, current_turn_messages)).strip()
+                else:
+                    return prompt_message
+        # END OF NEW BLOCK
+
         # 3. General stance handling and coaching
         stance = self.behavior.detect_user_stance(user_input_stripped, self.current_step)
 
@@ -95,32 +121,35 @@ class ValuePropWorkflow:
                 stance = "decided"
 
         if stance == "uncertain":
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance))
+            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step))
             generated_response_parts.append(self.behavior.offer_example(self.current_step))
             generated_response_parts.append(
-                f"Could you try to define the {self.current_step} more clearly, or would you like to brainstorm some ideas together for it?"
+                f"Could you try to define the {self.current_step.replace('_', ' ')} more clearly, or would you like to brainstorm some ideas together for it?"
             )
         elif stance == "open":
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance))
+            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step))
             generated_response_parts.append(self.behavior.offer_strategic_suggestion(self.current_step))
             generated_response_parts.append(
-                f"What are your thoughts on that suggestion, or would you like to explore other angles for the {self.current_step}?"
+                f"What are your thoughts on that suggestion, or would you like to explore other angles for the {self.current_step.replace('_', ' ')}?"
             )
         elif stance == "interest":
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance))
+            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step))
             generated_response_parts.append(
-                f"It sounds like you're making good progress on the {self.current_step}. "
+                f"It sounds like you're making good progress on the {self.current_step.replace('_', ' ')}. "
                 "Would you like to refine this further, or shall we consider how this connects to the next part of your value proposition?"
             )
         elif stance == "decided":
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance))
+            # For "decided" stance, paraphrase_user_input is called first, then coach_on_decision.
+            # The paraphrase will provide the initial acknowledgement and context-aware feedback.
+            # coach_on_decision will then provide deeper coaching.
+            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, stance, self.current_step))
             generated_response_parts.append(
                 self.behavior.coach_on_decision(self.current_step, user_input_stripped)
             )
         else:  # Fallback for other/unclear stances
-            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, "neutral"))
+            generated_response_parts.append(self.behavior.paraphrase_user_input(user_input_stripped, "neutral", self.current_step))
             generated_response_parts.append(
-                f"That's an interesting perspective on the {self.current_step}. "
+                f"That's an interesting perspective on the {self.current_step.replace('_', ' ')}. "
                 "Could you elaborate a bit more on your reasoning, or would you like to consider some alternative ways to approach this?"
             )
 
@@ -148,9 +177,9 @@ class ValuePropWorkflow:
         # This method now constructs the final user-facing summary directly.
 
         problem_desc = self.scratchpad.get('problem')
-        target_user_desc = self.scratchpad.get('target_user')
+        target_user_desc = self.scratchpad.get('target_customer') # Corrected: target_customer
         solution_desc = self.scratchpad.get('solution')
-        benefit_desc = self.scratchpad.get('benefit') # Changed from main_benefit
+        benefit_desc = self.scratchpad.get('main_benefit') # Corrected: main_benefit
         differentiator_desc = self.scratchpad.get('differentiator')
         use_case_desc = self.scratchpad.get('use_case')
 

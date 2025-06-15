@@ -163,71 +163,101 @@ class BehaviorEngine:
     def paraphrase_user_input(self, user_input: str, stance: str, current_step: str = "the current topic") -> str:
         """
         Paraphrases the user's input using an LLM, reflecting the detected stance
-        and current step.
+        and current step, and provides initial context-aware feedback.
         """
-        system_prompt_base = f"You are a helpful assistant. Paraphrase the user's input naturally and conversationally, without direct quotation. Rephrase the essence of their statement regarding '{current_step}'. "
-        
+        maturity = self.assess_idea_maturity(user_input)
+
+        system_prompt_base = (
+            f"You are a helpful coaching assistant. Your goal is to help the user develop a strong value proposition. "
+            f"The current step is '{current_step}'. The user's input for this step is: '{user_input}'.\n"
+            f"Your response should have two parts:\n"
+            f"1. First, acknowledge and briefly paraphrase the user's input for '{current_step}'. Do not use direct quotation. Refer to their input conceptually, for example, as 'your idea about {current_step} being {user_input[:30]}...' or 'your thoughts on {current_step} focusing on [paraphrased essence]'.\n"
+            f"2. Second, provide brief, context-aware feedback based on their input's specificity and its relevance to the '{current_step}'.\n"
+        )
+
+        if maturity == "novice":
+            system_prompt_base += (
+                f"The user's input '{user_input}' for '{current_step}' seems a bit general. "
+                f"In your feedback part, explain briefly why more detail for '{current_step}' (related to their idea of '{user_input}') would be beneficial for building a compelling value proposition. For example: 'Getting more specific about your idea of \"{user_input[:30]}...\" for {current_step} can help us pinpoint exactly who it's for and what unique value it offers, which is key to a strong value proposition.'\n"
+            )
+        else: # advanced
+            system_prompt_base += (
+                f"The user's input '{user_input}' for '{current_step}' is quite specific. "
+                f"In your feedback part, affirm this (e.g., 'That's a clear and specific direction for {current_step}.'). "
+                f"You might also briefly note how this specificity is helpful (e.g., 'This level of detail regarding \"{user_input[:30]}...\" is great for ensuring {current_step} strongly supports the overall value proposition.').\n"
+            )
+
+        # Stance-specific additions to the prompt (these will guide the *tone* and *framing* of the two-part response)
         if stance == "decided":
-            system_prompt = system_prompt_base + f"The user seems to have a clear direction for {current_step}. You could say something like: 'So, you're thinking [paraphrase of user's idea] for the {current_step}. That's a clear direction.' or 'Okay, so your focus for {current_step} is on [paraphrase of user's idea].'"
+            system_prompt = system_prompt_base + f"Frame your two-part response (paraphrase + feedback) with confidence, acknowledging their clear direction regarding '{user_input[:30]}...' for {current_step}."
         elif stance == "uncertain":
-            system_prompt = system_prompt_base + f"The user sounds like they're still exploring or unsure about {current_step}. You could say something like: 'It sounds like you're still exploring [paraphrase of user's uncertainty] regarding the {current_step}.' or 'Okay, so you're working through your thoughts on [paraphrase of user's idea] for {current_step}.'"
+            system_prompt = system_prompt_base + f"Frame your two-part response gently, acknowledging they are exploring ideas like '{user_input[:30]}...' for {current_step}."
         elif stance == "open":
-            system_prompt = system_prompt_base + f"The user seems open to considering different angles for {current_step}. You could say something like: 'You're open to considering different angles for [paraphrase of user's openness] for the {current_step}, that's great.' or 'Okay, so you're looking at options around [paraphrase of user's idea] for {current_step}.'"
+            system_prompt = system_prompt_base + f"Frame your two-part response encouragingly, noting their openness to exploring ideas like '{user_input[:30]}...' for {current_step}."
         elif stance == "interest":
-            system_prompt = system_prompt_base + f"The user has expressed interest in {current_step}. You could say something like: 'You've expressed interest in [paraphrase of user's interest] for the {current_step}.' or 'Got it, you're interested in [paraphrase of user's idea] for {current_step}.'"
+            system_prompt = system_prompt_base + f"Frame your two-part response positively, reflecting their interest in ideas like '{user_input[:30]}...' for {current_step}."
         else: # neutral or other
-            system_prompt = system_prompt_base + f"Acknowledge their input clearly regarding {current_step}. You could say something like: 'Okay, I understand you're saying [paraphrase of user's input] regarding the {current_step}.' or 'Understood, your point about {current_step} is [paraphrase of user's input].'"
+            system_prompt = system_prompt_base + f"Frame your two-part response with clear acknowledgement of their input '{user_input[:30]}...' for {current_step}."
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input}
+            {"role": "user", "content": "Please provide your coaching paraphrase and initial feedback."}
         ]
         
         try:
-            response = query_openai(messages=messages, max_tokens=80, temperature=0.7)
+            response = query_openai(messages=messages, max_tokens=150, temperature=0.7) # Increased tokens
             return response
         except Exception as e:
             print(f"Error in paraphrase_user_input LLM call: {e}")
-            return f"I'm processing your thoughts on {current_step}." # Fallback
+            # Fallback that still tries to reference the input
+            if user_input:
+                 return f"I've noted your thoughts on {current_step}: '{user_input[:50]}...'. Let's consider how to refine this."
+            return f"I'm processing your thoughts on {current_step}."
 
     def coach_on_decision(self, current_step: str, user_input: str) -> str:
         """
-        Coaches the user after they've made a decision, using an LLM.
+        Coaches the user after they've made a decision, using an LLM,
+        referencing their specific input and explaining the 'why' of feedback.
         """
         maturity = self.assess_idea_maturity(user_input)
-        system_prompt_base = f"You are a helpful coaching assistant. The user has made a decision for the '{current_step}'. Their input was: '{user_input}'. Do not directly quote their original input in your response; refer to it as 'your idea for the {current_step}' or similar. "
+        
+        system_prompt_base = (
+            f"You are a helpful coaching assistant. The user has made a decision for the '{current_step}'. "
+            f"Their input was conceptually about '{user_input}'. Your task is to provide feedback. "
+            f"DO NOT quote the user's input '{user_input}' directly. Instead, refer to it as 'your decision about {current_step}', 'your idea of {user_input[:30]}...', or 'your focus on [paraphrased essence of user_input]'. "
+            f"Explain *why* your feedback or suggestions are helpful for them to build a strong value proposition."
+        )
 
         if maturity == "novice":
             system_prompt = system_prompt_base + (
-                "Their input seems like a good starting point but could be more specific. "
-                "Explain the value of specificity (e.g., 'Often, getting more specific can make the idea stronger...'). "
-                "Suggest they refine it by offering an example of how to be more specific in this context "
-                "(e.g., 'For example, instead of a general group, could we identify a specific user segment? Or for a solution, a key starting feature?'). "
-                "Then, ask if they'd like to refine their idea to be more specific, perhaps suggesting one or two hypothetical alternatives, or if they prefer to stick with their current thought."
+                f"The user's decision for '{current_step}', which is along the lines of '{user_input}', seems like a good starting point but could be more specific. "
+                f"Explain that getting more specific about '{user_input}' for '{current_step}' can significantly strengthen their value proposition by, for example, making it easier to identify a precise target audience, tailor the solution, or articulate a unique benefit. "
+                f"Offer a concrete suggestion for how they could refine their idea '{user_input}'. For example, if '{current_step}' is 'problem' and they said 'communication issues', you might suggest: 'For instance, with 'communication issues', could you pinpoint what kind of communication, for whom, and what the direct negative impact is? This helps ensure the solution is highly relevant.' "
+                f"Then, ask if they'd like to refine their current idea about '{user_input}' to be more specific, or if they prefer to stick with it for now. You could also offer to brainstorm specific examples related to '{user_input}'."
             )
         else:  # "advanced"
             system_prompt = system_prompt_base + (
-                "Their input is quite specific and clear. "
-                "Affirm this briefly (e.g., 'That's a very specific and clear direction.'). "
-                "Then, invite them to share more about their reasoning or the experience behind their choice (e.g., 'Could you tell me a bit more about what led you to this particular idea?'). "
-                "You might also gently offer to explore alternatives if it seems appropriate, to ensure this is the most impactful path (e.g., 'Are there any alternative approaches you considered, or do you feel confident this is the one to pursue?'), "
-                "or simply ask if they are ready to move to the next step."
+                f"The user's input for '{current_step}', which is '{user_input}', is quite specific and clear. "
+                f"Affirm this (e.g., 'Your decision to focus on {user_input[:30]}... for {current_step} is very clear and specific.'). "
+                f"Explain briefly why this level of specificity is valuable (e.g., 'This kind of detail for {current_step} is excellent because it allows for a more targeted approach to [next step/overall value prop element], making your overall value proposition more compelling.'). "
+                f"Then, invite them to elaborate on the reasoning or experience that led them to '{user_input}' (e.g., 'Could you share a bit more about what brought you to this specific idea for {current_step}? Understanding your perspective can help us build on it effectively.'). "
+                f"You could also ask if they see any potential challenges or refinements related to '{user_input}', or if they're ready to connect this to the next part of their value proposition."
             )
         
-        # User prompt can be simple, as the main context is in the system prompt
-        user_prompt_for_llm = f"Considering my decision for {current_step}, what are your thoughts or next questions?"
-
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt_for_llm}
+            {"role": "user", "content": "Please provide your coaching feedback on my decision."}
         ]
         
         try:
-            response = query_openai(messages=messages, max_tokens=150, temperature=0.7)
+            response = query_openai(messages=messages, max_tokens=180, temperature=0.7) # Increased tokens
             return response
         except Exception as e:
             print(f"Error in coach_on_decision LLM call: {e}")
-            return f"That's an interesting decision for {current_step}. What's your reasoning behind it?" # Fallback
+            # Fallback that still tries to reference the input
+            if user_input:
+                return f"That's an interesting decision for {current_step} regarding '{user_input[:50]}...'. What's your reasoning behind it?"
+            return f"That's an interesting decision for {current_step}. What's your reasoning behind it?"
 
     def provide_feedback(self, current_value_prop_elements: dict, user_request: str) -> str:
         """
@@ -241,12 +271,13 @@ class BehaviorEngine:
         use_case_summary = current_value_prop_elements.get("use_case", "not yet defined")
 
         system_prompt = (
-            "You are a helpful coaching assistant. Provide critical, constructive feedback on the current value proposition. "
-            "In your response, paraphrase the elements provided by the user. Do not quote them directly. "
-            "Identify strengths (e.g., 'I like how your solution seems to address the stated problem, and the use case clearly illustrates its application.'). "
-            "Identify areas for improvement or questions (e.g., 'One thing to consider is whether the main benefit is compelling enough for the target user in that specific use case. Have you thought about...?'). "
-            "Offer actionable advice (e.g., 'Maybe we could brainstorm ways to quantify the main benefit as experienced in that use case?'). "
-            "Maintain a constructive, supportive tone."
+            "You are a helpful coaching assistant. Your goal is to provide critical, constructive feedback on the user's current value proposition elements to help them build a strong and compelling one. "
+            "When referring to the user's input for each element (problem, target user, solution, etc.), paraphrase it conceptually (e.g., 'Regarding the problem you've identified as affecting X...' or 'Your proposed solution involving Y...'). Do not quote their input directly. Avoid generic terms like 'the problem' and instead refer to 'the problem you described concerning Z'.\n"
+            "Your feedback should:\n"
+            "1. Identify specific strengths, connecting them to how they contribute to a strong value proposition (e.g., 'The way you've defined the target user as [paraphrased user input] is strong because it allows for highly focused messaging.').\n"
+            "2. Pinpoint specific areas for improvement or further questions. For each, explain *why* addressing this point would strengthen their value proposition (e.g., 'Considering your solution idea of [paraphrased user input], have you thought about how it directly addresses the core pain point of [paraphrased problem]? Clarifying this link will make the benefit more obvious.').\n"
+            "3. Offer concrete, actionable advice. Explain how this advice helps them achieve a better value proposition (e.g., 'To make the benefit of [paraphrased benefit] more impactful, perhaps we could brainstorm ways to quantify it. This helps demonstrate clear value to your target user of [paraphrased target user].').\n"
+            "Maintain a constructive, supportive tone throughout."
         )
         
         user_prompt_for_llm = (
@@ -257,7 +288,7 @@ class BehaviorEngine:
             f"- Main Benefit: {benefit_summary}\n"
             f"- Differentiator: {differentiator_summary}\n"
             f"- Use Case: {use_case_summary}\n"
-            "Please provide your feedback."
+            "Please provide your detailed, constructive feedback, explaining the 'why' behind your points."
         )
 
         messages = [
@@ -266,11 +297,11 @@ class BehaviorEngine:
         ]
         
         try:
-            response = query_openai(messages=messages, max_tokens=200, temperature=0.7)
+            response = query_openai(messages=messages, max_tokens=250, temperature=0.7) # Increased max_tokens
             return response
         except Exception as e:
             print(f"Error in provide_feedback LLM call: {e}")
-            return "That's an interesting set of ideas. Let's think about how they fit together." # Fallback
+            return "That's an interesting set of ideas. Let's think about how they fit together and how we can make them even stronger." # Fallback
 
     def generate_ideas(self, current_value_prop_elements: dict, user_request: str) -> str:
         """
@@ -284,12 +315,13 @@ class BehaviorEngine:
         use_case_summary = current_value_prop_elements.get("use_case", "not defined yet")
 
         system_prompt = (
-            "You are a helpful coaching assistant. Generate thoughtful, actionable suggestions based on the current value proposition elements. "
-            "In your response, paraphrase these current elements. Do not quote them directly. "
-            "Review these elements and identify gaps or areas for development (e.g., 'Given your focus on the problem for this target user, and the described use case, have you considered solutions that involve...?'). "
-            "Suggest concrete next steps or alternative angles (e.g., 'If the main benefit is X, and a primary use case is Y, perhaps exploring [specific feature/aspect] would strengthen the connection.'). "
-            "Base suggestions on the existing elements to ensure relevance. Avoid generic advice; aim for specific, actionable ideas. "
-            "For example, you could say: 'Thinking about the problem you've described for the target user and the use case, perhaps we could brainstorm specific features for your solution. For instance, if a core issue is [aspect of problem] highlighted in the use case, a feature that [does X] might be valuable. Another idea could be to explore [alternative approach/technology] for that use case. What sparks your interest more?'"
+            "You are a helpful coaching assistant. Your goal is to generate thoughtful, actionable suggestions based on the user's current value proposition elements, helping them to strengthen it. "
+            "When referring to the user's input for each element, paraphrase it conceptually (e.g., 'Given your focus on the problem of [paraphrased problem] for the target user you described as [paraphrased target user]...'). Do not quote their input directly. Avoid generic terms like 'the solution' and instead refer to 'your solution idea concerning X'.\n"
+            "Your suggestions should:\n"
+            "1. Be directly based on their existing elements to ensure relevance.\n"
+            "2. Identify potential gaps or areas for further development, explaining *why* exploring these could be beneficial (e.g., 'Considering the problem of [paraphrased problem] and your solution idea of [paraphrased solution], exploring how [specific aspect] could address an unmet need for your [paraphrased target user] might make your differentiator clearer.').\n"
+            "3. Suggest concrete next steps or alternative angles. For each suggestion, explain *how* it could help them build a more compelling value proposition (e.g., 'If the main benefit you're aiming for is [paraphrased benefit], and a primary use case involves [paraphrased use case], perhaps exploring [specific feature/aspect] would strengthen that connection by making the benefit more tangible in that scenario. This could make your idea more persuasive.').\n"
+            "Aim for specific, actionable ideas, not generic advice. Frame suggestions as collaborative exploration."
         )
         
         user_prompt_for_llm = (
@@ -300,7 +332,7 @@ class BehaviorEngine:
             f"- Main Benefit: {benefit_summary}\n"
             f"- Differentiator: {differentiator_summary}\n"
             f"- Use Case: {use_case_summary}\n"
-            "Please generate some ideas or suggestions."
+            "Please generate some ideas or suggestions, explaining how they could help improve my value proposition."
         )
 
         messages = [
@@ -309,8 +341,8 @@ class BehaviorEngine:
         ]
         
         try:
-            response = query_openai(messages=messages, max_tokens=250, temperature=0.75) # Increased max_tokens for idea generation
+            response = query_openai(messages=messages, max_tokens=280, temperature=0.75) # Increased max_tokens
             return response
         except Exception as e:
             print(f"Error in generate_ideas LLM call: {e}")
-            return "Let's brainstorm some possibilities for your idea." # Fallback
+            return "Let's brainstorm some possibilities for your idea and see how we can enhance it." # Fallback
