@@ -458,4 +458,112 @@ Aim for specific, actionable ideas, not generic advice. Frame suggestions as col
             summary_parts.append(f"\n\n**Actionable Recommendations:**\n{recommendations_text}")
         
         return "".join(summary_parts).strip()
+
+    def generate_short_summary(self, text: str) -> str:
+        """
+        Sends text to OpenAI to create a short (<=100-token) summary.
+        """
+        summary_prompt = f"Summarize the following text in 100 tokens or less:\n\n{text}"
+        # Use a slightly lower temperature for summarization to get more concise results
+        # query_openai is available via from ..llm_utils import query_openai
+        summary = query_openai(messages=[{"role": "user", "content": summary_prompt}], temperature=0.5, max_tokens=100)
+        return summary
+
+    def propose_next_conversation_turn(self, intake_answers: list, scratchpad: dict, phase: str, conversation_history: list = None) -> str:
+        """
+        Uses the LLM to propose the next natural conversation turn based on intake, scratchpad, phase, and conversation history.
+        Aims for peer coaching, brainstorming, and conversational EQ.
+        """
+        # client is available via from ..llm_utils import client
+        system_prompt_content = """You are a peer coach brainstorming new digital health innovations with the user. You help them surface promising business ideas by building on any aspect of their prior answers that shows potential, creativity, or relevance.
+
+You are not a therapist, but you are very emotionally intelligent and always bring conversational energy and warmth.
+
+Never just repeat the user’s last answer. Always move the conversation forward, build excitement, and keep things open-ended.
+
+If the user says ‘no’, ‘I don’t know’, or gives a one-word answer, gently prompt them to revisit an earlier idea, suggest a new direction, or validate that it’s normal to feel stuck.
+
+Example interaction:
+User: I care about cost savings and rapid deployment.
+Assistant: Love it—so quick wins and low friction matter. We could brainstorm ideas for settings where speed makes a huge difference, or dive into ways to get to value quickly. Want to riff on those, or is there another angle you’re curious about?"""
+
+        user_prompt_parts = []
+        user_prompt_parts.append(f"Current Conversation Phase: {phase}")
+
+        if intake_answers:
+            user_prompt_parts.append("\n--- Intake Answers ---")
+            for answer_item in intake_answers:
+                if isinstance(answer_item, dict) and 'text' in answer_item and answer_item['text']:
+                    user_prompt_parts.append(f"- {answer_item['text']}")
+                elif isinstance(answer_item, str) and answer_item:
+                    user_prompt_parts.append(f"- {answer_item}")
+            user_prompt_parts.append("----------------------")
+
+        if scratchpad and any(scratchpad.values()):
+            user_prompt_parts.append("\n--- Current Scratchpad ---")
+            for key, value in scratchpad.items():
+                if value:
+                    user_prompt_parts.append(f"{key.replace('_', ' ').title()}: {value}")
+            user_prompt_parts.append("--------------------------")
+
+        if conversation_history:
+            user_prompt_parts.append("\n--- Recent Conversation History (last 3 turns) ---")
+            for turn in conversation_history[-3:]:
+                role = turn.get('role', 'unknown').title()
+                text = turn.get('text', '')
+                if text:
+                    user_prompt_parts.append(f"{role}: {text}")
+            user_prompt_parts.append("----------------------------------------------------")
+
+
+        user_prompt_parts.append("\n--- Your Task ---")
+        user_prompt_parts.append("""Based on all the information above (intake, scratchpad, phase, and recent history):
+1. Scan all intake responses and scratchpad fields.
+2. Identify 2–3 elements with the most potential, novelty, or relevance to valuable business ideas (considering excitement, user impact, originality, etc.).
+3. Briefly express enthusiasm about 1–2 of these elements (e.g., "I love how you mentioned X…" or "It’s cool that you’re interested in Y…").
+4. Ask the user if they want to brainstorm more about any of these identified elements, OR suggest a related angle.
+5. If previous responses were bland, “no”, or unclear, gently pivot with curiosity, encouragement, or by surfacing something previously mentioned.
+6. Never repeat the same phrase or get stuck on a single answer. Never just restate a prior user reply as a question.
+7. Always keep the conversation moving naturally, with a friendly, peer-like tone, using mild humor and warmth when appropriate.
+
+--- Example Scenarios ---
+
+Scenario 1: Surfacing multiple elements, peer excitement
+Context:
+  Intake: "I'm passionate about mental wellness for students." "I think technology can make support more accessible." "Maybe something with AI."
+  Scratchpad: Problem_Statement: "Students lack accessible mental wellness resources."
+Your Output: "This is great! I'm really picking up on your passion for student mental wellness and the idea of using tech, especially AI, to make support more accessible. That's a super relevant area. Would you like to brainstorm some specific ways AI could play a role here, or perhaps explore different student populations that might see the main benefit most?"
+
+Scenario 2: Handling "no" gracefully, suggesting new angle
+Context:
+  Recent History:
+    Assistant: "...Want to explore AI for personalized coaching or for early detection?"
+    User: "No."
+Your Output: "No worries at all! Sometimes an idea just doesn't click. How about we pivot a bit? You also mentioned making support 'more accessible' earlier (from intake/scratchpad). That's a big one. We could think about what 'accessible' really means – is it about cost, time, overcoming stigma, or something else? Or, is there another aspect of student mental wellness that's on your mind?"
+
+Scenario 3: Handling bland reply ("Dunno"), encouraging revisit
+Context:
+  Recent History:
+    Assistant: "...Interested in brainstorming around gamification for engagement, or focusing on data privacy?"
+    User: "Dunno."
+  Intake/Scratchpad contains: "User mentioned unique pressures faced by graduate students."
+Your Output: "Hey, it's totally fine to feel a bit unsure – sometimes the best ideas take a little while to surface! You know, earlier you had a really interesting thought about the unique pressures faced by graduate students. Maybe we could circle back to that for a moment? Or, if you're feeling like a completely fresh angle, we can totally do that too!"
+
+--- Now, generate your response for the current user based on their information. ---
+What is your proposed next conversational turn?
+""")
+
+        full_user_prompt = "\n".join(user_prompt_parts)
+
+        # query_openai is available via from ..llm_utils import query_openai
+        # client is also available from llm_utils if direct client call is preferred
+        response = query_openai(
+            messages=[
+                {"role": "system", "content": system_prompt_content},
+                {"role": "user", "content": full_user_prompt}
+            ],
+            temperature=0.75,
+            max_tokens=250
+        )
+        return response # query_openai already strips
     # TODO: add behavior methods (paraphrase, feedback, etc.) - These seem to be well covered above.

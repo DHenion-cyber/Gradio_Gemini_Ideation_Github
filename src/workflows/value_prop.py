@@ -45,71 +45,111 @@ class ValuePropWorkflow:
         return "review"
 
     def process_user_input(self, user_input: str, search_results: list = None): # Added search_results
+        # This import is needed here if not already at module level and if update_scratchpad is a global util
+        from ..utils.scratchpad_extractor import update_scratchpad # Ensure this path is correct
+        from ..llm_utils import query_openai, build_conversation_messages # For direct LLM call if needed
+
         user_input_stripped = user_input.strip()
         core_response = ""
-        preliminary_message = "" # Will hold at most one preliminary message
+        preliminary_message = ""
 
-        # 1. Handle intake-to-ideation transition message (once at the beginning)
-        if self.current_step == "problem" and not st.session_state.get("vp_intake_complete", False):
-            preliminary_message = self.persona.get_intake_to_ideation_transition_message() # Use self.persona
-            st.session_state["vp_intake_complete"] = True
+        # Update internal scratchpad - ValuePropWorkflow manages its own scratchpad
+        # The generic update_scratchpad might be too broad if ValuePropWorkflow has specific logic.
+        # For now, let's assume ValuePropWorkflow updates its self.scratchpad directly or via a dedicated method.
+        # If user_input_stripped is relevant to the current_step, it will be stored later.
+        # The generic update_scratchpad from conversation_phases might try to update all fields.
+        # Let's defer scratchpad update until stance is known or specific logic applies.
 
-        # 2. Handle dedicated step introductions (if no intake message was just set)
-        if not preliminary_message:
-            step_intro = self.persona.get_step_intro_message(self.current_step, self.scratchpad) # Use self.persona
-            if step_intro:
-                preliminary_message = step_intro
-                if not user_input_stripped: # If intro is shown and no user input, intro is the full response
-                    return preliminary_message + self.persona.get_reflection_prompt() # Use self.persona
+        # Determine if we are in the initial "exploration" phase for the value proposition
+        # This could be when 'problem' is the current step and it's empty,
+        # or a more explicit state if ValuePropWorkflow had an 'is_exploring' flag.
+        is_initial_exploration = (self.current_step == "problem" and not self.scratchpad.get("problem"))
 
-        # If there's a preliminary message and no user input, that message is the response.
-        if preliminary_message and not user_input_stripped:
-            return preliminary_message + self.persona.get_reflection_prompt() # Use self.persona
+        if is_initial_exploration and user_input_stripped: # And user has provided some input for exploration
+            # This section mirrors the core of the old `handle_exploration`
+            # The scratchpad update here should be specific to exploration if needed,
+            # or rely on the general update_scratchpad if that's appropriate.
+            # For now, let's assume update_scratchpad is a general utility.
+            self.scratchpad = update_scratchpad(user_input_stripped, self.scratchpad.copy()) # Update own scratchpad
+            st.session_state["scratchpad"] = self.scratchpad # Also update global for other modules if necessary
 
-        # 3. Handle empty user input if not an intro-only response and current step needs input
-        if not user_input_stripped:
-            # Check if the current step is genuinely awaiting input
-            if not self.scratchpad.get(self.current_step) and \
-               (self.current_step != "problem" or st.session_state.get("vp_intake_complete", False)):
-                core_response = self.persona.get_prompt_for_empty_input(self.current_step) # Use self.persona
-            # else: user_input_stripped is empty, but no specific prompt needed.
-            # core_response remains empty. preliminary_message (if any) will be shown if it exists.
-        else: # user_input_stripped is NOT empty
-            # 4. General stance handling and coaching
-            # Pass search_results to persona methods if they can use it
-            stance = self.persona.detect_user_stance(user_input_stripped, self.current_step) # Use self.persona
-            effective_stance = stance # Stance used for coaching, may be overridden
-
-            # Store user input based on stance and step
-            # This logic remains in the workflow as it's about state management
-            if stance == "decided":
-                self.scratchpad[self.current_step] = user_input_stripped
-            # Special handling for differentiator and use_case to capture input even if stance isn't "decided"
-            # when the step is being introduced and user provides relevant input.
-            elif self.current_step == "differentiator" and \
-                 self.scratchpad.get("main_benefit") and \
-                 user_input_stripped and \
-                 not self.scratchpad.get("differentiator"):
-                self.scratchpad["differentiator"] = user_input_stripped
-                effective_stance = "decided" # Treat as decided for coaching this specific input
-            elif self.current_step == "use_case" and \
-                 self.scratchpad.get("differentiator") and \
-                 user_input_stripped and \
-                 not self.scratchpad.get("use_case"):
-                self.scratchpad["use_case"] = user_input_stripped
-                effective_stance = "decided" # Treat as decided for coaching this specific input
-
-            # Call persona methods for dialog generation
-            if effective_stance == "decided":
-                core_response = self.persona.coach_on_decision( # Use self.persona
-                    self.current_step, user_input_stripped, self.scratchpad, effective_stance, search_results=search_results
+            try:
+                messages_for_llm = build_conversation_messages(
+                    scratchpad=self.scratchpad,
+                    latest_user_input=user_input_stripped,
+                    current_phase="exploration" # Explicitly set phase for LLM
                 )
-            else: # uncertain, open, interest, neutral
-                core_response = self.persona.paraphrase_user_input( # Use self.persona
-                    user_input_stripped, stance, self.current_step, self.scratchpad, search_results=search_results
-                )
+                core_response = query_openai(messages=messages_for_llm)
+                if not core_response or not core_response.strip():
+                    core_response = "I'm processing that. Could you tell me a bit more, or perhaps we can explore another angle?"
+                    # Consider logging this via self.persona or a direct log call
+            except Exception as e:
+                # st.error(f"Error querying LLM in exploration: {e}") # UI call, persona should handle
+                core_response = f"I encountered an issue during exploration: {e}. Could you please try rephrasing?"
+            # After this exploration call, the LLM (guided by VALUE_PROP_EXPLORATION_SYSTEM_PROMPT)
+            # might have filled some scratchpad items or asked a question.
+            # The next call to process_user_input will then proceed to step-specific logic.
+            # The reflection prompt will be added at the end.
 
-        # Construct final response
+        else: # Not initial exploration, or no user input for exploration -> proceed with step-specific logic
+            # 1. Handle intake-to-ideation transition message (once at the beginning)
+            if self.current_step == "problem" and not st.session_state.get("vp_intake_complete", False):
+                preliminary_message = self.persona.get_intake_to_ideation_transition_message()
+                st.session_state["vp_intake_complete"] = True
+
+            # 2. Handle dedicated step introductions
+            if not preliminary_message:
+                step_intro = self.persona.get_step_intro_message(self.current_step, self.scratchpad)
+                if step_intro:
+                    preliminary_message = step_intro
+                    if not user_input_stripped:
+                        return preliminary_message + self.persona.get_reflection_prompt()
+
+            if preliminary_message and not user_input_stripped:
+                return preliminary_message + self.persona.get_reflection_prompt()
+
+            # 3. Handle empty user input for current step
+            if not user_input_stripped:
+                if not self.scratchpad.get(self.current_step) and \
+                   (self.current_step != "problem" or st.session_state.get("vp_intake_complete", False)):
+                    core_response = self.persona.get_prompt_for_empty_input(self.current_step)
+            else: # user_input_stripped is NOT empty
+                # Generic scratchpad update based on user input.
+                # This might be too aggressive. Consider updating only self.current_step or based on LLM extraction.
+                # For now, let's keep it simple: update the current step if stance is decided.
+                # The update_scratchpad utility from scratchpad_extractor.py is more sophisticated.
+                # Let's use that for a general update first.
+                # self.scratchpad = update_scratchpad(user_input_stripped, self.scratchpad.copy())
+                # st.session_state["scratchpad"] = self.scratchpad # Keep global session state sync
+
+                stance = self.persona.detect_user_stance(user_input_stripped, self.current_step)
+                effective_stance = stance
+
+                # Store user input into the specific current_step if decided
+                if stance == "decided":
+                    self.scratchpad[self.current_step] = user_input_stripped
+                elif self.current_step == "differentiator" and self.scratchpad.get("main_benefit") and not self.scratchpad.get("differentiator"):
+                    self.scratchpad["differentiator"] = user_input_stripped
+                    effective_stance = "decided"
+                elif self.current_step == "use_case" and self.scratchpad.get("differentiator") and not self.scratchpad.get("use_case"):
+                    self.scratchpad["use_case"] = user_input_stripped
+                    effective_stance = "decided"
+                
+                # After potentially updating the current step, a more general update_scratchpad can refine other fields
+                # This ensures the current step is prioritized by direct assignment if "decided".
+                self.scratchpad = update_scratchpad(user_input_stripped, self.scratchpad.copy())
+                st.session_state["scratchpad"] = self.scratchpad
+
+
+                if effective_stance == "decided":
+                    core_response = self.persona.coach_on_decision(
+                        self.current_step, user_input_stripped, self.scratchpad, effective_stance, search_results=search_results
+                    )
+                else: # uncertain, open, interest, neutral
+                    core_response = self.persona.paraphrase_user_input(
+                        user_input_stripped, stance, self.current_step, self.scratchpad, search_results=search_results
+                    )
+
         final_response_parts = []
         if preliminary_message:
             final_response_parts.append(preliminary_message)
@@ -119,10 +159,12 @@ class ValuePropWorkflow:
         
         final_response_str = " ".join(final_response_parts).strip()
 
-        # Add reflection prompt if there's any content to reflect on
         if final_response_str:
-            return final_response_str + self.persona.get_reflection_prompt() # Use self.persona
-        return "" # Should ideally not happen if logic is correct
+            return final_response_str + self.persona.get_reflection_prompt()
+        # If by some chance final_response_str is empty (e.g. empty preliminary and core_response)
+        # return a generic prompt or handle appropriately.
+        # For now, this case should be rare.
+        return self.persona.get_prompt_for_empty_input(self.current_step) + self.persona.get_reflection_prompt() if not final_response_str else final_response_str
 
     def add_research_request(self, step: str, details: str = ""):
         self.scratchpad["research_requests"].append({"step": step, "details": details})
