@@ -1,3 +1,4 @@
+import streamlit as st
 from src.coach_persona import BehaviorEngine
 
 class ValuePropWorkflow:
@@ -15,7 +16,7 @@ class ValuePropWorkflow:
             "research_requests": [] # List of strings or dicts
         }
         self.completed = False
-        self.intake_complete = False  # Flag for the initial intake message
+        # self.intake_complete = False  # Flag for the initial intake message # Removed as per request
 
     def suggest_next_step(self, user_input=None):
         """
@@ -46,12 +47,12 @@ class ValuePropWorkflow:
         is_intro_only_turn = False
 
         # 1. Handle intake-to-ideation transition message (once at the beginning)
-        if self.current_step == "problem" and not self.intake_complete:
+        if self.current_step == "problem" and not st.session_state.get("vp_intake_complete", False):
             preliminary_messages.append(
                 "Thanks for sharing! I'll help you develop and vet your ideas now. "
                 "I will continue to ask you questions, but you're welcome to ask me for ideas, analysis, or feedback at any point."
             )
-            self.intake_complete = True
+            st.session_state["vp_intake_complete"] = True
 
         # 2. Handle dedicated step introductions
         # Show intro if it's the differentiator step, main_benefit is filled, and differentiator in scratchpad is still empty.
@@ -86,7 +87,7 @@ class ValuePropWorkflow:
             if not user_input_stripped:
                 # Check if the current step is genuinely awaiting input (i.e., not yet filled in scratchpad).
                 if not self.scratchpad.get(self.current_step) and \
-                   (self.current_step != "problem" or self.intake_complete):
+                   (self.current_step != "problem" or st.session_state.get("vp_intake_complete", False)):
                     step_display_name = self.current_step.replace("_", " ")
                     article = "an" if step_display_name.lower().startswith(("a", "e", "i", "o", "u")) else "a"
                     prompt_message = (
