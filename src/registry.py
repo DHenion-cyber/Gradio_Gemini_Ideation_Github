@@ -50,7 +50,7 @@ from typing import Type, Dict, Any, Callable
 
 # Workflow Imports
 from workflows.beta_testing import BetaTestingWorkflow
-from workflows.business_plan import BusinessPlanWorkflow
+from workflows.business_model import BusinessModelWorkflow
 from workflows.market_analysis import MarketAnalysisWorkflow
 from workflows.pitch_prep import PitchPrepWorkflow
 from workflows.planning_growth import PlanningGrowthWorkflow
@@ -107,7 +107,7 @@ def populate_registries() -> None:
     """
     # Register Workflows
     register_workflow("Beta Testing", BetaTestingWorkflow)
-    register_workflow("Business Plan", BusinessPlanWorkflow)
+    register_workflow("Business Model", BusinessModelWorkflow)
     register_workflow("Market Analysis", MarketAnalysisWorkflow)
     register_workflow("Pitch Prep", PitchPrepWorkflow)
     register_workflow("Planning Growth", PlanningGrowthWorkflow)
