@@ -218,7 +218,10 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                 # Now, get the intro for the *new* phase/step
                 # The actual question for the first ideation step will be part of get_step_intro_message or a subsequent call
                 step_intro = self.persona.get_step_intro_message(self.current_ideation_step, self.scratchpad)
-                core_response = f"{transition_explanation} {step_intro}"
+                # To make the transition from intake to ideation more natural and less like a forced prompt,
+                # we'll use the step_intro directly. The preliminary_message from active_listening
+                # should provide sufficient acknowledgment of the user's intake.
+                core_response = step_intro
                 st.session_state[f"vp_intro_{self.current_ideation_step}"] = True
             else:
                 # First time in intake, no user input yet
