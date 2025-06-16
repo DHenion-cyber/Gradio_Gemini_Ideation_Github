@@ -1,42 +1,52 @@
-"""Defines the PitchPrepWorkflow class, managing the pitch preparation coaching process."""
-# Persona will be passed in, no direct import needed here unless for type hinting
-# from src.personas.coach import CoachPersona
+"""Defines the PitchPrepWorkflow class, a stub for pitch preparation coaching."""
+from .base import WorkflowBase
 
-class PitchPrepWorkflow:
-   def __init__(self, persona_instance, context=None): # Added persona_instance
-       self.context = context or {}
-       self.persona = persona_instance # Use the passed persona instance
-       self.current_step = "storytelling" # Example step
-       self.scratchpad = {
-           "pitch_title": "",
-           "target_audience": "",
-           "core_message": "",
-           "key_slides_content": {}, # e.g. {"problem_slide": "text", "solution_slide": "text"}
-           "call_to_action": ""
-       } # Example scratchpad, more detailed
-       self.completed = False
+class PitchPrepWorkflow(WorkflowBase):
+    """Stub workflow for guiding users through preparing a pitch."""
 
-   def process_user_input(self, user_input: str, search_results: list = None): # Added search_results
-       # Example: Delegate to persona for response generation
-       # Actual logic for step management and scratchpad updates would be here
-       # response = self.persona.critique_pitch_element(self.current_step, self.scratchpad, user_input, search_results=search_results)
-       # self.scratchpad[self.current_step] = user_input # Example update
-       # return response + self.persona.get_reflection_prompt()
-       
-       # Placeholder response using the persona if available and has a generic method
-       if hasattr(self.persona, 'paraphrase_user_input'):
-            # This is a placeholder, actual persona methods would be more specific
-           return self.persona.paraphrase_user_input(user_input, "decided", self.current_step, self.scratchpad, search_results=search_results)
-       return f"PitchPrepWorkflow (Step: {self.current_step}) received: '{user_input}'. Persona would respond here."
+    def __init__(self, context=None):
+        """Initializes the PitchPrepWorkflow."""
+        super().__init__(context)
+        self.context = context or {}
+        self.current_step = "define_core_message"  # Example starting step
+        self.scratchpad = {
+            "pitch_title": "",
+            "target_audience": "",
+            "core_message": "",
+            "key_slides_content": {},
+            "call_to_action": ""
+        }
+        self.completed = False
+        # TODO: Implement full initialization if needed
 
-   def generate_summary(self):
-       # if hasattr(self.persona, 'generate_pitch_deck_outline'):
-       #     return self.persona.generate_pitch_deck_outline(self.scratchpad)
-       return f"Pitch Prep Summary for {self.scratchpad.get('pitch_title', 'Untitled Pitch')} (stub)"
+    def suggest_next_step(self, user_input=None):
+        """Suggests the next logical step for pitch preparation."""
+        # TODO: Implement workflow logic to suggest the next step
+        if not self.scratchpad.get("core_message"):
+            return "Let's start with the core message of your pitch. What is it?"
+        # Add more logic based on scratchpad and user_input
+        return "What part of your pitch do you want to work on next?"
 
-   def is_complete(self):
-       return self.completed
+    def process_user_input(self, user_input):
+        """Processes user input related to pitch preparation."""
+        # TODO: Implement logic to process input and update scratchpad
+        # Example: self.scratchpad[self.current_step] = user_input
+        pass
 
-   def get_step(self):
-       return self.current_step
-    # TODO: add other required workflow methods, like suggest_next_step
+    def generate_summary(self):
+        """Generates a summary of the pitch preparation status."""
+        # TODO: Implement summary generation
+        summary_parts = [
+            f"Pitch Title: {self.scratchpad.get('pitch_title', 'Not yet defined')}",
+            f"Core Message: {self.scratchpad.get('core_message', 'Not yet defined')}"
+        ]
+        return "\\n".join(summary_parts)
+
+    def is_complete(self):
+        """Checks if the pitch preparation workflow is complete."""
+        # TODO: Implement completion logic
+        return self.completed
+
+    def get_step(self):
+        """Returns the current step in the pitch preparation workflow."""
+        return self.current_step

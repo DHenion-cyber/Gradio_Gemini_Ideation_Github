@@ -1,42 +1,52 @@
-"""Defines the MarketAnalysisWorkflow class, managing the market analysis coaching process."""
-# Persona will be passed in, no direct import needed here unless for type hinting
-# from src.personas.coach import CoachPersona
+"""Defines the MarketAnalysisWorkflow class, a stub for market analysis coaching."""
+from .base import WorkflowBase
 
-class MarketAnalysisWorkflow:
-   def __init__(self, persona_instance, context=None): # Added persona_instance
-       self.context = context or {}
-       self.persona = persona_instance # Use the passed persona instance
-       self.current_step = "initial_analysis" # Example step
-       self.scratchpad = {
-           "target_market_definition": "",
-           "market_size_estimation": "",
-           "competitor_analysis": {}, # e.g. {"competitor_A": "strengths/weaknesses"}
-           "market_trends": [],
-           "swot_analysis": {"strengths": [], "weaknesses": [], "opportunities": [], "threats": []}
-       } # Example scratchpad, more detailed
-       self.completed = False
+class MarketAnalysisWorkflow(WorkflowBase):
+    """Stub workflow for guiding users through market analysis."""
 
-   def process_user_input(self, user_input: str, search_results: list = None): # Added search_results
-       # Example: Delegate to persona for response generation
-       # Actual logic for step management and scratchpad updates would be here
-       # response = self.persona.analyze_market_data(self.current_step, self.scratchpad, user_input, search_results=search_results)
-       # self.scratchpad[self.current_step] = user_input # Example update
-       # return response + self.persona.get_reflection_prompt()
+    def __init__(self, context=None):
+        """Initializes the MarketAnalysisWorkflow."""
+        super().__init__(context)
+        self.context = context or {}
+        self.current_step = "initial_market_analysis" # Example starting step
+        self.scratchpad = {
+            "target_market_definition": "",
+            "market_size_estimation": "",
+            "competitor_analysis": {},
+            "market_trends": [],
+            "swot_analysis": {"strengths": [], "weaknesses": [], "opportunities": [], "threats": []}
+        }
+        self.completed = False
+        # TODO: Implement full initialization if needed
 
-       # Placeholder response using the persona if available and has a generic method
-       if hasattr(self.persona, 'paraphrase_user_input'):
-           # This is a placeholder, actual persona methods would be more specific
-           return self.persona.paraphrase_user_input(user_input, "decided", self.current_step, self.scratchpad, search_results=search_results)
-       return f"MarketAnalysisWorkflow (Step: {self.current_step}) received: '{user_input}'. Persona would respond here."
+    def suggest_next_step(self, user_input=None):
+        """Suggests the next logical step for market analysis."""
+        # TODO: Implement workflow logic to suggest the next step
+        if not self.scratchpad.get("target_market_definition"):
+            return "Let's start by defining your target market. Who are they?"
+        # Add more logic based on scratchpad and user_input
+        return "What aspect of market analysis would you like to focus on next?"
 
-   def generate_summary(self):
-       # if hasattr(self.persona, 'generate_market_analysis_summary'):
-       #     return self.persona.generate_market_analysis_summary(self.scratchpad)
-       return f"Market Analysis Summary for {self.scratchpad.get('target_market_definition', 'Undefined Market')} (stub)"
+    def process_user_input(self, user_input):
+        """Processes user input related to market analysis."""
+        # TODO: Implement logic to process input and update scratchpad
+        # Example: self.scratchpad[self.current_step] = user_input
+        pass
 
-   def is_complete(self):
-       return self.completed
+    def generate_summary(self):
+        """Generates a summary of the market analysis."""
+        # TODO: Implement summary generation
+        summary_parts = [
+            f"Target Market: {self.scratchpad.get('target_market_definition', 'Not yet defined')}",
+            f"Market Size: {self.scratchpad.get('market_size_estimation', 'Not yet estimated')}"
+        ]
+        return "\\n".join(summary_parts)
 
-   def get_step(self):
-       return self.current_step
-    # TODO: add other required workflow methods, like suggest_next_step
+    def is_complete(self):
+        """Checks if the market analysis workflow is complete."""
+        # TODO: Implement completion logic
+        return self.completed
+
+    def get_step(self):
+        """Returns the current step in the market analysis workflow."""
+        return self.current_step
