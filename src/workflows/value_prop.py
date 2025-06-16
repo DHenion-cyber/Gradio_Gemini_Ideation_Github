@@ -1,24 +1,32 @@
 """Defines the ValuePropWorkflow class, managing the value proposition coaching process."""
 import streamlit as st
 from typing import TYPE_CHECKING
+from .base import WorkflowBase # Added import
 
 # Persona will be passed in, no direct import needed here unless for type hinting
 if TYPE_CHECKING:
     from personas.coach import CoachPersona
 
-class ValuePropWorkflow:
-    def __init__(self, persona_instance: 'CoachPersona', context=None):
+class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
+    def __init__(self, context=None):
+        """
+        Initializes the ValuePropWorkflow.
+        The 'persona_instance' (CoachPersona) must be provided within the 'context' dictionary.
+        """
         self.context = context or {}
-        self.persona = persona_instance # Use the passed persona instance
+        self.persona = self.context.get('persona_instance') # Get persona from context
+        if self.persona is None:
+            raise ValueError("A 'persona_instance' of CoachPersona must be provided in the context for ValuePropWorkflow.")
+        
         self.current_step = "problem"  # Initial step
         self.scratchpad = {
             "problem": "",
-            "target_customer": "", # Changed from target_user
+            "target_customer": "",
             "solution": "",
-            "main_benefit": "", # Changed back to main_benefit
+            "main_benefit": "",
             "differentiator": "",
-            "use_case": "", # Will store natural language description of use case(s)
-            "research_requests": [] # List of strings or dicts
+            "use_case": "",
+            "research_requests": []
         }
         self.completed = False
         # self.intake_complete = False  # Flag for the initial intake message # Removed as per request
@@ -45,7 +53,12 @@ class ValuePropWorkflow:
         self.current_step = "review"
         return "review"
 
-    def process_user_input(self, user_input: str, search_results: list = None): # Added search_results
+    def process_user_input(self, user_input: str): # search_results parameter removed to match WorkflowBase
+        """
+        Processes the user's input for the value proposition workflow,
+        updates the scratchpad, and determines the next interaction.
+        Conforms to WorkflowBase.process_user_input.
+        """
         # This import is needed here if not already at module level and if update_scratchpad is a global util
         from utils.scratchpad_extractor import update_scratchpad # Ensure this path is correct
         from llm_utils import query_openai, build_conversation_messages # For direct LLM call if needed
@@ -144,11 +157,11 @@ class ValuePropWorkflow:
 
                 if effective_stance == "decided":
                     core_response = self.persona.coach_on_decision(
-                        self.current_step, user_input_stripped, self.scratchpad, effective_stance, search_results=search_results
+                        self.current_step, user_input_stripped, self.scratchpad, effective_stance # search_results removed
                     )
                 else: # uncertain, open, interest, neutral
                     core_response = self.persona.paraphrase_user_input(
-                        user_input_stripped, stance, self.current_step, self.scratchpad, search_results=search_results
+                        user_input_stripped, stance, self.current_step, self.scratchpad # search_results removed
                     )
 
         final_response_parts = []
@@ -171,11 +184,24 @@ class ValuePropWorkflow:
         self.scratchpad["research_requests"].append({"step": step, "details": details})
 
     def generate_summary(self):
+        """
+        Generates a summary of the current state of the value proposition workflow.
+        Delegates the actual summary content generation to the persona.
+        Conforms to WorkflowBase.generate_summary.
+        """
         # Delegates summary generation entirely to the persona.
         return self.persona.generate_value_prop_summary(self.scratchpad) # Use self.persona
 
     def is_complete(self):
+        """
+        Checks if the value proposition workflow has reached its completion state.
+        Conforms to WorkflowBase.is_complete.
+        """
         return self.completed
 
     def get_step(self):
+        """
+        Returns the current step or phase of the value proposition workflow.
+        Conforms to WorkflowBase.get_step.
+        """
         return self.current_step

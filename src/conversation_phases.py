@@ -1,3 +1,4 @@
+"""Defines the different phases of conversation and their handling logic."""
 import streamlit as st
 from utils.scratchpad_extractor import update_scratchpad
 from constants import EMPTY_SCRATCHPAD, CANONICAL_KEYS
