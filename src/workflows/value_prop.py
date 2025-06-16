@@ -110,11 +110,24 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
         current_phase_index = self.PHASES.index(self.current_phase)
         next_phase_index = self.PHASES.index(next_phase)
 
-        if next_phase_index != current_phase_index + 1 and \
-           not (self.current_phase == "iteration" and next_phase == "recommendation") and \
-           not (self.current_phase == "recommendation" and next_phase == "iteration"):
+        # Allowed transitions:
+        # 1. Sequentially (e.g., intake -> ideation)
+        # 2. Iteration <-> Recommendation cycle
+        # 3. Recommendation -> Summary (user wants to finalize)
+        # 4. Iteration -> Ideation (user wants to revise a specific ideation step)
+        is_sequential = (next_phase_index == current_phase_index + 1)
+        is_iteration_to_recommendation = (self.current_phase == "iteration" and next_phase == "recommendation")
+        is_recommendation_to_iteration = (self.current_phase == "recommendation" and next_phase == "iteration")
+        is_recommendation_to_summary = (self.current_phase == "recommendation" and next_phase == "summary")
+        is_iteration_to_ideation = (self.current_phase == "iteration" and next_phase == "ideation")
+
+        if not (is_sequential or \
+                is_iteration_to_recommendation or \
+                is_recommendation_to_iteration or \
+                is_recommendation_to_summary or \
+                is_iteration_to_ideation):
             raise ValueError(f"Invalid phase transition from '{self.current_phase}' to '{next_phase}'. "
-                             "Phases must proceed sequentially, or cycle between recommendation/iteration.")
+                             "Allowed transitions: sequential, iteration<->recommendation, recommendation->summary, iteration->ideation.")
 
         # Persona communication about the transition will be handled by the calling logic in process_user_input
         # before or after this call, using methods like communicate_next_step or offer_reflective_summary.
@@ -125,24 +138,50 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
         """
         Suggests the next most relevant ideation step based on current scratchpad content
         and user intent, when in the 'ideation' phase.
-        Allow user to revisit or expand previous steps if desired.
+        This method does NOT modify self.current_ideation_step.
+        Args:
+            user_input: The user's input string, which may contain keywords for a specific step.
+        Returns:
+            The string name of the suggested ideation step, or "review_ideation", or "".
         """
         if self.current_phase != "ideation":
-            return "" # Only suggest ideation steps during ideation phase
+            return ""
 
-        # If the user input clearly refers to a previous or later ideation step, honor that
+        # 1. Check if user input explicitly mentions an ideation step for a JUMP
         if user_input:
-            for step in self.IDEATION_STEPS:
-                if step in user_input.lower(): # Simple keyword matching
-                    self.current_ideation_step = step
-                    return step
-        # Otherwise, suggest the next incomplete ideation step
-        for step in self.IDEATION_STEPS:
-            if not self.scratchpad.get(step):
-                self.current_ideation_step = step
-                return step
-        # If all ideation steps have content, ideation might be complete or user can review
-        self.current_ideation_step = "review_ideation" # A special step to indicate review within ideation
+            user_input_lower = user_input.lower()
+            for step_candidate in self.IDEATION_STEPS:
+                # Check for "target customer" as well as "target_customer"
+                keyword_match = step_candidate.replace("_", " ") in user_input_lower or \
+                                step_candidate in user_input_lower
+                if keyword_match:
+                    if step_candidate != self.current_ideation_step:
+                        return step_candidate # User explicitly mentioned a DIFFERENT step (jump)
+                    # If keyword matches current step, ignore it for jump logic, proceed to sequential suggestion
+                    break # Found a match for current step, no need to check other keywords for jump
+
+        # 2. Suggest the next incomplete ideation step sequentially from the current one
+        current_step_index = -1
+        if self.current_ideation_step in self.IDEATION_STEPS:
+            try:
+                current_step_index = self.IDEATION_STEPS.index(self.current_ideation_step)
+            except ValueError:
+                pass # current_ideation_step might be empty or "review_ideation"
+
+        if current_step_index != -1: # If current_ideation_step is a valid known step
+            for i in range(current_step_index + 1, len(self.IDEATION_STEPS)):
+                step_candidate = self.IDEATION_STEPS[i]
+                if not self.scratchpad.get(step_candidate):
+                    return step_candidate # Found next incomplete step
+
+        # 3. If all subsequent steps are filled, or if current_ideation_step was not a known step,
+        #    or if we started from a non-step (e.g. empty current_ideation_step),
+        #    check from the beginning for *any* incomplete step.
+        for step_candidate in self.IDEATION_STEPS:
+            if not self.scratchpad.get(step_candidate):
+                return step_candidate # Found first incomplete step from start
+
+        # 4. If all ideation steps have content
         return "review_ideation"
 
     def process_user_input(self, user_input: str): # search_results parameter removed to match WorkflowBase
@@ -151,8 +190,8 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
         updates the scratchpad, and determines the next interaction.
         Conforms to WorkflowBase.process_user_input.
         """
-        from utils.scratchpad_extractor import update_scratchpad # Ensure this path is correct
-        from llm_utils import query_openai, build_conversation_messages # For direct LLM call if needed
+        from src.utils.scratchpad_extractor import update_scratchpad # Ensure this path is correct
+        from src.llm_utils import query_openai, build_conversation_messages # For direct LLM call if needed
 
         user_input_stripped = user_input.strip()
         core_response = ""
@@ -229,25 +268,48 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                         self.current_ideation_step, user_input_stripped, self.scratchpad, user_cue
                     )
                     
-                    next_ideation_step_candidate = self.suggest_next_step() # Suggest next logical step (handles user intent for specific steps too)
+                    next_ideation_step_candidate = self.suggest_next_step(user_input_stripped)
                     
                     if self._are_ideation_fields_filled():
-                        preliminary_message = self.persona.offer_reflective_summary(self.scratchpad) + " " + \
-                                              self.persona.communicate_next_step(self.current_phase, "recommendation", self.scratchpad)
-                        assert self.PHASES.index("recommendation") == self.PHASES.index(self.current_phase) + 1, \
-                            "Ideation phase must transition directly to recommendation."
+                        # All ideation fields are filled, transition to recommendation
+                        if not preliminary_message: # Ensure transition message is only added once if already set by other logic
+                             preliminary_message = self.persona.offer_reflective_summary(self.scratchpad)
+                        preliminary_message += " " + self.persona.communicate_next_step(self.current_phase, "recommendation", self.scratchpad)
+                        
+                        # Ensure 'recommendation' is the correct next phase sequentially from 'ideation'
+                        # This assertion might be too strict if other transitions from ideation are ever allowed.
+                        # For now, value_prop workflow is linear from ideation to recommendation.
+                        if self.PHASES.index("recommendation") != self.PHASES.index(self.current_phase) + 1:
+                             # This case should ideally not be hit if _are_ideation_fields_filled is true
+                             # and we are in 'ideation'. Adding a log for safety.
+                             st.error(f"Unexpected phase state before transitioning from ideation. Current: {self.current_phase}")
+                        
                         self._transition_phase("recommendation")
-                        self.current_ideation_step = "" # Clear ideation step
-                        # The recommendation phase will provide its own intro in the next turn.
+                        self.current_ideation_step = "" # Clear ideation step as we are leaving the phase
                         core_response = "" # Persona messages for transition are in preliminary_message
-                    elif next_ideation_step_candidate and next_ideation_step_candidate != "review_ideation" and next_ideation_step_candidate != self.current_ideation_step:
-                        # If coach_on_decision's response already includes a good transition or next step prompt, use it.
-                        # Otherwise, communicate next step explicitly.
-                        # preliminary_message += self.persona.communicate_next_step(self.current_ideation_step, next_ideation_step_candidate, self.scratchpad)
-                        self.current_ideation_step = next_ideation_step_candidate
-                        # The core_response from coach_on_decision should ideally lead to the next step or ask a relevant question.
-                        # If not, the next turn will show the intro for `next_ideation_step_candidate`.
-                    # else: stay on current step (core_response from coach_on_decision handles this) or review
+                    
+                    elif next_ideation_step_candidate and next_ideation_step_candidate != "review_ideation":
+                        # A valid next step (or a jump to a specific step) is suggested.
+                        if next_ideation_step_candidate != self.current_ideation_step:
+                            # This is a progression to a new step or a jump.
+                            # The core_response from coach_on_decision was for the *old* current_ideation_step.
+                            # The persona's response (e.g., from coach_on_decision) might have already
+                            # textually handled the transition/jump.
+                            self.current_ideation_step = next_ideation_step_candidate
+                            # Ensure the intro for this new step can be shown if the user sends empty input next
+                            st.session_state.pop(f"vp_intro_{self.current_ideation_step}", None)
+                            # The core_response (from coach_on_decision on the *previous* step) is used for this turn.
+                            # The next turn, if user_input is empty, will trigger the intro for the new current_ideation_step.
+                        # else: next_ideation_step_candidate is the same as current_ideation_step.
+                        # This implies the user is decided on the current step, but suggest_next_step didn't find
+                        # a different, valid, incomplete step to move to automatically.
+                        # The core_response from coach_on_decision (for the current step) is appropriate.
+                    
+                    # else (next_ideation_step_candidate is "review_ideation" or empty):
+                        # This means either all steps are filled (handled by _are_ideation_fields_filled),
+                        # or suggest_next_step couldn't find a clear next step (e.g., current step is last, or an issue).
+                        # The core_response from coach_on_decision (for the current step) is generally appropriate.
+                        # If it's "review_ideation", the persona's response should guide the user.
                 else: # uncertain, open, curious, neutral
                     core_response = self.persona.paraphrase_user_input(
                         user_input_stripped, user_cue, self.current_ideation_step, self.scratchpad
@@ -276,8 +338,18 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
 
             # Check if recommendations should be generated/regenerated this turn.
             # Trigger if it's the first time in session OR user explicitly asks.
-            should_generate_recommendations = not st.session_state.get("vp_recommendation_fully_generated_once", False) or \
-                                             (user_input_stripped and "recommendation" in user_input_stripped.lower())
+            generated_once = st.session_state.get("vp_recommendation_fully_generated_once", False)
+            # Regenerate if not generated, or if user explicitly asks to see/regenerate recommendations.
+            # A casual mention like "these recommendations are good" should not trigger regeneration if already generated.
+            explicit_regen_request = False
+            if user_input_stripped:
+                lower_input = user_input_stripped.lower()
+                if "regenerate recommendation" in lower_input or \
+                   "show recommendation" in lower_input or \
+                   "get recommendation" in lower_input: # Made more specific
+                    explicit_regen_request = True
+            
+            should_generate_recommendations = not generated_once or explicit_regen_request
 
             if should_generate_recommendations:
                 if hasattr(self.persona, 'offer_reflective_summary'):
@@ -353,7 +425,18 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                 user_cue = self.persona.detect_user_cues(user_input_stripped, self.current_phase)
                 user_intent_lower = user_input_stripped.lower()
 
-                if "revise" in user_intent_lower or ("edit" in user_intent_lower and any(s.replace("_", " ") in user_intent_lower for s in self.IDEATION_STEPS)):
+                # Prioritize explicit commands over general cues like "decided"
+                # More robust check for "rerun/re-run recommendation"
+                is_rerun_recommendation_request = \
+                    ("rerun" in user_intent_lower or "re-run" in user_intent_lower) and \
+                    ("recommendation" in user_intent_lower or "recommendations" in user_intent_lower)
+
+                if is_rerun_recommendation_request:
+                    st.session_state["vp_recommendation_fully_generated_once"] = False
+                    preliminary_message = self.persona.communicate_next_step(self.current_phase, "recommendation", self.scratchpad)
+                    self._transition_phase("recommendation")
+                    core_response = ""
+                elif "revise" in user_intent_lower or ("edit" in user_intent_lower and any(s.replace("_", " ") in user_intent_lower for s in self.IDEATION_STEPS)):
                     revised_part_identified = False
                     for step in self.IDEATION_STEPS:
                         if step.replace("_", " ") in user_intent_lower:
@@ -369,19 +452,15 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                             core_response = self.persona.ask_which_part_to_revise(self.scratchpad)
                         else: # Fallback
                             core_response = "Which part of the value proposition would you like to revise? For example, 'revise problem' or 'change target customer'."
-                
-                elif "rerun recommendation" in user_intent_lower or "re-run recommendation" in user_intent_lower:
-                    st.session_state["vp_recommendation_fully_generated_once"] = False
-                    preliminary_message = self.persona.communicate_next_step(self.current_phase, "recommendation", self.scratchpad)
-                    self._transition_phase("recommendation")
-                    core_response = ""
-                
-                elif "summary" in user_intent_lower or "proceed" in user_intent_lower or "done" in user_intent_lower or "finish" in user_intent_lower or user_cue == "decided":
+                elif "summary" in user_intent_lower or \
+                     "proceed" in user_intent_lower or \
+                     "done" in user_intent_lower or \
+                     "finish" in user_intent_lower or \
+                     user_cue == "decided": # "decided" cue leads to summary if no more specific command matched
                     preliminary_message = self.persona.communicate_next_step(self.current_phase, "summary", self.scratchpad)
                     self._transition_phase("summary")
                     core_response = self.generate_summary()
                     self.completed = True
-                
                 else:
                     self.scratchpad = update_scratchpad(user_input_stripped, self.scratchpad.copy())
                     st.session_state["scratchpad"] = self.scratchpad
