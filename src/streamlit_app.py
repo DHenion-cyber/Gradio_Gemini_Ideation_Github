@@ -24,6 +24,8 @@ from src.conversation_manager import (
     initialize_conversation_state, run_intake_flow, get_intake_questions,
     is_out_of_scope, generate_assistant_response,
 )
+from src.workflows.value_prop import ValuePropWorkflow # Added import
+from src.personas.coach import CoachPersona # Added import
 from src.ui_components import (
     apply_responsive_css, privacy_notice, render_response_with_citations,
     progress_bar, render_general_feedback_trigger, render_final_session_feedback_prompt
@@ -178,10 +180,46 @@ async def main():
                     # Enforce: Intake MUST transition to ideation.
                     assert st.session_state.get("stage") == "intake", "Stage must be 'intake' before transitioning to 'ideation'."
                     st.session_state["stage"] = "ideation"
+                    initial_message = "Great! We've completed the intake. Now, let's move on to crafting your Value Proposition. What are your initial thoughts or ideas for the value proposition?" # Default message
+
+                    if selected_workflow == "value_prop":
+                        # Ensure workflow instance exists and is of the correct type
+                        if "value_prop_workflow_instance" not in st.session_state or not isinstance(st.session_state.value_prop_workflow_instance, ValuePropWorkflow):
+                            if "coach_persona_instance" not in st.session_state: # Ensure coach persona exists
+                                st.session_state.coach_persona_instance = CoachPersona() # Initialize if not present
+                            st.session_state.value_prop_workflow_instance = ValuePropWorkflow(
+                                context={"persona_instance": st.session_state.coach_persona_instance}
+                            )
+                        
+                        workflow_instance = st.session_state.value_prop_workflow_instance
+                        
+                        # Transition workflow to ideation phase internally
+                        workflow_instance._transition_phase("ideation") # Use the internal method to set phase
+
+                        coach = workflow_instance.persona
+                        intake_answers_for_coach = st.session_state.get("intake_answers", [])
+                        scratchpad_for_coach = workflow_instance.scratchpad
+                        
+                        try:
+                            # Pass an empty list for conversation_history as this is the start of ideation
+                            generated_message = coach.propose_next_conversation_turn(
+                                intake_answers=intake_answers_for_coach,
+                                scratchpad=scratchpad_for_coach,
+                                phase="ideation", # Explicitly pass current phase
+                                conversation_history=[]
+                            )
+                            if generated_message and isinstance(generated_message, str) and generated_message.strip():
+                                initial_message = generated_message
+                            else:
+                                logging.warning("CoachPersona.propose_next_conversation_turn did not return a valid message. Using default.")
+                        except Exception as e:
+                            logging.error(f"Error calling CoachPersona.propose_next_conversation_turn: {e}. Using default message.")
+                    
                     st.session_state["conversation_history"] = [
-                        {"role": "assistant", "text": "Great! We've completed the intake. Now, let's move on to crafting your Value Proposition. What are your initial thoughts or ideas for the value proposition?"}
+                        {"role": "assistant", "text": initial_message}
                     ]
-                    st.session_state.pop("intake_answers", None) # Clear intake answers
+                    # We keep intake_answers for the coach to use, it will be cleared later if needed or naturally overwritten.
+                    # st.session_state.pop("intake_answers", None)
                     if "user_id" in st.session_state:
                         save_session(st.session_state["user_id"], dict(st.session_state))
                     st.rerun()
