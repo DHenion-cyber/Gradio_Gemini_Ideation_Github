@@ -8,6 +8,7 @@ def create_sidebar():
 
     # Workflow selection dropdown
     workflow_display_names = {
+        None: "Select Topic", # Placeholder
         "value_prop": "Value Proposition",
         "market_analysis": "Market Analysis",
         "business_model": "Business Model",
@@ -20,6 +21,7 @@ def create_sidebar():
     # We can create an ordered list of keys based on the desired display order.
     
     ordered_workflow_keys = [
+        None, # Placeholder first
         "value_prop",
         "market_analysis",
         "business_model",
@@ -29,25 +31,47 @@ def create_sidebar():
     ]
     
     # Create a list of display names in the desired order
-    display_options = [workflow_display_names[key] for key in ordered_workflow_keys if key in WORKFLOWS]
+    # For None key, directly use its display name. For others, check if they are in WORKFLOWS.
+    display_options = [workflow_display_names[key] for key in ordered_workflow_keys if key is None or key in WORKFLOWS]
 
     if "selected_workflow_key" not in st.session_state:
-        st.session_state.selected_workflow_key = ordered_workflow_keys[0] # Default to the first one
+        st.session_state.selected_workflow_key = None # Default to placeholder
 
     # Get current selection's display name to set as default for selectbox
-    current_display_selection = workflow_display_names.get(st.session_state.selected_workflow_key, display_options[0])
+    # If selected_workflow_key is None, use "Select Topic". Otherwise, get from dict or default to "Select Topic".
+    current_display_selection = workflow_display_names.get(st.session_state.selected_workflow_key, workflow_display_names[None])
 
     selected_display_name = st.sidebar.selectbox(
         "Select Workflow:",
         options=display_options,
-        index=display_options.index(current_display_selection) # Set current selection
+        index=display_options.index(current_display_selection) if current_display_selection in display_options else 0 # Set current selection
     )
 
     # Map selected display name back to workflow key
+    new_selected_key = None # Default to None if "Select Topic" is chosen
     for key, display_name in workflow_display_names.items():
         if display_name == selected_display_name:
-            st.session_state.selected_workflow_key = key
+            new_selected_key = key
             break
+    
+    if st.session_state.selected_workflow_key != new_selected_key:
+        st.session_state.selected_workflow_key = new_selected_key
+        # If the selection changed to a real workflow or to "Select Topic",
+        # we might need to reset other parts of the session state.
+        # For now, just updating the key. Consider if st.rerun() is needed here.
+        # If a new topic is selected (not None), reset stage to 'intake'
+        if new_selected_key is not None:
+            st.session_state.stage = "intake" # Reset stage for new workflow
+            # Potentially reset other workflow-specific states here
+        else:
+            # If "Select Topic" is chosen, clear relevant session state
+            if "stage" in st.session_state:
+                del st.session_state.stage
+            # Clear other workflow specific states if necessary
+            # e.g. st.session_state.messages = []
+            #      st.session_state.current_question_index = 0
+            #      etc.
+        st.rerun() # Rerun to reflect changes immediately
     
     # Display selected workflow (optional, for debugging or confirmation)
     # st.sidebar.caption(f"Current workflow: {st.session_state.selected_workflow_key}")

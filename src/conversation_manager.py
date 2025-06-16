@@ -245,8 +245,8 @@ def run_intake_flow(user_input: str):
     st.session_state["intake_index"] += 1
 
     if st.session_state["intake_index"] >= len(intake_questions):
-        st.session_state["stage"] = "workflow_selection" # New stage after intake, UI should handle this
-        logging.info("Intake complete. Transitioning to workflow_selection stage.")
+        # Stage transition will be handled by streamlit_app.py
+        logging.info("Intake complete based on intake_index. Stage transition will be handled by UI.")
         
         answers_texts = [
             ans.get("text", "")
