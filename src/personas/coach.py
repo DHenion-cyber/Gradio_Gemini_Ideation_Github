@@ -15,7 +15,7 @@ Core Enhancements Summary (June 2025):
 - Permission-Based Tips: Asks for permission before offering unsolicited tips/examples.
 """
 import re
-from ..llm_utils import query_openai # Updated import
+from src.llm_utils import query_openai # Updated import
 
 class CoachPersona: # Renamed from BehaviorEngine
     """

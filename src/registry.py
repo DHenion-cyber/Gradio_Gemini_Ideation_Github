@@ -49,17 +49,17 @@ How to add a new Persona:
 from typing import Type, Dict, Any, Callable
 
 # Workflow Imports
-from workflows.beta_testing import BetaTestingWorkflow
-from workflows.business_model import BusinessModelWorkflow
-from workflows.market_analysis import MarketAnalysisWorkflow
-from workflows.pitch_prep import PitchPrepWorkflow
-from workflows.planning_growth import PlanningGrowthWorkflow
-from workflows.value_prop import ValuePropWorkflow
+from src.workflows.beta_testing import BetaTestingWorkflow
+from src.workflows.business_model import BusinessModelWorkflow
+from src.workflows.market_analysis import MarketAnalysisWorkflow
+from src.workflows.pitch_prep import PitchPrepWorkflow
+from src.workflows.planning_growth import PlanningGrowthWorkflow
+from src.workflows.value_prop import ValuePropWorkflow
 
 # Persona Imports
-from personas.coach import CoachPersona
-from personas.investor import InvestorPersona
-from personas.tester import TesterPersona
+from src.personas.coach import CoachPersona
+from src.personas.investor import InvestorPersona
+from src.personas.tester import TesterPersona
 
 # Define types for clarity
 WorkflowClass = Type[Any]  # Replace Any with your base Workflow class if you have one
