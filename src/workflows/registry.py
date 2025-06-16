@@ -2,7 +2,7 @@
 
 from .value_prop import ValuePropWorkflow
 from .market_analysis import MarketAnalysisWorkflow
-from .business_plan import BusinessPlanWorkflow
+from .business_model import BusinessModelWorkflow
 from .planning_growth import PlanningGrowthWorkflow
 from .beta_testing import BetaTestingWorkflow
 from .pitch_prep import PitchPrepWorkflow
@@ -10,7 +10,7 @@ from .pitch_prep import PitchPrepWorkflow
 WORKFLOWS = {
     "value_prop": ValuePropWorkflow,
     "market_analysis": MarketAnalysisWorkflow,
-    "business_plan": BusinessPlanWorkflow,
+    "business_model": BusinessModelWorkflow,
     "planning_growth": PlanningGrowthWorkflow,
     "beta_testing": BetaTestingWorkflow,
     "pitch_prep": PitchPrepWorkflow,
