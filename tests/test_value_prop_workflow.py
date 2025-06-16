@@ -102,30 +102,43 @@ class TestValuePropositionWorkflow:
         assert workflow.current_phase == PHASES[1]  # "ideation"
         assert workflow.scratchpad == updated_scratchpad_after_input # workflow.scratchpad is updated
         
-        expected_response_parts = [
-            "Okay, I understand.", # from active_listening
-            # "Great start! Now let's move to ideation.", # This part was removed from the response
-            "Let's talk about the problem." # from get_step_intro_message
-        ]
-        # The reflection prompt " What are your thoughts?" is added if the response doesn't end with "?"
-        expected_response = "Okay, I understand. Let's talk about the problem. What are your thoughts?"
+        # preliminary_message = "Okay, I understand. Great start! Now let's move to ideation."
+        # core_response = "Let's talk about the problem."
+        # combined = "Okay, I understand. Great start! Now let's move to ideation. Let's talk about the problem."
+        # Since this doesn't end with "?", reflection prompt " What are your thoughts?" is added by the final block in process_user_input.
+        expected_response = "Okay, I understand. Great start! Now let's move to ideation. Let's talk about the problem. What are your thoughts?"
         assert response == expected_response
         assert mock_session_state["scratchpad"] == updated_scratchpad_after_input
         assert mock_session_state.get(f"vp_intro_{IDEATION_STEPS[0]}") is True
 
-    def test_ideation_step_intro_if_no_input(self, mock_st_write, mock_update_scratchpad, workflow_components): # Corrected mock name
-        """Test that the intro for an ideation step is shown if no user input is provided."""
+    @pytest.mark.parametrize(
+        "intro_message, expected_response_text",
+        [
+            ("Let's define the problem. What is it?", "Let's define the problem. What is it?"), # Ends with ?
+            ("Let's define the problem. It is important.", "Let's define the problem. It is important."), # Ends with .
+            ("Let's define the problem. This is key!", "Let's define the problem. This is key!"), # Ends with !
+            ("Let's define the problem, it is complex,", "Let's define the problem, it is complex,"), # Ends with ,
+            ("Let's define the problem for our app", "Let's define the problem for our app What are your thoughts?") # No specific end punctuation
+        ]
+    )
+    def test_ideation_step_intro_if_no_input_punctuation_handling(
+        self, mock_st_write, mock_update_scratchpad, workflow_components, intro_message, expected_response_text
+    ):
+        """Test intro for ideation step with various ending punctuations for the intro message."""
         workflow, mock_persona, mock_session_state = workflow_components
-        workflow.current_phase = PHASES[1] # "ideation"
-        workflow.current_ideation_step = IDEATION_STEPS[0] # "problem"
-        mock_persona.get_step_intro_message.return_value = "Let's define the problem you're solving. What is it?"
+        workflow.current_phase = PHASES[1]  # "ideation"
+        workflow.current_ideation_step = IDEATION_STEPS[0]  # "problem"
+        
+        # Ensure get_reflection_prompt is consistently mocked for the last case
+        mock_persona.get_reflection_prompt.return_value = "What are your thoughts?"
+        mock_persona.get_step_intro_message.return_value = intro_message
         
         response = workflow.process_user_input("")
 
         mock_persona.get_step_intro_message.assert_called_once_with(IDEATION_STEPS[0], workflow.scratchpad)
-        assert response == "Let's define the problem you're solving. What is it?"
+        assert response == expected_response_text
         assert mock_session_state.get(f"vp_intro_{IDEATION_STEPS[0]}") is True
-        mock_update_scratchpad.assert_not_called() # No input, so no scratchpad update
+        mock_update_scratchpad.assert_not_called()  # No input, so no scratchpad update
 
     def test_ideation_process_input_and_suggest_next_step_decided_cue(self, mock_st_write, mock_update_scratchpad, workflow_components): # Corrected mock name
         """Test processing user input in ideation with a 'decided' cue and suggesting the next step."""

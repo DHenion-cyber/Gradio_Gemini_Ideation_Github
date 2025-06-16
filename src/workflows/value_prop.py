@@ -207,21 +207,19 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                 # Persona handles recap of initial input and explains process
                 # For simplicity, assume first input moves to ideation.
                 # A more robust intake might have multiple turns.
-                preliminary_message = self.persona.active_listening(user_input_stripped) # Acknowledge input
-                # Transition message should come from persona, explaining what's next.
-                transition_explanation = self.persona.get_intake_to_ideation_transition_message()
+                ack_message = self.persona.active_listening(user_input_stripped) # Acknowledge input
+                transition_explanation = self.persona.get_intake_to_ideation_transition_message() # Get transition message
                 
+                preliminary_message = f"{ack_message} {transition_explanation}".strip() # Combine them
+
                 assert self.PHASES.index("ideation") == self.PHASES.index(self.current_phase) + 1, \
                     "Intake phase must transition directly to ideation."
                 self._transition_phase("ideation") # Transition first
                 
                 # Now, get the intro for the *new* phase/step
-                # The actual question for the first ideation step will be part of get_step_intro_message or a subsequent call
+                # The actual question for the first ideation step will be part of get_step_intro_message
                 step_intro = self.persona.get_step_intro_message(self.current_ideation_step, self.scratchpad)
-                # To make the transition from intake to ideation more natural and less like a forced prompt,
-                # we'll use the step_intro directly. The preliminary_message from active_listening
-                # should provide sufficient acknowledgment of the user's intake.
-                core_response = step_intro
+                core_response = step_intro # This will be combined with preliminary_message later
                 st.session_state[f"vp_intro_{self.current_ideation_step}"] = True
             else:
                 # First time in intake, no user input yet
@@ -243,9 +241,15 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                     st.session_state[f"vp_intro_{self.current_ideation_step}"] = True
                 # The step_intro from persona should ideally end with a question.
                 # If not, append a generic reflection prompt.
-                final_response_str = preliminary_message
-                if not final_response_str.strip().endswith("?"):
-                    final_response_str += self.persona.get_reflection_prompt()
+                final_response_str = preliminary_message # which is step_intro here
+                # Check for truncation (ends with comma) or if it doesn't end with sentence-terminating punctuation
+                ends_with_q_mark = final_response_str.strip().endswith("?")
+                ends_with_period = final_response_str.strip().endswith(".")
+                ends_with_exclamation = final_response_str.strip().endswith("!")
+                ends_with_comma_suggesting_truncation = final_response_str.strip().endswith(",")
+
+                if not ends_with_comma_suggesting_truncation and not (ends_with_q_mark or ends_with_period or ends_with_exclamation):
+                    final_response_str += " " + self.persona.get_reflection_prompt()
                 return final_response_str
 
             if user_input_stripped:
