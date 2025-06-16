@@ -4,6 +4,7 @@ import sys
 import streamlit as st
 import datetime
 import logging
+import asyncio
 
 # Remove if not needed; can break if cleanup.py is missing or faulty
 # import cleanup
@@ -14,7 +15,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from persistence_utils import ensure_db, save_session
 from conversation_manager import (
     initialize_conversation_state, run_intake_flow, get_intake_questions,
-    is_out_of_scope, route_conversation,
+    is_out_of_scope, generate_assistant_response,
 )
 from ui_components import (
     apply_responsive_css, privacy_notice, render_response_with_citations,
@@ -81,7 +82,7 @@ def render_horizontal_header(current_stage, current_phase):
         )
     st.markdown('</div>', unsafe_allow_html=True)
 
-def main():
+async def main():
     st.set_page_config(page_title="Chatbot UI", layout="wide")
     st.title("Digital Health Innovation Chats")
     apply_responsive_css()
@@ -139,7 +140,7 @@ def main():
                     st.session_state["phase"] = "exploration"
                     current_phase = "exploration"
                 logging.info("DEBUG: Exploration phase started with empty history. Getting initial assistant prompt.")
-                initial_assistant_prompt, _ = route_conversation("", st.session_state.get("scratchpad", {}))
+                initial_assistant_prompt, _ = await generate_assistant_response("")
                 if initial_assistant_prompt:
                     st.session_state["conversation_history"].append({"role": "assistant", "text": initial_assistant_prompt})
                     st.rerun()
@@ -174,7 +175,7 @@ def main():
                     st.session_state["conversation_history"].append({"role": "user", "text": persona_msg})
                     with st.chat_message("assistant"):
                         with st.spinner("Thinking..."):
-                            assistant_response, _ = route_conversation(persona_msg, st.session_state.get("scratchpad", {}))
+                            assistant_response, _ = await generate_assistant_response(persona_msg)
                             st.session_state["conversation_history"].append({"role": "assistant", "text": assistant_response})
                             render_response_with_citations(assistant_response, [])
                     st.rerun()
@@ -196,7 +197,7 @@ def main():
                         st.session_state["conversation_history"].append({"role": "user", "text": user_input})
                         with st.chat_message("assistant"):
                             with st.spinner("Thinking..."):
-                                assistant_response, _ = route_conversation(user_input, st.session_state.get("scratchpad", {}))
+                                assistant_response, _ = await generate_assistant_response(user_input)
                                 if assistant_response is None:
                                     logging.error("route_conversation returned None for assistant_response. User input: %s", user_input)
                                     assistant_response = "I'm sorry, I encountered an issue and couldn't generate a response. Please try again."
@@ -218,4 +219,4 @@ def main():
                 save_session(st.session_state["user_id"], dict(st.session_state))
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
