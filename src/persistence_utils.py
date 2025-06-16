@@ -180,7 +180,25 @@ def datetime_serializer(obj):
 def save_session(user_id, session_data):
     conn = get_db_connection()
     cursor = conn.cursor()
-    session_data_json = json.dumps(session_data, default=datetime_serializer)
+
+    # Log the types of items in session_data before attempting to serialize
+    print(f"DEBUG_P_UTILS: save_session - About to serialize. Keys in session_data: {list(session_data.keys())}")
+    for key, value in session_data.items():
+        print(f"DEBUG_P_UTILS: save_session - Key: '{key}', Type: {type(value)}")
+    sys.stdout.flush()
+
+    # Create a shallow copy to modify before serialization
+    data_to_serialize = session_data.copy()
+
+    # Remove known non-serializable keys
+    keys_to_remove = ["value_prop_workflow_instance", "coach_persona_instance", "current_workflow_instance", "current_persona_instance"]
+    for key in keys_to_remove:
+        if key in data_to_serialize:
+            print(f"DEBUG_P_UTILS: save_session - Removing key '{key}' before serialization.")
+            del data_to_serialize[key]
+    sys.stdout.flush()
+
+    session_data_json = json.dumps(data_to_serialize, default=datetime_serializer)
     cursor.execute(
         "INSERT INTO chatbot_sessions (user_id, session_data) VALUES (?, ?)",
         (user_id, session_data_json,)
