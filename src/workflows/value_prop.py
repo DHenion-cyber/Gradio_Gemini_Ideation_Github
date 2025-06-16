@@ -503,10 +503,10 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
             
             final_response_str = " ".join(filter(None, response_parts)).strip()
 
-        if final_response_str and not (self.current_phase == "summary" and self.completed):
-            if not final_response_str.strip().endswith("?"): # Ensure single question
-                 final_response_str += " " + self.persona.get_reflection_prompt() # Add reflection if not ending with question
-        elif not final_response_str :
+        # The get_reflection_prompt() is now expected to be handled more selectively within specific logic paths
+        # or by persona methods themselves ensuring they end with a question.
+        # The fallback for a completely empty final_response_str remains.
+        if not final_response_str :
              final_response_str = self.persona.get_prompt_for_empty_input(self.current_ideation_step or "current focus") + " " + self.persona.get_reflection_prompt()
         
         return final_response_str.strip()

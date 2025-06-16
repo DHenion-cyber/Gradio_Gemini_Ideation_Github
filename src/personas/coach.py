@@ -565,8 +565,9 @@ Your response should have two parts:
         Returns the introductory message for transitioning from intake to ideation.
         """
         return (
-            "Thanks for sharing! I'll help you develop and vet your ideas now. "
-            "I will continue to ask you questions, but you're welcome to ask me for ideas, analysis, or feedback at any point."
+            "That's a great starting point! We've completed the initial intake. "
+            "Now, we'll move into the ideation phase to explore and refine your value proposition. "
+            "I'm here to help you brainstorm and develop your ideas."
         )
 
     def get_step_intro_message(self, current_step: str, scratchpad: dict) -> str:
