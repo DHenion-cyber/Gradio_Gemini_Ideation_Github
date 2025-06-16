@@ -15,7 +15,7 @@ Core Enhancements Summary (June 2025):
 - Permission-Based Tips: Asks for permission before offering unsolicited tips/examples.
 """
 import re
-from llm_utils import query_openai # Updated import
+from ..llm_utils import query_openai # Updated import
 
 class CoachPersona: # Renamed from BehaviorEngine
     """
@@ -698,6 +698,32 @@ Your response should have two parts:
             message = f"{recap} That covers the main elements we planned for this phase! We could review everything in more detail, or perhaps explore how these pieces fit into a larger picture. What feels most valuable to you right now?"
         return message
 
+    def present_recommendations_and_ask_next(self, recommendation_content: str, scratchpad: dict) -> str:
+        """
+        Presents the generated recommendations and asks the user for the next action.
+        """
+        # In a real scenario, this might involve more sophisticated formatting or LLM usage.
+        # For now, it just combines the content with a question.
+        question = "\n\nWhat are your thoughts on these recommendations? We can iterate on them, or if you're ready, move to a summary."
+        return f"{recommendation_content}{question}"
+
+    def prompt_after_recommendations(self, scratchpad: dict) -> str:
+        """
+        Provides a prompt to the user after recommendations have been shown,
+        if the user provides empty input.
+        """
+        # Based on ValuePropWorkflow logic:
+        # core_response = "The recommendations have been provided. What would you like to do next? We can iterate, revisit previous steps, or proceed to the summary."
+        return "The recommendations have been provided. What would you like to do next? We can iterate, revisit previous steps, or proceed to the summary."
+
+    def introduce_iteration_phase(self, scratchpad: dict) -> str:
+        """
+        Introduces the iteration phase to the user.
+        """
+        # Based on ValuePropWorkflow logic:
+        # core_response = "We are now in the iteration phase. You can revise parts of your value proposition, ask to re-run recommendations, or move to the summary. What would you like to do?"
+        return "We are now in the iteration phase. You can revise parts of your value proposition, ask to re-run recommendations, or move to the summary. What would you like to do?"
+
     def generate_short_summary(self, text: str) -> str:
         """
         Sends text to OpenAI to create a short (<=100-token) summary.
@@ -707,6 +733,13 @@ Your response should have two parts:
         # query_openai is available via from ..llm_utils import query_openai
         summary = query_openai(messages=[{"role": "user", "content": summary_prompt}], temperature=0.5, max_tokens=100)
         return summary
+
+    def greet_and_explain_value_prop_process(self) -> str:
+        """
+        Provides an initial greeting and explanation of the value proposition workflow.
+        """
+        # This is the method ValuePropWorkflow expects for the initial greeting.
+        return "Welcome to the Value Proposition Workflow! We'll start by defining the problem you're aiming to solve. What problem are you focusing on?"
 
     def propose_next_conversation_turn(self, intake_answers: list, scratchpad: dict, phase: str, conversation_history: list = None) -> str:
         """
