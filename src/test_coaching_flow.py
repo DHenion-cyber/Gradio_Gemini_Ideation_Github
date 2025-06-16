@@ -3,9 +3,9 @@ import streamlit as st
 import pytest
 
 # from src import conversation_phases # Removed
-from src.workflows.value_prop import ValuePropWorkflow
-from src.personas.coach import CoachPersona
-from src.constants import EMPTY_SCRATCHPAD
+from workflows.value_prop import ValuePropWorkflow
+from personas.coach import CoachPersona
+from constants import EMPTY_SCRATCHPAD
 # from src import llm_utils # If direct mocking of query_openai is needed
 
 @pytest.fixture(autouse=True)

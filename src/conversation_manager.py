@@ -8,13 +8,13 @@ import logging
 import random
 import re
 
-from .persistence_utils import save_session, load_session, ensure_db
-from .llm_utils import query_openai, generate_contextual_follow_up, build_conversation_messages # Removed unused build_prompt, propose_next_conversation_turn
-from . import search_utils
+from persistence_utils import save_session, load_session, ensure_db
+from llm_utils import query_openai, generate_contextual_follow_up, build_conversation_messages # Removed unused build_prompt, propose_next_conversation_turn
+import search_utils # Changed from 'from src import search_utils'
 # Removed: from . import conversation_phases - Phase logic will be handled by workflows
-from .utils.scratchpad_extractor import update_scratchpad
-from .constants import EMPTY_SCRATCHPAD, REQUIRED_SCRATCHPAD_KEYS
-from .registry import get_workflow, get_persona, populate_registries, get_available_workflows, get_available_personas
+from utils.scratchpad_extractor import update_scratchpad
+from constants import EMPTY_SCRATCHPAD, REQUIRED_SCRATCHPAD_KEYS
+from registry import get_workflow, get_persona, populate_registries, get_available_workflows, get_available_personas
 
 # Populate the registries when this module is loaded
 populate_registries()

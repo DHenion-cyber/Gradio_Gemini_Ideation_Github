@@ -5,7 +5,7 @@ import hashlib
 import os
 from typing import List, Dict, Optional
 import streamlit as st
-from .constants import MAX_PERPLEXITY_CALLS
+from constants import MAX_PERPLEXITY_CALLS
 
 # Assuming error_handling.py exists
 try:
@@ -21,7 +21,7 @@ except ImportError:
 
 # Import cache functions from persistence_utils
 try:
-    from .persistence_utils import get_cached_search_response, store_search_response
+    from persistence_utils import get_cached_search_response, store_search_response
 except ImportError:
     # Fallback for standalone execution or if persistence_utils is not in the same relative path
     print("Warning: Could not import persistence_utils. Caching will be non-functional or use a mock.")

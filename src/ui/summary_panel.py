@@ -1,7 +1,7 @@
 """Displays the idea summary panel using the ValuePropWorkflow's summary generation."""
 import streamlit as st
-from src.workflows.value_prop import ValuePropWorkflow # Import ValuePropWorkflow
-from src.constants import EMPTY_SCRATCHPAD # Import for default scratchpad if needed
+from workflows.value_prop import ValuePropWorkflow # Import ValuePropWorkflow
+from constants import EMPTY_SCRATCHPAD # Import for default scratchpad if needed
 
 def display_summary_panel():
     st.subheader("Idea Summary")

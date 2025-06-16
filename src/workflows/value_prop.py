@@ -1,10 +1,13 @@
 """Defines the ValuePropWorkflow class, managing the value proposition coaching process."""
 import streamlit as st
+from typing import TYPE_CHECKING
+
 # Persona will be passed in, no direct import needed here unless for type hinting
-# from src.personas.coach import CoachPersona
+if TYPE_CHECKING:
+    from personas.coach import CoachPersona
 
 class ValuePropWorkflow:
-    def __init__(self, persona_instance, context=None):
+    def __init__(self, persona_instance: 'CoachPersona', context=None):
         self.context = context or {}
         self.persona = persona_instance # Use the passed persona instance
         self.current_step = "problem"  # Initial step
@@ -44,8 +47,8 @@ class ValuePropWorkflow:
 
     def process_user_input(self, user_input: str, search_results: list = None): # Added search_results
         # This import is needed here if not already at module level and if update_scratchpad is a global util
-        from ..utils.scratchpad_extractor import update_scratchpad # Ensure this path is correct
-        from ..llm_utils import query_openai, build_conversation_messages # For direct LLM call if needed
+        from utils.scratchpad_extractor import update_scratchpad # Ensure this path is correct
+        from llm_utils import query_openai, build_conversation_messages # For direct LLM call if needed
 
         user_input_stripped = user_input.strip()
         core_response = ""

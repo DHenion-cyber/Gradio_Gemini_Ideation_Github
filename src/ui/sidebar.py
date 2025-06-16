@@ -1,6 +1,6 @@
 """Creates the sidebar UI for the Streamlit application, including a new chat button and research call counter."""
 import streamlit as st
-from src import constants
+import constants
 
 def create_sidebar():
     st.sidebar.title("Idea Chatbot")

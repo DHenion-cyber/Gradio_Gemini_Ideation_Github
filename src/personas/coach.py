@@ -1,6 +1,6 @@
 """Defines the CoachPersona class, providing conversation style and coaching behavior."""
 import re
-from ..llm_utils import query_openai # Updated import
+from llm_utils import query_openai # Updated import
 
 class CoachPersona: # Renamed from BehaviorEngine
     """

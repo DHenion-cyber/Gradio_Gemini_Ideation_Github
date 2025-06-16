@@ -1,8 +1,8 @@
 """Extracts information from user messages to update the scratchpad using regex and LLM fallback."""
 import re
 import json
-from src.llm_utils import get_llm_response
-from ..constants import CANONICAL_KEYS
+from llm_utils import get_llm_response
+from constants import CANONICAL_KEYS
 
 # Define synonyms for legacy keys that map to canonical keys
 SYNONYMS = {
