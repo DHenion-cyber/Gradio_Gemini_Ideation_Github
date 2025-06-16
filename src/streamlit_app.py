@@ -24,17 +24,16 @@ from src.conversation_manager import (
     initialize_conversation_state, run_intake_flow, get_intake_questions,
     is_out_of_scope, generate_assistant_response,
 )
-from src.workflows.value_prop import ValuePropWorkflow # Added import
-from src.personas.coach import CoachPersona # Added import
+from src.workflows.value_prop import ValuePropWorkflow # Keep this one
+from src.personas.coach import CoachPersona # Keep this one
 from src.ui_components import (
     apply_responsive_css, privacy_notice, render_response_with_citations,
     progress_bar, render_general_feedback_trigger, render_final_session_feedback_prompt
 )
-from ui.sidebar import create_sidebar
-from persona_simulation import get_persona_response
+from src.ui.sidebar import create_sidebar # Corrected path
+# from persona_simulation import get_persona_response # Assuming this is not used based on current context
 # from src.workflows.value_prop import render_value_prop_workflow # Removed incorrect import
-from src.workflows.value_prop import ValuePropWorkflow # Added correct class import
-from src.personas.coach import CoachPersona # Added persona import
+# Removed duplicate imports for ValuePropWorkflow and CoachPersona
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -53,28 +52,37 @@ if "conversation_initialized" not in st.session_state or st.session_state.get("n
 else:
     logging.info("Conversation state already initialized.")
 
-SECTIONS = ["Intake questions", "Value Proposition", "Actionable Recommendations", "Session Summary"]
+# SECTIONS = ["Intake questions", "Value Proposition", "Actionable Recommendations", "Session Summary"] # Removed old hardcoded SECTIONS
 
-def render_horizontal_header(current_stage, current_phase): # current_phase is not strictly used now but kept for signature consistency
+def render_horizontal_header(current_stage, selected_workflow): # Changed signature
+    if selected_workflow != "value_prop":
+        return # Only render for value_prop workflow
+
+    phases_to_display = ValuePropWorkflow.PHASES # Use phases from ValuePropWorkflow
+
     st.markdown(
         """
         <style>
         .horizontal-header {
             display: flex;
-            justify-content: space-around;
+            justify-content: space-around; /* Consider space-between or flex-start for many items */
             padding: 10px 0;
             border-bottom: 1px solid #eee;
             margin-bottom: 20px;
+            overflow-x: auto; /* Allow horizontal scrolling if phases exceed width */
+            white-space: nowrap; /* Prevent phase names from wrapping */
         }
         .header-item {
-            font-size: 1.1em;
+            font-size: 1.0em; /* Adjusted for potentially more items */
             font-weight: bold;
             color: darkgrey;
-            cursor: pointer;
-            padding: 5px 10px;
+            cursor: default; /* Not clickable for now */
+            padding: 5px 8px; /* Adjusted padding */
+            margin-right: 5px; /* Add some space between items */
         }
         .header-item.active {
             color: black;
+            border-bottom: 2px solid black; /* Highlight active phase more clearly */
         }
         </style>
         """,
@@ -82,18 +90,11 @@ def render_horizontal_header(current_stage, current_phase): # current_phase is n
     )
 
     st.markdown('<div class="horizontal-header">', unsafe_allow_html=True)
-    for section in SECTIONS:
-        is_active = False
-        if current_stage == "intake" and section == "Intake questions":
-            is_active = True
-        elif current_stage in ["ideation", "recommendation", "iteration"] and section == "Value Proposition":
-            is_active = True
-        elif current_stage == "summary" and section == "Session Summary": # Assuming "summary" stage maps to "Session Summary" header
-            is_active = True
-        # Note: "Actionable Recommendations" section might need its own stage if it's a distinct part of the flow
-        # For now, it's not directly tied to the value_prop stages being added.
+    for phase in phases_to_display:
+        display_phase_name = phase.replace("_", " ").title()
+        is_active = (current_stage == phase)
         st.markdown(
-            f'<div class="header-item {"active" if is_active else ""}">{section}</div>',
+            f'<div class="header-item {"active" if is_active else ""}">{display_phase_name}</div>',
             unsafe_allow_html=True
         )
     st.markdown('</div>', unsafe_allow_html=True)
@@ -150,7 +151,9 @@ async def main():
     try:
         # Only render header and workflow specific UI if a workflow is selected
         if selected_workflow:
-            render_horizontal_header(st.session_state.get("stage"), st.session_state.get("phase"))
+            current_stage_for_header = st.session_state.get("stage")
+            # The 'selected_workflow' variable here is already the key, e.g., "value_prop"
+            render_horizontal_header(current_stage_for_header, selected_workflow)
 
             # --- Intake Stage Logic (Common for workflows that use it) ---
             if st.session_state.get("stage") == "intake":
