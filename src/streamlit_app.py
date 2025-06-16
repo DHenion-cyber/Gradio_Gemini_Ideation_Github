@@ -175,6 +175,8 @@ async def main():
                             st.warning("Please enter a response to proceed.")
                 else: # Intake complete
                     logging.info(f"Intake complete for {selected_workflow}. Transitioning to ideation stage.")
+                    # Enforce: Intake MUST transition to ideation.
+                    assert st.session_state.get("stage") == "intake", "Stage must be 'intake' before transitioning to 'ideation'."
                     st.session_state["stage"] = "ideation"
                     st.session_state["conversation_history"] = [
                         {"role": "assistant", "text": "Great! We've completed the intake. Now, let's move on to crafting your Value Proposition. What are your initial thoughts or ideas for the value proposition?"}
@@ -228,6 +230,8 @@ async def main():
                         st.rerun()
                     
                     if st.button("Proceed to Recommendation Phase"):
+                        # Enforce: Ideation MUST transition to recommendation.
+                        assert st.session_state.get("stage") == "ideation", "Stage must be 'ideation' before transitioning to 'recommendation'."
                         st.session_state["stage"] = "recommendation"
                         st.session_state.conversation_history.append({
                             "role": "assistant",
@@ -254,6 +258,8 @@ async def main():
                         st.rerun()
 
                     if st.button("Proceed to Iteration Phase"):
+                        # Enforce: Recommendation MUST transition to iteration.
+                        assert st.session_state.get("stage") == "recommendation", "Stage must be 'recommendation' before transitioning to 'iteration'."
                         st.session_state["stage"] = "iteration"
                         st.session_state.conversation_history.append({
                             "role": "assistant",
@@ -277,6 +283,8 @@ async def main():
                         st.rerun()
 
                     if st.button("Finalize and Proceed to Summary"):
+                        # Enforce: Iteration MUST transition to summary.
+                        assert st.session_state.get("stage") == "iteration", "Stage must be 'iteration' before transitioning to 'summary'."
                         st.session_state["stage"] = "summary"
                         # Generate a pre-summary message or let the summary stage handle it.
                         st.session_state.conversation_history.append({

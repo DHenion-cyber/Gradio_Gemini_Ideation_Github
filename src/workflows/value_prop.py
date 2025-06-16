@@ -11,6 +11,9 @@
 # - Cleaned up duplicated method definition.
 # - Updated docstrings and comments for all new logic and state transitions.
 
+"""
+ALL workflow phases are required and must occur in order. Skipping phases based on user decisiveness or input maturity is not permitted.
+"""
 """Defines the ValuePropWorkflow class, managing the value proposition coaching process."""
 import streamlit as st
 from typing import TYPE_CHECKING, List, Dict, Any
@@ -59,6 +62,7 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
     def set_phase(self, phase_name: str) -> None:
         """
         Sets the current workflow phase.
+        ALL workflow phases are required and must occur in order. Skipping phases based on user decisiveness or input maturity is not permitted.
         Args:
             phase_name: The name of the phase to set.
         Raises:
@@ -80,11 +84,24 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
     def _transition_phase(self, next_phase: str) -> None:
         """
         Internal method to transition to the next phase.
+        ALL workflow phases are required and must occur in order. Skipping phases based on user decisiveness or input maturity is not permitted.
         Args:
             next_phase: The name of the phase to transition to.
         """
         # Add any logic needed before transitioning (e.g., logging, validation)
         st.write(f"Transitioning from {self.current_phase} to {next_phase}") # For debugging
+
+        # ALL workflow phases are required and must occur in order.
+        # Skipping phases based on user decisiveness or input maturity is not permitted.
+        current_phase_index = self.PHASES.index(self.current_phase)
+        next_phase_index = self.PHASES.index(next_phase)
+
+        if next_phase_index != current_phase_index + 1 and \
+           not (self.current_phase == "iteration" and next_phase == "recommendation") and \
+           not (self.current_phase == "recommendation" and next_phase == "iteration"):
+            raise ValueError(f"Invalid phase transition from '{self.current_phase}' to '{next_phase}'. "
+                             "Phases must proceed sequentially, or cycle between recommendation/iteration.")
+
         self.set_phase(next_phase)
         # Add any logic needed after transitioning (e.g., sending a message to the user)
 
@@ -137,6 +154,9 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                 # Persona might ask clarifying questions or confirm understanding.
                 # For simplicity, we'll transition after first input.
                 core_response = self.persona.greet_and_explain_value_prop_process() # Assuming persona has such a method
+                # Enforce: intake MUST transition to ideation.
+                assert self.PHASES.index("ideation") == self.PHASES.index(self.current_phase) + 1, \
+                    "Intake phase must transition directly to ideation."
                 self._transition_phase("ideation")
                 preliminary_message = self.persona.get_intake_to_ideation_transition_message()
             else:
@@ -217,6 +237,9 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                         # Suggest next ideation step or check for completion
                         next_ideation_step_candidate = self.suggest_next_step() # Don't pass user_input here to get next logical step
                         if self._are_ideation_fields_filled():
+                            # Enforce: ideation MUST transition to recommendation.
+                            assert self.PHASES.index("recommendation") == self.PHASES.index(self.current_phase) + 1, \
+                                "Ideation phase must transition directly to recommendation."
                             self._transition_phase("recommendation")
                             # The message for transition to recommendation will be handled in the next cycle or by persona
                             preliminary_message += "\n\nGreat! We've filled out the core aspects of your value proposition. Let's move on to recommendations."
@@ -232,6 +255,9 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
             
             # After processing, check if all ideation fields are filled to transition
             if self._are_ideation_fields_filled() and self.current_phase == "ideation": # Check phase again in case it changed
+                # Enforce: ideation MUST transition to recommendation.
+                assert self.PHASES.index("recommendation") == self.PHASES.index(self.current_phase) + 1, \
+                    "Ideation phase must transition directly to recommendation."
                 self._transition_phase("recommendation")
                 # Add a message indicating transition, if not already handled
                 if "Great! We've filled out the core aspects" not in (preliminary_message + core_response) and \
@@ -300,10 +326,17 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
             elif user_input_stripped:
                 # Handle follow-up questions or requests to iterate after recommendations have been shown.
                 if "iterate" in user_input_stripped.lower() or "refine" in user_input_stripped.lower():
+                    # Enforce: recommendation can transition to iteration (cycle).
+                    assert self.PHASES.index("iteration") == self.PHASES.index(self.current_phase) + 1 or \
+                           self.PHASES.index("iteration") == self.PHASES.index(self.current_phase) - 1, \
+                        "Recommendation phase must transition to iteration or summary."
                     self._transition_phase("iteration")
                     preliminary_message = "Okay, let's iterate on your value proposition. What specific aspects would you like to focus on or refine based on the recommendations or your own thoughts?"
                     core_response = "" # Reset core_response as preliminary_message covers the transition.
                 elif "summary" in user_input_stripped.lower():
+                    # Enforce: recommendation can transition to summary.
+                    assert self.PHASES.index("summary") == self.PHASES.index(self.current_phase) + 1, \
+                        "Recommendation phase must transition to iteration or summary."
                     self._transition_phase("summary")
                     preliminary_message = "Alright, let's move to the summary of your value proposition."
                     core_response = self.generate_summary() # Generate summary immediately on transition
@@ -335,6 +368,9 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                     revised_part_identified = False
                     for step in self.IDEATION_STEPS:
                         if step.replace("_", " ") in user_intent_lower:
+                            # Enforce: iteration can transition back to ideation for revision.
+                            assert self.PHASES.index("ideation") == self.PHASES.index(self.current_phase) - 2, \
+                                "Iteration phase must transition to ideation, recommendation, or summary."
                             self._transition_phase("ideation")
                             self.current_ideation_step = step
                             # Clear intro flag for this step to allow re-introduction by persona
@@ -349,11 +385,17 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                 
                 elif "rerun recommendation" in user_intent_lower or "re-run recommendation" in user_intent_lower:
                     st.session_state["vp_recommendation_fully_generated_once"] = False # Allow regeneration
+                    # Enforce: iteration can transition to recommendation (cycle).
+                    assert self.PHASES.index("recommendation") == self.PHASES.index(self.current_phase) - 1, \
+                        "Iteration phase must transition to ideation, recommendation, or summary."
                     self._transition_phase("recommendation")
                     preliminary_message = "Alright, I'll prepare a new set of recommendations based on the current state of your value proposition."
                     core_response = "" # Recommendation phase will generate its own content.
                 
                 elif "summary" in user_intent_lower or "proceed" in user_intent_lower or "done" in user_intent_lower or "finish" in user_intent_lower:
+                    # Enforce: iteration can transition to summary.
+                    assert self.PHASES.index("summary") == self.PHASES.index(self.current_phase) + 1, \
+                        "Iteration phase must transition to ideation, recommendation, or summary."
                     self._transition_phase("summary")
                     preliminary_message = "Great! Let's move to the final summary of your value proposition."
                     # Generate summary immediately upon transitioning

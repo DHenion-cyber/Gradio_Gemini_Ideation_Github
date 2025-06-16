@@ -338,7 +338,8 @@ async def generate_assistant_response(user_input: str) -> tuple[str, list]:
             search_results = [{"info": "Search skipped, call cap reached."}]
 
     # Delegate response generation to the workflow instance.
-    # The workflow's process_user_input method will use its persona.
+    # ALL workflow phases are required and must occur in order. Skipping phases based on user decisiveness or input maturity is not permitted.
+    # The workflow's process_user_input method will use its persona and manage its internal phase transitions.
     # TODO: Ensure all workflow process_user_input methods accept (user_input, search_results=None)
     # and that personas can utilize search_results.
     try:
