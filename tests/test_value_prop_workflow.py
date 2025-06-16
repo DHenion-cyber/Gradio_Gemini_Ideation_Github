@@ -104,10 +104,11 @@ class TestValuePropositionWorkflow:
         
         expected_response_parts = [
             "Okay, I understand.", # from active_listening
-            "Great start! Now let's move to ideation.", # from get_intake_to_ideation_transition_message
+            # "Great start! Now let's move to ideation.", # This part was removed from the response
             "Let's talk about the problem." # from get_step_intro_message
         ]
-        expected_response = "Okay, I understand. Great start! Now let's move to ideation. Let's talk about the problem. What are your thoughts?"
+        # The reflection prompt " What are your thoughts?" is added if the response doesn't end with "?"
+        expected_response = "Okay, I understand. Let's talk about the problem. What are your thoughts?"
         assert response == expected_response
         assert mock_session_state["scratchpad"] == updated_scratchpad_after_input
         assert mock_session_state.get(f"vp_intro_{IDEATION_STEPS[0]}") is True
