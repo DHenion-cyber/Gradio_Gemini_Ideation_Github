@@ -60,6 +60,9 @@ Your file tree should look like:
 └── ...
 
 ---
+## Recent Changes
+
+- **2025-06-16:** Removed obsolete test file `tests/test_value_prop_workflow.py` and simulation script `scripts/simulate_user_session.py` due to incompatibilities with the current codebase (e.g., missing methods in mocked objects, incorrect function imports). This cleanup ensures the project contains only relevant and working auxiliary files.
 
 ### 🧪 Testing and Continuous Integration
 This project includes basic pytest tests and a GitHub Actions workflow (.github/workflows/test.yml) that runs tests automatically on every push.
