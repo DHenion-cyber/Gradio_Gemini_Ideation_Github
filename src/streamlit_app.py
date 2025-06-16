@@ -1,4 +1,11 @@
-"""Main Streamlit application file for the Digital Health Innovation Chatbot UI."""
+"""
+Main Streamlit application file for the Digital Health Innovation Chatbot UI.
+This file is responsible for managing the overall UI flow and specifically handles
+the detailed stage transitions for workflows like Value Proposition. It updates
+st.session_state['stage'] to reflect granular phases such as 'intake', 'ideation',
+'recommendation', 'iteration', and 'summary' for the Value Proposition workflow,
+ensuring the UI syncs with the current phase of user interaction.
+"""
 import os
 import sys
 import streamlit as st
@@ -46,7 +53,7 @@ else:
 
 SECTIONS = ["Intake questions", "Value Proposition", "Actionable Recommendations", "Session Summary"]
 
-def render_horizontal_header(current_stage, current_phase):
+def render_horizontal_header(current_stage, current_phase): # current_phase is not strictly used now but kept for signature consistency
     st.markdown(
         """
         <style>
@@ -77,8 +84,12 @@ def render_horizontal_header(current_stage, current_phase):
         is_active = False
         if current_stage == "intake" and section == "Intake questions":
             is_active = True
-        elif current_stage == "ideation" and section == "Value Proposition":
+        elif current_stage in ["ideation", "recommendation", "iteration"] and section == "Value Proposition":
             is_active = True
+        elif current_stage == "summary" and section == "Session Summary": # Assuming "summary" stage maps to "Session Summary" header
+            is_active = True
+        # Note: "Actionable Recommendations" section might need its own stage if it's a distinct part of the flow
+        # For now, it's not directly tied to the value_prop stages being added.
         st.markdown(
             f'<div class="header-item {"active" if is_active else ""}">{section}</div>',
             unsafe_allow_html=True
@@ -107,8 +118,8 @@ async def main():
             st.rerun() # Rerun to clear UI
     elif selected_workflow == "value_prop":
         current_stage = st.session_state.get("stage")
-        # Valid post-intake stages for value_prop. Add more if they exist.
-        valid_post_intake_stages = ["ideation", "summary"]
+        # Valid post-intake stages for value_prop.
+        valid_post_intake_stages = ["ideation", "recommendation", "iteration", "summary"]
 
         # If value_prop is selected, and we are NOT in a valid post-intake stage for it,
         # then we should be in 'intake'. Initialize intake_index if needed.
@@ -163,18 +174,20 @@ async def main():
                         else:
                             st.warning("Please enter a response to proceed.")
                 else: # Intake complete
-                    logging.info(f"Intake complete for {selected_workflow}. Transitioning to ideation stage and exploration phase.")
-                    st.session_state["stage"] = "ideation" # Or next stage defined by workflow
-                    st.session_state["phase"] = "exploration" # Default phase for ideation
-                    st.session_state["conversation_history"] = [] # Clear for new phase
+                    logging.info(f"Intake complete for {selected_workflow}. Transitioning to ideation stage.")
+                    st.session_state["stage"] = "ideation"
+                    st.session_state["conversation_history"] = [
+                        {"role": "assistant", "text": "Great! We've completed the intake. Now, let's move on to crafting your Value Proposition. What are your initial thoughts or ideas for the value proposition?"}
+                    ]
                     st.session_state.pop("intake_answers", None) # Clear intake answers
                     if "user_id" in st.session_state:
                         save_session(st.session_state["user_id"], dict(st.session_state))
                     st.rerun()
 
-            # --- Ideation Stage Logic (Specific to Value Proposition workflow) ---
-            elif selected_workflow == "value_prop" and st.session_state.get("stage") == "ideation":
-                logging.info("DEBUG: Entering ideation stage for Value Proposition workflow.")
+            # --- Value Proposition Workflow Stages ---
+            elif selected_workflow == "value_prop" and st.session_state.get("stage") in ["ideation", "recommendation", "iteration", "summary"]:
+                current_vp_stage = st.session_state.get("stage")
+                logging.info(f"DEBUG: Entering Value Proposition workflow, stage: {current_vp_stage}.")
 
                 # Initialize Persona and Workflow if not already done
                 if "coach_persona_instance" not in st.session_state:
@@ -185,46 +198,130 @@ async def main():
                         context={"persona_instance": st.session_state.coach_persona_instance}
                     )
                     st.session_state.current_workflow_type = "value_prop"
-                    # Ensure conversation history is clean for a new workflow instance start
-                    st.session_state.conversation_history = []
-                    logging.info("ValuePropWorkflow instance created and conversation history reset.")
+                    # Ensure conversation history is clean for a new workflow instance start, unless already populated by intake transition
+                    if not st.session_state.get("conversation_history"):
+                        st.session_state.conversation_history = []
+                    logging.info("ValuePropWorkflow instance created/verified.")
 
                 workflow_instance = st.session_state.value_prop_workflow_instance
 
-                # Get initial message from workflow if conversation history is empty
-                if not st.session_state.get("conversation_history"):
-                    logging.info("ValuePropWorkflow: Conversation history empty, attempting to get initial prompt.")
-                    # Pass empty string to process_user_input to get initial greeting/prompt
-                    initial_assistant_prompt = workflow_instance.process_user_input("")
-                    if initial_assistant_prompt:
-                        st.session_state.conversation_history.append({"role": "assistant", "text": initial_assistant_prompt})
-                        logging.info(f"ValuePropWorkflow: Initial prompt received: {initial_assistant_prompt}")
-                        st.rerun() # Rerun to display the initial message
-                    else:
-                        logging.warning("ValuePropWorkflow: process_user_input with empty string did not return an initial prompt.")
+                # Display conversation history (common for ideation, recommendation, iteration)
+                if current_vp_stage in ["ideation", "recommendation", "iteration"]:
+                    if "conversation_history" in st.session_state:
+                        for i, message in enumerate(st.session_state["conversation_history"]):
+                            with st.chat_message(message["role"]):
+                                citations_for_render = message.get("citations", [])
+                                render_response_with_citations(message["text"], citations_for_render)
                 
-                # Display conversation history
-                if "conversation_history" in st.session_state:
-                    for i, message in enumerate(st.session_state["conversation_history"]):
-                        with st.chat_message(message["role"]):
-                            citations_for_render = message.get("citations", [])
-                            render_response_with_citations(message["text"], citations_for_render)
+                # --- Ideation Stage ---
+                if current_vp_stage == "ideation":
+                    user_input = st.chat_input(placeholder="What are your thoughts on the value proposition?")
+                    if user_input:
+                        st.session_state.conversation_history.append({"role": "user", "text": user_input})
+                        with st.chat_message("assistant"):
+                            with st.spinner("Coach is thinking..."):
+                                assistant_response = workflow_instance.process_user_input(user_input)
+                                if assistant_response is None:
+                                    assistant_response = "I'm sorry, I encountered an issue. Please try again."
+                                st.session_state.conversation_history.append({"role": "assistant", "text": assistant_response})
+                                render_response_with_citations(assistant_response, [])
+                        st.rerun()
+                    
+                    if st.button("Proceed to Recommendation Phase"):
+                        st.session_state["stage"] = "recommendation"
+                        st.session_state.conversation_history.append({
+                            "role": "assistant",
+                            "text": "Okay, let's move to the recommendation phase. Based on our discussion, I'll provide some targeted recommendations for your value proposition."
+                        })
+                        # Potentially call a workflow method to generate initial recommendations here
+                        # For now, just transition and let the user prompt or workflow handle next steps.
+                        if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
+                        st.rerun()
+
+                # --- Recommendation Stage ---
+                elif current_vp_stage == "recommendation":
+                    user_input = st.chat_input(placeholder="What do you think of these recommendations? Or ask for more.")
+                    if user_input:
+                        st.session_state.conversation_history.append({"role": "user", "text": user_input})
+                        with st.chat_message("assistant"):
+                            with st.spinner("Coach is thinking..."):
+                                # Assuming process_user_input handles being in recommendation phase
+                                assistant_response = workflow_instance.process_user_input(user_input)
+                                if assistant_response is None:
+                                    assistant_response = "I'm sorry, I encountered an issue. Please try again."
+                                st.session_state.conversation_history.append({"role": "assistant", "text": assistant_response})
+                                render_response_with_citations(assistant_response, [])
+                        st.rerun()
+
+                    if st.button("Proceed to Iteration Phase"):
+                        st.session_state["stage"] = "iteration"
+                        st.session_state.conversation_history.append({
+                            "role": "assistant",
+                            "text": "Great! Now let's iterate on these ideas. Feel free to suggest changes, ask for refinements, or explore alternatives."
+                        })
+                        if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
+                        st.rerun()
                 
-                # Handle user input
-                user_input = st.chat_input(placeholder="What are your thoughts on the value proposition?")
+                # --- Iteration Stage ---
+                elif current_vp_stage == "iteration":
+                    user_input = st.chat_input(placeholder="How would you like to refine the value proposition?")
+                    if user_input:
+                        st.session_state.conversation_history.append({"role": "user", "text": user_input})
+                        with st.chat_message("assistant"):
+                            with st.spinner("Coach is thinking..."):
+                                assistant_response = workflow_instance.process_user_input(user_input)
+                                if assistant_response is None:
+                                    assistant_response = "I'm sorry, I encountered an issue. Please try again."
+                                st.session_state.conversation_history.append({"role": "assistant", "text": assistant_response})
+                                render_response_with_citations(assistant_response, [])
+                        st.rerun()
 
-                if user_input:
-                    st.session_state.conversation_history.append({"role": "user", "text": user_input})
-                    with st.chat_message("assistant"):
-                        with st.spinner("Coach is thinking..."):
-                            assistant_response = workflow_instance.process_user_input(user_input)
-                            if assistant_response is None:
-                                logging.error("ValuePropWorkflow.process_user_input returned None. User input: %s", user_input)
-                                assistant_response = "I'm sorry, I encountered an issue and couldn't generate a response. Please try again."
-                            st.session_state.conversation_history.append({"role": "assistant", "text": assistant_response})
-                            render_response_with_citations(assistant_response, [])
-                    st.rerun()
+                    if st.button("Finalize and Proceed to Summary"):
+                        st.session_state["stage"] = "summary"
+                        # Generate a pre-summary message or let the summary stage handle it.
+                        st.session_state.conversation_history.append({
+                            "role": "assistant",
+                            "text": "Excellent! We've iterated on the value proposition. Let's now move to the summary of our work."
+                        })
+                        if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
+                        st.rerun()
 
+                # --- Summary Stage ---
+                elif current_vp_stage == "summary":
+                    st.subheader("Value Proposition Summary")
+                    # final_summary = workflow_instance.generate_final_summary() # Assuming this method exists
+                    # For now, let's use a placeholder or a generic summary from conversation_manager
+                    from conversation_manager import generate_final_summary_report # Import if not already
+                    final_summary_text = generate_final_summary_report() # Uses scratchpad
+                    
+                    st.markdown(final_summary_text if final_summary_text else "No summary could be generated at this time.")
+                    
+                    # Display conversation history for context if desired, or just the summary.
+                    # For brevity, we'll omit full history here but it could be an option.
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Restart Value Proposition Workflow"):
+                            st.session_state.stage = "intake"
+                            st.session_state.intake_index = 0
+                            st.session_state.conversation_history = [] # Clear history for restart
+                            # Potentially clear value_prop_workflow_instance or re-initialize
+                            st.session_state.pop("value_prop_workflow_instance", None)
+                            st.session_state.pop("current_workflow_type", None)
+                            logging.info("Value Proposition workflow restarted by user.")
+                            if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
+                            st.rerun()
+                    with col2:
+                        if st.button("Choose Another Workflow / Exit"):
+                            st.session_state.selected_workflow_key = None # This will trigger sidebar selection
+                            st.session_state.stage = None # Clear stage
+                            st.session_state.conversation_history = []
+                            st.session_state.pop("value_prop_workflow_instance", None)
+                            st.session_state.pop("current_workflow_type", None)
+                            logging.info("User opted to choose another workflow or exit after summary.")
+                            if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
+                            st.rerun()
+            
             # Placeholder for other workflows if they have an "ideation" or other stages
             elif selected_workflow != "value_prop" and st.session_state.get("stage") == "ideation":
                 st.info(f"Ideation stage for '{selected_workflow}' workflow is not yet implemented.")

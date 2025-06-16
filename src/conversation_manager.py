@@ -1,4 +1,11 @@
-"""Manages conversation state, user interactions, and integrates with workflows and personas."""
+"""
+Manages conversation state, user interactions, and integrates with workflows and personas.
+Handles general session stages like 'intake', 'workflow_active', and 'workflow_completed'.
+Specific workflow phases (e.g., for Value Proposition: 'ideation', 'recommendation',
+'iteration', 'summary') are primarily managed and set by streamlit_app.py based on
+workflow logic and user interaction, ensuring st.session_state['stage'] reflects these
+granular phases when a specific workflow like Value Proposition is active.
+"""
 import streamlit as st
 import datetime
 import uuid
