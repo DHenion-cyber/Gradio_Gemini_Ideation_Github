@@ -1,44 +1,79 @@
-"""Defines the CoachPersona class, providing conversation style and coaching behavior."""
+"""
+Defines the CoachPersona class, providing an enhanced conversation style and coaching behavior.
+
+Core Enhancements Summary (June 2025):
+- Single Question Focus: Chatbot asks at most one question per turn.
+- Strongest Element Prioritization: Identifies and focuses on the most developed, unvetted idea.
+- Contextual Recap: Briefly recaps relevant user-provided details before new questions.
+- Nuanced Input Assessment: Rates input depth/clarity on a sliding scale (vague, developing, specific, expert-level) instead of binary novice/advanced. Adapts support accordingly.
+- Flexible User Cue Detection: Identifies "open," "decided," "uncertain," or "curious" user cues.
+- Collaborative Ideation: Offers users a chance to approve, revise, or suggest alternatives for chatbot-led suggestions.
+- User Request Prioritization: (Assumed to be handled by ConversationManager) Always prioritizes direct user requests.
+- Reflective Summaries: Periodically provides "Here’s where we are..." summaries for user validation.
+- Micro-validation: Affirms user effort on complex/detailed answers.
+- Transparent Next Steps: Communicates the next planned step to the user.
+- Permission-Based Tips: Asks for permission before offering unsolicited tips/examples.
+"""
 import re
 from llm_utils import query_openai # Updated import
 
 class CoachPersona: # Renamed from BehaviorEngine
     """
-    Provides reusable, topic-agnostic behaviors and utilities for chatbot conversation.
+    Provides reusable, topic-agnostic behaviors and utilities for chatbot conversation,
+    embodying an enhanced coaching persona.
     """
 
-    def assess_idea_maturity(self, user_input: str) -> str:
+    def assess_input_clarity_depth(self, user_input: str) -> str:
         """
-        Assess if the user's input is specific/insightful or broad/generic.
-        Returns "advanced" or "novice".
-        """
-        if len(user_input.split()) > 10 and any(kw in user_input.lower() for kw in ["because", "which leads", "so that"]):
-            return "advanced"
-        if re.search(r"\b(specific|for example|such as|like)\b", user_input.lower()):
-            return "advanced"
-        return "novice"
-
-    def detect_user_stance(self, user_input: str, context_step: str = "") -> str:
-        """
-        Detects user's stance:
-        - "interest": showing enthusiasm, ready to move on
-        - "uncertain": signals confusion or asks for help
-        - "open": wants suggestions or is exploring
-        - "decided": makes a clear choice/decision
+        Assesses the depth and clarity of the user's input on a sliding scale.
+        Returns "vague", "developing", "specific", or "expert-level".
         """
         input_lower = user_input.lower()
-        if any(kw in input_lower for kw in ["not sure", "don't know", "unsure", "maybe", "help", "confused"]):
+        words = user_input.split()
+        length = len(words)
+
+        # Keywords for depth/reasoning
+        expert_keywords = ["therefore", "consequently", "furthermore", "in-depth", "systematic"]
+        specific_keywords = ["because", "which leads to", "so that", "for example", "specifically", "in detail"]
+        developing_keywords = ["maybe", "perhaps", "I think", "could be"]
+        
+        if any(kw in input_lower for kw in expert_keywords) and length > 15:
+            return "expert-level"
+        if (any(kw in input_lower for kw in specific_keywords) and length > 10) or \
+           (re.search(r"\b(my analysis shows|based on data|the key insight is)\b", input_lower) and length > 8):
+            return "specific"
+        if (any(kw in input_lower for kw in developing_keywords) and length > 5) or \
+           (length > 7 and not any(kw in input_lower for kw in specific_keywords + expert_keywords)):
+            return "developing"
+        if length <= 5 and not any(kw in input_lower for kw in specific_keywords + expert_keywords + developing_keywords):
+            return "vague" # Short, non-specific answers
+        return "developing" # Default catch-all
+
+    def detect_user_cues(self, user_input: str, context_step: str = "") -> str:
+        """
+        Detects user's conversational cues:
+        - "decided": makes a clear choice/decision or expresses strong conviction.
+        - "open": wants suggestions, is exploring, or asks "what if" type questions.
+        - "uncertain": signals confusion, asks for help, uses hesitant language.
+        - "curious": asks for more information, expresses desire to learn/understand.
+        - "neutral": if no strong cues are detected.
+        """
+        input_lower = user_input.lower()
+
+        if any(kw in input_lower for kw in ["i've decided", "i want to proceed with", "my choice is", "definitely", "for sure", "absolutely", "i will go with"]):
+            return "decided"
+        if any(kw in input_lower for kw in ["what if", "tell me more about", "how does that work", "i'm interested in learning", "explain further", "why is that"]):
+            return "curious"
+        if any(kw in input_lower for kw in ["not sure", "don't know", "unsure", "help", "confused", "i'm hesitant", "i'm finding this difficult"]):
             return "uncertain"
-        if any(kw in input_lower for kw in ["open", "suggest", "advice", "recommend", "explore", "looking for options"]):
+        if any(kw in input_lower for kw in ["open to ideas", "suggest something", "what do you recommend", "explore options", "any advice", "what are the alternatives"]):
             return "open"
-        if any(kw in input_lower for kw in ["i have decided", "i want to", "my answer is", "definitely", "for sure", "absolutely"]):
+        
+        # Heuristic for decided if short and affirmative, but less strong than explicit keywords
+        if len(input_lower.split()) <= 5 and any(kw in input_lower for kw in ["yes", "agree", "that's right", "sounds good"]):
             return "decided"
-        if any(kw in input_lower for kw in ["interested", "like to", "want to know more", "keen to"]):
-            return "interest"
-        # Heuristic: if input is brief and clear, likely decided; if verbose and vague, likely open/uncertain
-        if len(input_lower.split()) <= 5:
-            return "decided"
-        return "interest"
+            
+        return "neutral" # Default if no strong cues
 
     def active_listening(self, user_input: str) -> str:
         """
@@ -91,27 +126,110 @@ class CoachPersona: # Renamed from BehaviorEngine
             print(f"Error in diplomatic_acknowledgement LLM call: {e}")
             return "Understood." # Fallback response
 
-    def offer_example(self, step: str) -> str:
+    def _build_contextual_recap_prompt_segment(self, scratchpad: dict, current_step: str) -> str:
         """
-        Generates a generic example for a workflow step using an LLM.
+        Builds a prompt segment to recap relevant details from the scratchpad.
         """
-        system_prompt_base = """You are a helpful assistant. Your goal is to provide a single, concise, and relevant example for the given workflow step to help the user understand the type of input expected for this step. Do not use quotation marks or list multiple examples. The example should be illustrative. The chatbot should only reference general examples (e.g., wait times, overbooking) if the user's input is so vague as to require an example, and even then, provide only one, clearly tied to the user's case. Do not invent unrelated details."""
-        user_prompt = f"The current workflow step is '{step}'. Please provide an example for this step."
+        recap_parts = []
+        if not scratchpad:
+            return ""
 
+        # Prioritize recapping elements closely related to the current_step or recently discussed
+        # This is a simplified logic; a more sophisticated approach might track discussion flow.
+        related_keys = {
+            "problem": [],
+            "target_user": ["problem"],
+            "solution": ["problem", "target_user"],
+            "main_benefit": ["solution", "target_user"],
+            "differentiator": ["solution", "main_benefit"],
+            "use_case": ["solution", "target_user", "main_benefit"]
+        }
+
+        elements_to_recap = {}
+        if current_step in related_keys:
+            for key in related_keys[current_step]:
+                if scratchpad.get(key):
+                    elements_to_recap[key] = scratchpad[key]
+        
+        # Always include the element just before the current one if available and not already included
+        # This requires knowing the workflow order, simplified here.
+        # A more robust way would be to pass the workflow order or previous step.
+        workflow_order = ["problem", "target_user", "solution", "main_benefit", "differentiator", "use_case"]
+        if current_step in workflow_order:
+            current_idx = workflow_order.index(current_step)
+            if current_idx > 0:
+                prev_step = workflow_order[current_idx - 1]
+                if scratchpad.get(prev_step) and prev_step not in elements_to_recap:
+                     elements_to_recap[prev_step] = scratchpad[prev_step]
+        
+        if not elements_to_recap and scratchpad: # Fallback to last filled item if no direct relation
+            # Get the last non-empty item from a defined order or just the scratchpad
+            for key in reversed(workflow_order):
+                if scratchpad.get(key):
+                    elements_to_recap[key] = scratchpad[key]
+                    break
+        
+        if elements_to_recap:
+            recap_parts.append("Just to recap, so far we've discussed:")
+            for key, value in elements_to_recap.items():
+                recap_parts.append(f"- For '{key.replace('_', ' ')}', you mentioned: '{str(value)[:100]}...'") # Truncate for brevity
+            return " ".join(recap_parts) + " Now, focusing on the current step: "
+        return ""
+
+    def offer_example(self, step: str, user_input_for_context: str = "") -> str:
+        """
+        Asks the user if they want an example, then can generate it if requested.
+        For now, this method will be updated to frame the LLM call to ask first.
+        The actual delivery of the example upon user confirmation would ideally be a separate step/call.
+        """
+        # This prompt now instructs the LLM to ask first.
+        system_prompt_base = f"""You are a helpful coaching assistant. The user is working on the '{step}' step.
+First, ask the user if they would like an example for this step. Phrase it like: 'Would you like an example for the {step}, or do you have some initial thoughts?' or 'Sometimes an example can be helpful for the {step} step. Would you like one, or are you ready to share your ideas?'
+If their prior input ('{user_input_for_context}') was very vague, you can be slightly more direct: 'I can offer an example for {step} to help clarify, if you'd like. Would that be helpful?'
+Only provide the question asking if they want an example. Do not provide the example itself yet.
+Your response should be ONLY the question.
+"""
+        # The user_prompt is minimal as the system_prompt guides the LLM to ask the permission question.
+        user_prompt = f"The user is on step: {step}. Their previous input was: '{user_input_for_context}'. Ask if they want an example."
+
+        messages = [
+            {"role": "system", "content": system_prompt_base},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        try:
+            # This call now expects the LLM to return the question "Would you like an example?"
+            response = query_openai(messages=messages, max_tokens=70, temperature=0.6)
+            return response
+        except Exception as e:
+            print(f"Error in offer_example (permission asking) LLM call: {e}")
+            return f"Would you like an example for the {step} step?" # Fallback question
+
+    def provide_actual_example(self, step: str) -> str:
+        """
+        Generates and provides a concrete example for a given workflow step using an LLM.
+        This method is called *after* the user has agreed to see an example.
+        """
+        system_prompt_base = """You are a helpful assistant. Your goal is to provide a single, concise, and relevant example for the given workflow step to help the user understand the type of input expected. Do not use quotation marks or list multiple examples. The example should be illustrative.
+        Base the example on common scenarios but keep it brief and focused on the step's purpose.
+        """
+        user_prompt = f"The current workflow step is '{step}'. Please provide one clear and concise example for this step."
+
+        # Step-specific guidance for the LLM (can be enhanced)
         if step == "problem":
-            system_prompt = system_prompt_base + "For the 'problem' step, you could describe a common issue like patients missing appointments due to overlooked reminders."
-        elif step == "target_user": # Corrected from target_customer to target_user to match other uses
-            system_prompt = system_prompt_base + "For the 'target_user' step, you could mention a specific group like radiology schedulers who often get overloaded with manual calls."
+            system_prompt = system_prompt_base + " For 'problem', an example could be: 'Patients often miss follow-up appointments because they forget or find scheduling inconvenient.'"
+        elif step == "target_user":
+            system_prompt = system_prompt_base + " For 'target_user', an example could be: 'Busy working parents who struggle to find time for their own healthcare appointments.'"
         elif step == "solution":
-            system_prompt = system_prompt_base + "For the 'solution' step, you could suggest a tool like a chatbot to automate appointment scheduling."
+            system_prompt = system_prompt_base + " For 'solution', an example could be: 'An AI-powered chatbot that proactively reminds patients and allows easy rescheduling via text.'"
         elif step == "main_benefit":
-            system_prompt = system_prompt_base + "For the 'main_benefit' step, you could state a quantifiable outcome like achieving 10% fewer no-shows."
+            system_prompt = system_prompt_base + " For 'main_benefit', an example could be: 'Reduces no-show rates by 15% and frees up 5 hours of admin staff time per week.'"
         elif step == "differentiator":
-            system_prompt = system_prompt_base + "For the 'differentiator' step, you could mention a unique feature like AI-powered personalization that sets the solution apart."
+            system_prompt = system_prompt_base + " For 'differentiator', an example could be: 'Unlike basic reminder systems, our solution uses personalized timing and empathetic language, increasing engagement.'"
         elif step == "use_case":
-            system_prompt = system_prompt_base + "For the 'use_case' step, you could describe a scenario like a busy professional using the solution to quickly find healthy meal options during their lunch break."
+            system_prompt = system_prompt_base + " For 'use_case', an example could be: 'A patient receives a reminder 2 days before, confirms, then gets a day-of reminder with a map link. If they need to reschedule, they can do so with two text replies.'"
         else:
-            system_prompt = system_prompt_base + "Offer a single, concise, relevant example appropriate for the current context, without using quotes."
+            system_prompt = system_prompt_base + f" Provide a clear, illustrative example for the '{step}' step."
         
         messages = [
             {"role": "system", "content": system_prompt},
@@ -119,33 +237,59 @@ class CoachPersona: # Renamed from BehaviorEngine
         ]
         
         try:
-            response = query_openai(messages=messages, max_tokens=70, temperature=0.5)
+            response = query_openai(messages=messages, max_tokens=100, temperature=0.5)
             return response
         except Exception as e:
-            print(f"Error in offer_example LLM call: {e}")
-            return f"For example, for the {step}, you might consider..." # Fallback
+            print(f"Error in provide_actual_example LLM call: {e}")
+            return f"For instance, for the {step}, one might consider..." # Fallback example
 
-    def offer_strategic_suggestion(self, step: str) -> str:
+    def offer_strategic_suggestion(self, step: str, user_input_for_context: str = "") -> str:
         """
-        Generates a generic suggestion related to the workflow step using an LLM.
+        Asks the user if they want a strategic suggestion for a workflow step.
+        The actual delivery of the suggestion upon user confirmation would ideally be a separate step/call.
         """
-        system_prompt_base = "You are a helpful assistant. Offer a strategic suggestion to help the user clarify or advance the current workflow step. The suggestion should be a question or a gentle prompt, not a direct command. Avoid quoting examples within the suggestion. "
-        user_prompt = f"The current workflow step is '{step}'. Please provide a strategic suggestion for this step."
+        system_prompt_base = f"""You are a helpful coaching assistant. The user is working on the '{step}' step.
+Their previous input was: '{user_input_for_context}'.
+First, ask the user if they would like a strategic tip or a question to consider for this step.
+Phrase it like: 'I have a strategic thought for the {step} step, if you're interested?' or 'Would a quick tip or a thought-provoking question be helpful as you consider the {step}?'
+Your response should be ONLY the question asking if they want a suggestion. Do not provide the suggestion itself yet.
+"""
+        user_prompt = f"The user is on step: {step}. Their previous input was: '{user_input_for_context}'. Ask if they want a strategic suggestion."
+
+        messages = [
+            {"role": "system", "content": system_prompt_base},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        try:
+            response = query_openai(messages=messages, max_tokens=70, temperature=0.6)
+            return response
+        except Exception as e:
+            print(f"Error in offer_strategic_suggestion (permission asking) LLM call: {e}")
+            return f"Would you like a strategic tip for the {step} step?" # Fallback
+
+    def provide_actual_strategic_suggestion(self, step: str) -> str:
+        """
+        Generates and provides a concrete strategic suggestion for a given workflow step using an LLM.
+        This method is called *after* the user has agreed to hear a suggestion.
+        """
+        system_prompt_base = "You are a helpful assistant. Offer one strategic suggestion to help the user clarify or advance the current workflow step. The suggestion should be a question or a gentle prompt, not a direct command. Explain briefly why this suggestion could be helpful."
+        user_prompt = f"The current workflow step is '{step}'. Please provide one strategic suggestion for this step, explaining its potential benefit."
 
         if step == "problem":
-            system_prompt = system_prompt_base + "For the 'problem' step, you could prompt them to consider who is most affected and when, or ask if clarifying that would be helpful."
-        elif step == "target_user": # Corrected from target_customer
-            system_prompt = system_prompt_base + "For the 'target_user' step, you could suggest considering narrowing to one patient group for sharper impact."
+            system_prompt = system_prompt_base + " For 'problem', you could prompt: 'Have you considered the root cause versus the symptoms of this problem? Focusing on the root cause can lead to more impactful solutions.'"
+        elif step == "target_user":
+            system_prompt = system_prompt_base + " For 'target_user', you could suggest: 'Could narrowing your target user further help create a more compelling, tailored message? Sometimes a very specific niche is powerful.'"
         elif step == "solution":
-            system_prompt = system_prompt_base + "For the 'solution' step, you could ask what if they started with a pilot in a single clinic."
+            system_prompt = system_prompt_base + " For 'solution', you could ask: 'What's the absolute minimum viable version of your solution that could deliver value? Starting small can help test assumptions quickly.'"
         elif step == "main_benefit":
-            system_prompt = system_prompt_base + "For the 'main_benefit' step, you could mention that measurable outcomes help and ask if they want ideas for tracking."
+            system_prompt = system_prompt_base + " For 'main_benefit', you could mention: 'How could you quantify this benefit? Measurable outcomes are often very persuasive.'"
         elif step == "differentiator":
-            system_prompt = system_prompt_base + "For the 'differentiator' step, you could ask if they've considered how their solution addresses unmet needs better than existing alternatives."
+            system_prompt = system_prompt_base + " For 'differentiator', you could ask: 'Is your differentiator sustainable, or could competitors easily replicate it? Thinking about long-term advantage is key.'"
         elif step == "use_case":
-            system_prompt = system_prompt_base + "For the 'use_case' step, you could ask if they've considered how different user segments might have distinct primary use cases for the solution, or if detailing a specific scenario would help clarify its value."
+            system_prompt = system_prompt_base + " For 'use_case', you could ask: 'Does this use case clearly demonstrate the main benefit and differentiator in action? A strong narrative here can be very effective.'"
         else:
-            system_prompt = system_prompt_base + "Offer a helpful, strategic suggestion relevant to the current step, framed as a question or gentle prompt."
+            system_prompt = system_prompt_base + f" Offer a helpful, strategic suggestion relevant to the '{step}' step, framed as a question or gentle prompt, and explain its benefit."
         
         messages = [
             {"role": "system", "content": system_prompt},
@@ -153,23 +297,23 @@ class CoachPersona: # Renamed from BehaviorEngine
         ]
         
         try:
-            response = query_openai(messages=messages, max_tokens=80, temperature=0.7)
+            response = query_openai(messages=messages, max_tokens=120, temperature=0.7)
             return response
         except Exception as e:
-            print(f"Error in offer_strategic_suggestion LLM call: {e}")
-            return f"Have you considered how to best approach the {step}?" # Fallback
+            print(f"Error in provide_actual_strategic_suggestion LLM call: {e}")
+            return f"For the {step}, one strategic angle to consider is..." # Fallback
 
-    def paraphrase_user_input(self, user_input: str, stance: str, current_step: str = "the current topic", scratchpad: dict = None, search_results: list = None) -> str: # Added search_results
+    def paraphrase_user_input(self, user_input: str, user_cue: str, current_step: str = "the current topic", scratchpad: dict = None, search_results: list = None) -> str: # Added search_results
         """
-        Paraphrases the user's input using an LLM, reflecting the detected stance
+        Paraphrases the user's input using an LLM, reflecting the detected user_cue
         and current step, and provides initial context-aware feedback.
         Can optionally use search_results to inform the LLM.
         Now accepts scratchpad for richer context.
         """
-        maturity = self.assess_idea_maturity(user_input)
+        clarity_depth = self.assess_input_clarity_depth(user_input)
         scratchpad = scratchpad or {}
 
-        system_prompt_base = f"""You are a helpful coaching assistant. Your goal is to help the user develop a strong value proposition. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
+        system_prompt_base = f"""You are a helpful coaching assistant. Your goal is to help the user develop a strong value proposition. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input, culminating in a single question if a question is needed. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
 The current step is '{current_step}'. The user's input for this step is: '{user_input}'.
 The current state of their value proposition development (scratchpad) is: {scratchpad}.
 Your response should have two parts:
@@ -179,29 +323,40 @@ Your response should have two parts:
         if search_results:
             system_prompt_base += f"\nRelevant search results for context: {search_results}\n"
 
-        if maturity == "novice":
+        # Feedback based on clarity_depth
+        if clarity_depth == "vague":
             system_prompt_base += (
-                f"The user's input '{user_input}' for '{current_step}' seems a bit general. "
-                f"In your feedback part, explain briefly why more detail for '{current_step}' (related to their idea of '{user_input}') would be beneficial for building a compelling value proposition. For example: 'Getting more specific about your idea of \"{user_input[:30]}...\" for {current_step} can help us pinpoint exactly who it's for and what unique value it offers, which is key to a strong value proposition.'\n"
+                f"The user's input '{user_input}' for '{current_step}' seems quite general. "
+                f"In your feedback part, explain briefly why more detail for '{current_step}' (related to their idea of '{user_input}') would be beneficial. For example: 'Thanks for sharing that initial thought on {current_step}. To really dig into this, could we explore [specific aspect] in a bit more detail? This helps ensure we're building a solid foundation.'\n"
             )
-        else: # advanced
+        elif clarity_depth == "developing":
+            system_prompt_base += (
+                f"The user's input '{user_input}' for '{current_step}' is starting to take shape. "
+                f"In your feedback part, acknowledge the progress and gently probe for more specifics. For example: 'That's an interesting direction for {current_step} with your idea of \"{user_input[:30]}...\". To build on that, perhaps we could clarify [a specific point]?'\n"
+            )
+        elif clarity_depth == "specific":
             system_prompt_base += (
                 f"The user's input '{user_input}' for '{current_step}' is quite specific. "
-                f"In your feedback part, affirm this (e.g., 'That's a clear and specific direction for {current_step}.'). "
-                f"You might also briefly note how this specificity is helpful (e.g., 'This level of detail regarding \"{user_input[:30]}...\" is great for ensuring {current_step} strongly supports the overall value proposition.').\n"
+                f"In your feedback part, affirm this (e.g., 'That's a clear and specific direction for {current_step} regarding \"{user_input[:30]}...\".'). "
+                f"You might also briefly note how this specificity is helpful.\n"
+            )
+        elif clarity_depth == "expert-level":
+             system_prompt_base += (
+                f"The user's input '{user_input}' for '{current_step}' is very detailed and insightful. "
+                f"In your feedback part, acknowledge this strongly (e.g., 'That's a very thorough and well-articulated point on {current_step} concerning \"{user_input[:30]}...\". This level of detail is excellent!').\n"
             )
 
-        # Stance-specific additions to the prompt (these will guide the *tone* and *framing* of the two-part response)
-        if stance == "decided":
+        # Cue-specific additions to the prompt (these will guide the *tone* and *framing* of the two-part response)
+        if user_cue == "decided":
             system_prompt = system_prompt_base + f"Frame your two-part response (paraphrase + feedback) with confidence, acknowledging their clear direction regarding '{user_input[:30]}...' for {current_step}."
-        elif stance == "uncertain":
-            system_prompt = system_prompt_base + f"Frame your two-part response gently, acknowledging they are exploring ideas like '{user_input[:30]}...' for {current_step}."
-        elif stance == "open":
+        elif user_cue == "uncertain":
+            system_prompt = system_prompt_base + f"Frame your two-part response gently and reassuringly, acknowledging they are exploring ideas like '{user_input[:30]}...' for {current_step} and might be unsure."
+        elif user_cue == "open":
             system_prompt = system_prompt_base + f"Frame your two-part response encouragingly, noting their openness to exploring ideas like '{user_input[:30]}...' for {current_step}."
-        elif stance == "interest":
-            system_prompt = system_prompt_base + f"Frame your two-part response positively, reflecting their interest in ideas like '{user_input[:30]}...' for {current_step}."
+        elif user_cue == "curious":
+            system_prompt = system_prompt_base + f"Frame your two-part response by acknowledging their curiosity about '{user_input[:30]}...' for {current_step} and indicating a willingness to explore or explain."
         else: # neutral or other
-            system_prompt = system_prompt_base + f"Frame your two-part response with clear acknowledgement of their input '{user_input[:30]}...' for {current_step}."
+            system_prompt = system_prompt_base + f"Frame your two-part response with clear, neutral acknowledgement of their input '{user_input[:30]}...' for {current_step}."
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -210,46 +365,73 @@ Your response should have two parts:
         
         try:
             response = query_openai(messages=messages, max_tokens=150, temperature=0.7) # Increased tokens
+            
+            # Micro-validation for detailed input
+            clarity_depth = self.assess_input_clarity_depth(user_input)
+            if clarity_depth in ["specific", "expert-level"] and user_input and len(user_input.split()) > 15 : # Arbitrary length for "detailed"
+                micro_validation = "That's a very clear and detailed response, thank you for putting that thought into it! "
+                response = micro_validation + response
+
+            # Ensure single question if response doesn't naturally end with one
+            if not response.strip().endswith("?"):
+                response += " What are your thoughts on this?" # Generic follow-up
+
             return response
         except Exception as e:
             print(f"Error in paraphrase_user_input LLM call: {e}")
             # Fallback that still tries to reference the input
             if user_input:
-                 return f"I've noted your thoughts on {current_step}: '{user_input[:50]}...'. Let's consider how to refine this."
-            return f"I'm processing your thoughts on {current_step}."
+                 return f"I've noted your thoughts on {current_step}: '{user_input[:50]}...'. Let's consider how to refine this. What's one aspect you'd like to focus on next?"
+            return f"I'm processing your thoughts on {current_step}. What's the next point you'd like to discuss?"
 
-    def coach_on_decision(self, current_step: str, user_input: str, scratchpad: dict = None, stance: str = "decided", search_results: list = None) -> str: # Added search_results
+    def coach_on_decision(self, current_step: str, user_input: str, scratchpad: dict = None, user_cue: str = "decided", search_results: list = None) -> str: # Added search_results
         """
-        Coaches the user after they've made a decision, using an LLM,
+        Coaches the user after they've made a decision (or expressed a strong cue), using an LLM,
         referencing their specific input and explaining the 'why' of feedback.
+        Adapts based on input clarity and provides a single follow-up question.
         Can optionally use search_results to inform the LLM.
-        Now accepts scratchpad and an explicit stance.
+        Now accepts scratchpad and an explicit user_cue.
         """
-        maturity = self.assess_idea_maturity(user_input)
+        clarity_depth = self.assess_input_clarity_depth(user_input)
         scratchpad = scratchpad or {}
         
-        system_prompt_base = f"""You are a helpful coaching assistant. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
-The user has made a decision for the '{current_step}' (stance: {stance}). Their input was conceptually about '{user_input}'.
-The current state of their value proposition development (scratchpad) is: {scratchpad}.
-Your task is to provide feedback. DO NOT quote the user's input '{user_input}' directly. Instead, refer to it as 'your decision about {current_step}', 'your idea of {user_input[:30]}...', or 'your focus on [paraphrased essence of user_input]'. Explain *why* your feedback or suggestions are helpful for them to build a strong value proposition.
-"""
+        system_prompt_base = f"""You are a helpful coaching assistant. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input, culminating in a single, focused question. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
+        The user has expressed a '{user_cue}' cue for the '{current_step}'. Their input was conceptually about '{user_input}'.
+        The current state of their value proposition development (scratchpad) is: {scratchpad}.
+        Your task is to provide feedback. DO NOT quote the user's input '{user_input}' directly. Instead, refer to it as 'your decision about {current_step}', 'your idea of {user_input[:30]}...', or 'your focus on [paraphrased essence of user_input]'. Explain *why* your feedback or suggestions are helpful for them to build a strong value proposition.
+        Conclude with a single, clear question to move the conversation forward.
+        """
         if search_results:
             system_prompt_base += f"\nRelevant search results for context: {search_results}\n"
 
-        if maturity == "novice":
+        # Tailor feedback and follow-up question based on clarity_depth
+        if clarity_depth == "vague":
             system_prompt = system_prompt_base + (
-                f"The user's decision for '{current_step}', which is along the lines of '{user_input}', seems like a good starting point but could be more specific. "
-                f"Explain that getting more specific about '{user_input}' for '{current_step}' can significantly strengthen their value proposition by, for example, making it easier to identify a precise target audience, tailor the solution, or articulate a unique benefit. "
-                f"Offer a concrete suggestion for how they could refine their idea '{user_input}'. For example, if '{current_step}' is 'problem' and they said 'communication issues', you might suggest: 'For instance, with 'communication issues', could you pinpoint what kind of communication, for whom, and what the direct negative impact is? This helps ensure the solution is highly relevant.' "
-                f"Then, ask if they'd like to refine their current idea about '{user_input}' to be more specific, or if they prefer to stick with it for now. You could also offer to brainstorm specific examples related to '{user_input}'."
+                f"The user's input for '{current_step}', around '{user_input}', is a bit general. "
+                f"Acknowledge their direction. Explain that adding more detail to '{user_input}' for '{current_step}' can make their value proposition much stronger by clarifying [mention a specific benefit like target audience or unique value]. "
+                f"Suggest one way they could add detail. For example, if '{current_step}' is 'problem' and they said 'inefficiency', you might suggest: 'For 'inefficiency', could you describe a specific scenario where this inefficiency occurs and who it impacts most? That would help us zero in on the core issue.' "
+                f"End by asking a single question inviting them to elaborate on that specific suggestion or a related aspect. For example: 'Would you like to explore that specific scenario of inefficiency, or is there another angle you're considering?'"
             )
-        else:  # "advanced"
+        elif clarity_depth == "developing":
+            system_prompt = system_prompt_base + (
+                f"The user's input for '{current_step}', which is '{user_input}', is developing well. "
+                f"Acknowledge their idea. Explain that building on this with a bit more specificity for '{current_step}' regarding '{user_input}' will help solidify [mention a benefit like solution focus or benefit articulation]. "
+                f"Offer a concrete suggestion for refinement. For example, if '{current_step}' is 'solution' and they mentioned 'a new app', you could suggest: 'With the 'new app' idea, what's one key feature that directly tackles the problem we discussed? Focusing on that can make its value very clear.' "
+                f"End by asking a single question inviting them to elaborate on that key feature or how it connects. For example: 'What are your thoughts on that key feature, or how do you see it directly solving the problem?'"
+            )
+        elif clarity_depth == "specific":
             system_prompt = system_prompt_base + (
                 f"The user's input for '{current_step}', which is '{user_input}', is quite specific and clear. "
-                f"Affirm this (e.g., 'Your decision to focus on {user_input[:30]}... for {current_step} is very clear and specific.'). "
-                f"Explain briefly why this level of specificity is valuable (e.g., 'This kind of detail for {current_step} is excellent because it allows for a more targeted approach to [next step/overall value prop element], making your overall value proposition more compelling.'). "
-                f"Then, invite them to elaborate on the reasoning or experience that led them to '{user_input}' (e.g., 'Could you share a bit more about what brought you to this specific idea for {current_step}? Understanding your perspective can help us build on it effectively.'). "
-                f"You could also ask if they see any potential challenges or refinements related to '{user_input}', or if they're ready to connect this to the next part of their value proposition."
+                f"Affirm this (e.g., 'Your focus on {user_input[:30]}... for {current_step} is very clear and specific. That's great!'). "
+                f"Explain briefly why this specificity is valuable (e.g., 'This level of detail for {current_step} is excellent because it helps us [mention benefit like tailor next steps or ensure alignment].'). "
+                f"Then, ask a single, focused question to build on their specific input. For example: 'What's the primary motivation or experience that led you to this specific idea for {current_step}?' or 'How do you see this specific point connecting to [next logical element, e.g., the main benefit]?'"
+            )
+        elif clarity_depth == "expert-level":
+            system_prompt = system_prompt_base + (
+                f"The user's input for '{current_step}', '{user_input}', is exceptionally clear and insightful. "
+                f"Strongly affirm their detailed thinking (e.g., 'That's a very well-thought-out and comprehensive perspective on {current_step} with your idea of {user_input[:30]}...! The depth here is impressive.'). "
+                f"Briefly state how this advanced input is beneficial (e.g., 'This allows us to move quite effectively to [related concept or next step].'). "
+                f"Ask a single, high-level strategic question that respects their expertise. For example: 'Given this detailed understanding of {current_step}, what do you foresee as the biggest challenge or opportunity in implementing this?' or 'How might this detailed insight into {current_step} influence our approach to [a broader strategic area]?'"
             )
         
         messages = [
@@ -259,33 +441,49 @@ Your task is to provide feedback. DO NOT quote the user's input '{user_input}' d
         
         try:
             response = query_openai(messages=messages, max_tokens=180, temperature=0.7) # Increased tokens
+            
+            # Micro-validation for detailed input
+            clarity_depth = self.assess_input_clarity_depth(user_input)
+            if clarity_depth in ["specific", "expert-level"] and user_input and len(user_input.split()) > 15 :
+                micro_validation = "Thanks for sharing such a detailed perspective on that! "
+                response = micro_validation + response
+            
+            # Ensure single question if response doesn't naturally end with one
+            if not response.strip().endswith("?"):
+                 response += " What are your thoughts on this approach?"
+
             return response
         except Exception as e:
             print(f"Error in coach_on_decision LLM call: {e}")
             # Fallback that still tries to reference the input
             if user_input:
-                return f"That's an interesting decision for {current_step} regarding '{user_input[:50]}...'. What's your reasoning behind it?"
-            return f"That's an interesting decision for {current_step}. What's your reasoning behind it?"
+                return f"That's an interesting decision for {current_step} regarding '{user_input[:50]}...'. What's the primary reason you landed on that?"
+            return f"That's an interesting decision for {current_step}. Could you share a bit more about your thinking?"
 
-    def provide_feedback(self, current_value_prop_elements: dict, user_request: str) -> str:
+    def provide_feedback(self, current_value_prop_elements: dict, user_request: str, scratchpad: dict) -> str:
         """
         Provides critical, constructive feedback on the current value proposition elements using an LLM.
+        Includes contextual recap and ensures a single, focused follow-up question.
         """
         problem_summary = current_value_prop_elements.get("problem", "not yet defined")
-        target_user_summary = current_value_prop_elements.get("target_user", "not yet defined") # Corrected key
+        target_user_summary = current_value_prop_elements.get("target_user", "not yet defined")
         solution_summary = current_value_prop_elements.get("solution", "not yet defined")
-        benefit_summary = current_value_prop_elements.get("main_benefit", "not yet defined") # Corrected key
+        benefit_summary = current_value_prop_elements.get("main_benefit", "not yet defined")
         differentiator_summary = current_value_prop_elements.get("differentiator", "not yet defined")
         use_case_summary = current_value_prop_elements.get("use_case", "not yet defined")
 
-        system_prompt = f"""You are a helpful coaching assistant. Your goal is to provide critical, constructive feedback on the user's current value proposition elements to help them build a strong and compelling one. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
-When referring to the user's input for each element (problem, target user, solution, etc.), paraphrase it conceptually (e.g., 'Regarding the problem you've identified as affecting X...' or 'Your proposed solution involving Y...'). Do not quote their input directly. Avoid generic terms like 'the problem' and instead refer to 'the problem you described concerning Z'.
-Your feedback should:
-1. Identify specific strengths, connecting them to how they contribute to a strong value proposition (e.g., 'The way you've defined the target user as [paraphrased user input] is strong because it allows for highly focused messaging.').
-2. Pinpoint specific areas for improvement or further questions. For each, explain *why* addressing this point would strengthen their value proposition (e.g., 'Considering your solution idea of [paraphrased user input], have you thought about how it directly addresses the core pain point of [paraphrased problem]? Clarifying this link will make the benefit more obvious.').
-3. Offer concrete, actionable advice. Explain how this advice helps them achieve a better value proposition (e.g., 'To make the benefit of [paraphrased benefit] more impactful, perhaps we could brainstorm ways to quantify it. This helps demonstrate clear value to your target user of [paraphrased target user].').
-Maintain a constructive, supportive tone throughout.
-"""
+        recap_segment = self._build_contextual_recap_prompt_segment(scratchpad, "feedback_stage")
+
+        system_prompt = f"""You are a helpful coaching assistant. Your goal is to provide critical, constructive feedback on the user's current value proposition elements to help them build a strong and compelling one. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input, culminating in a single focused question. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
+        {recap_segment}
+        When referring to the user's input for each element (problem, target user, solution, etc.), paraphrase it conceptually (e.g., 'Regarding the problem you've identified as affecting X...' or 'Your proposed solution involving Y...'). Do not quote their input directly. Avoid generic terms like 'the problem' and instead refer to 'the problem you described concerning Z'.
+        Your feedback should:
+        1. Identify one key strength, connecting it to how it contributes to a strong value proposition.
+        2. Pinpoint one primary area for improvement or a key question to consider. Explain *why* addressing this point would strengthen their value proposition.
+        3. Offer one piece of concrete, actionable advice related to the area of improvement. Explain how this advice helps.
+        Maintain a constructive, supportive tone throughout.
+        Conclude with a single, focused question inviting the user to respond to the key piece of feedback or to choose a direction for refinement. For example: 'What are your thoughts on [key feedback point], or would you prefer to focus on [alternative aspect] next?'
+        """
         
         user_prompt_for_llm = (
             f"Here's the current value proposition for feedback, based on my request '{user_request}':\n"
@@ -295,7 +493,7 @@ Maintain a constructive, supportive tone throughout.
             f"- Main Benefit: {benefit_summary}\n"
             f"- Differentiator: {differentiator_summary}\n"
             f"- Use Case: {use_case_summary}\n"
-            "Please provide your detailed, constructive feedback, explaining the 'why' behind your points."
+            "Please provide your focused, constructive feedback, explaining the 'why' behind your points, and end with a single question."
         )
 
         messages = [
@@ -304,31 +502,38 @@ Maintain a constructive, supportive tone throughout.
         ]
         
         try:
-            response = query_openai(messages=messages, max_tokens=250, temperature=0.7) # Increased max_tokens
+            response = query_openai(messages=messages, max_tokens=300, temperature=0.7) # Increased max_tokens
+            if not response.strip().endswith("?"):
+                response += " What are your initial thoughts on this feedback?"
             return response
         except Exception as e:
             print(f"Error in provide_feedback LLM call: {e}")
-            return "That's an interesting set of ideas. Let's think about how they fit together and how we can make them even stronger." # Fallback
+            return "That's an interesting set of ideas. Let's think about how they fit together. What's one area you'd like to discuss first?" # Fallback
 
-    def generate_ideas(self, current_value_prop_elements: dict, user_request: str) -> str:
+    def generate_ideas(self, current_value_prop_elements: dict, user_request: str, scratchpad: dict) -> str:
         """
-        Analyzes current input and offers thoughtful, actionable suggestions using an LLM.
+        Analyzes current input and offers one thoughtful, actionable suggestion using an LLM.
+        Ensures suggestions are collaborative and culminate in a single question.
         """
         problem_summary = current_value_prop_elements.get("problem", "not defined yet")
-        target_user_summary = current_value_prop_elements.get("target_user", "not defined yet") # Corrected key
+        target_user_summary = current_value_prop_elements.get("target_user", "not defined yet")
         solution_summary = current_value_prop_elements.get("solution", "not defined yet")
-        benefit_summary = current_value_prop_elements.get("main_benefit", "not defined yet") # Corrected key
+        benefit_summary = current_value_prop_elements.get("main_benefit", "not defined yet")
         differentiator_summary = current_value_prop_elements.get("differentiator", "not defined yet")
         use_case_summary = current_value_prop_elements.get("use_case", "not defined yet")
 
-        system_prompt = f"""You are a helpful coaching assistant. Your goal is to generate thoughtful, actionable suggestions based on the user's current value proposition elements, helping them to strengthen it. The chatbot must choose the *single most relevant and context-appropriate* response or follow-up per user input. The chatbot must not combine, batch, or list multiple options or suggestions in one response. Base your response only on what the user has shared, unless you need to offer a *single* specific example to clarify a vague input. Do not invent unrelated details.
-When referring to the user's input for each element, paraphrase it conceptually (e.g., 'Given your focus on the problem of [paraphrased problem] for the target user you described as [paraphrased target user]...'). Do not quote their input directly. Avoid generic terms like 'the solution' and instead refer to 'your solution idea concerning X'.
-Your suggestions should:
-1. Be directly based on their existing elements to ensure relevance.
-2. Identify potential gaps or areas for further development, explaining *why* exploring these could be beneficial (e.g., 'Considering the problem of [paraphrased problem] and your solution idea of [paraphrased solution], exploring how [specific aspect] could address an unmet need for your [paraphrased target user] might make your differentiator clearer.').
-3. Suggest concrete next steps or alternative angles. For each suggestion, explain *how* it could help them build a more compelling value proposition (e.g., 'If the main benefit you're aiming for is [paraphrased benefit], and a primary use case involves [paraphrased use case], perhaps exploring [specific feature/aspect] would strengthen that connection by making the benefit more tangible in that scenario. This could make your idea more persuasive.').
-Aim for specific, actionable ideas, not generic advice. Frame suggestions as collaborative exploration.
-"""
+        recap_segment = self._build_contextual_recap_prompt_segment(scratchpad, "idea_generation_stage")
+
+        system_prompt = f"""You are a helpful coaching assistant. Your goal is to generate one thoughtful, actionable suggestion based on the user's current value proposition elements, helping them to strengthen it. The chatbot must offer only a *single* suggestion or idea per turn. Base your response only on what the user has shared.
+        {recap_segment}
+        When referring to the user's input for each element, paraphrase it conceptually. Do not quote their input directly.
+        Your suggestion should:
+        1. Be directly based on their existing elements to ensure relevance.
+        2. Identify one potential gap or area for further development, explaining *why* exploring this could be beneficial.
+        3. Suggest one concrete next step or alternative angle. Explain *how* it could help them build a more compelling value proposition.
+        Aim for a specific, actionable idea, not generic advice. Frame the suggestion collaboratively.
+        Conclude by offering the user a chance to approve, revise, or suggest an alternative to your idea, phrased as a single question. For example: 'One thought is to explore [your suggested idea] – how does that sound? Or would you prefer to tweak it or consider another direction?'
+        """
         
         user_prompt_for_llm = (
             f"Based on my request '{user_request}' and the current value proposition:\n"
@@ -338,7 +543,7 @@ Aim for specific, actionable ideas, not generic advice. Frame suggestions as col
             f"- Main Benefit: {benefit_summary}\n"
             f"- Differentiator: {differentiator_summary}\n"
             f"- Use Case: {use_case_summary}\n"
-            "Please generate some ideas or suggestions, explaining how they could help improve my value proposition."
+            "Please generate one key idea or suggestion, explain how it could help, and ask for my input on it with a single question."
         )
 
         messages = [
@@ -347,11 +552,13 @@ Aim for specific, actionable ideas, not generic advice. Frame suggestions as col
         ]
         
         try:
-            response = query_openai(messages=messages, max_tokens=280, temperature=0.75) # Increased max_tokens
+            response = query_openai(messages=messages, max_tokens=300, temperature=0.75) # Increased max_tokens
+            if not response.strip().endswith("?"):
+                response += " What do you think of this suggestion?"
             return response
         except Exception as e:
             print(f"Error in generate_ideas LLM call: {e}")
-            return "Let's brainstorm some possibilities for your idea and see how we can enhance it." # Fallback
+            return "Let's brainstorm some possibilities. What's one area you feel could be stronger?" # Fallback
 
     def get_intake_to_ideation_transition_message(self) -> str:
         """
@@ -400,13 +607,14 @@ Aim for specific, actionable ideas, not generic advice. Frame suggestions as col
         """
         return "\n\nWhat do you think? Would you like to explore this direction, or focus on another aspect?"
 
-    def generate_value_prop_summary(self, scratchpad: dict) -> str:
+    def generate_value_prop_summary(self, scratchpad: dict, for_reflection: bool = False) -> str:
         """
         Generates a structured summary string with a main paragraph, use cases, and recommendations
         based on the provided scratchpad. This method formats the data and does not call an LLM.
+        If for_reflection is True, it prefaces with "Here's where we are now...".
         """
         problem_desc = scratchpad.get('problem')
-        target_user_desc = scratchpad.get('target_customer')
+        target_user_desc = scratchpad.get('target_user') # Corrected key from target_customer
         solution_desc = scratchpad.get('solution')
         benefit_desc = scratchpad.get('main_benefit')
         differentiator_desc = scratchpad.get('differentiator')
@@ -414,48 +622,81 @@ Aim for specific, actionable ideas, not generic advice. Frame suggestions as col
         research_requests = scratchpad.get("research_requests", [])
 
         summary_parts = []
+        if for_reflection:
+            summary_parts.append("Okay, let's pause for a moment and see where we are. Based on our conversation:\n")
 
         # 1. Main Summary Paragraph
         main_summary_elements = []
         if problem_desc:
-            main_summary_elements.append(f"The core problem being addressed is {problem_desc}.")
+            main_summary_elements.append(f"It sounds like the core problem you're focusing on is '{problem_desc}'.")
         if target_user_desc:
-            main_summary_elements.append(f"This primarily affects {target_user_desc}.")
+            main_summary_elements.append(f"And the primary group affected by this, your target user, appears to be '{target_user_desc}'.")
         if solution_desc:
-            main_summary_elements.append(f"The proposed solution involves {solution_desc}.")
+            main_summary_elements.append(f"To address this, your solution idea revolves around '{solution_desc}'.")
         if benefit_desc:
-            main_summary_elements.append(f"The key benefit this offers is {benefit_desc}.")
+            main_summary_elements.append(f"The main benefit this aims to provide is '{benefit_desc}'.")
         if differentiator_desc:
-            main_summary_elements.append(f"What sets this apart is {differentiator_desc}.")
+            main_summary_elements.append(f"And what makes it unique, your differentiator, could be '{differentiator_desc}'.")
         
         if main_summary_elements:
             summary_paragraph = " ".join(main_summary_elements)
             summary_parts.append(summary_paragraph)
-        else:
+        elif not for_reflection :
             summary_parts.append("The value proposition is still under development.")
+        elif not main_summary_elements and for_reflection:
+             summary_parts.append("We're just getting started, so no major elements defined yet!")
+
 
         # 2. Use Case Section
         if use_case_desc:
-            summary_parts.append(f"\n\n**Use Case(s):**\n{use_case_desc}")
-        else:
+            summary_parts.append(f"\n\n**A potential Use Case you've described is:**\n{use_case_desc}")
+        elif 'use_case' in scratchpad and for_reflection: # if key exists but is empty, for reflection
+             summary_parts.append("\n\nWe haven't detailed specific use cases yet.")
+        elif 'use_case' in scratchpad and not for_reflection: # if key exists but is empty, for formal summary
             summary_parts.append("\n\n**Use Case(s):**\nNot yet defined.")
 
-        # 3. Actionable Recommendations Section (formerly actionable_recommendations method)
-        recs_text_parts = []
-        if research_requests:
+
+        # 3. Actionable Recommendations Section (only for formal summary, not brief reflection)
+        if not for_reflection and research_requests:
+            recs_text_parts = []
             for req in research_requests:
                 if isinstance(req, dict):
-                    recs_text_parts.append(f"It's recommended to research the {req.get('step', 'relevant area')} further, focusing on: {req.get('details', 'specific aspects not yet defined')}.")
+                    recs_text_parts.append(f"- It's recommended to research the {req.get('step', 'relevant area')} further, focusing on: {req.get('details', 'specific aspects not yet defined')}.")
                 elif isinstance(req, str):
-                    recs_text_parts.append(f"Further research is suggested for: {req}.")
-                else:
-                    recs_text_parts.append("Additional research may be beneficial.")
-        
-        if recs_text_parts:
-            recommendations_text = "\n".join(recs_text_parts)
-            summary_parts.append(f"\n\n**Actionable Recommendations:**\n{recommendations_text}")
+                    recs_text_parts.append(f"- Further research is suggested for: {req}.")
+            
+            if recs_text_parts:
+                recommendations_text = "\n".join(recs_text_parts)
+                summary_parts.append(f"\n\n**Actionable Recommendations:**\n{recommendations_text}")
         
         return "".join(summary_parts).strip()
+
+    def offer_reflective_summary(self, scratchpad: dict) -> str:
+        """
+        Provides a brief, reflective progress summary ("Here’s where we are now…")
+        and invites user validation or course correction with a single question.
+        """
+        summary = self.generate_value_prop_summary(scratchpad, for_reflection=True)
+        if not summary or summary.strip() == "Okay, let's pause for a moment and see where we are. Based on our conversation:":
+            return "We're still in the early stages of shaping your idea. What aspect feels most important to tackle next?"
+
+        question = "\n\nHow does that summary resonate with you? Does it accurately capture our progress, or is there anything you'd like to adjust or add before we continue?"
+        return summary + question
+
+    def communicate_next_step(self, completed_step: str, next_step: str, scratchpad: dict) -> str:
+        """
+        Transparently communicates the next step to the user after an element/phase is completed.
+        Includes a brief recap of the completed step and ends with a single question.
+        """
+        completed_step_value = scratchpad.get(completed_step, "that last point we discussed")
+        # Simplified recap; could be more dynamic
+        recap = f"Great, we've established a good direction for '{completed_step.replace('_', ' ')}' with your thoughts around '{str(completed_step_value)[:75]}...'."
+        
+        if next_step:
+            message = f"{recap} Now, a logical next area to explore is the '{next_step.replace('_', ' ')}'. Does that sound like a good next step, or is there something else you'd prefer to focus on?"
+        else: # End of a major phase or workflow
+            message = f"{recap} That covers the main elements we planned for this phase! We could review everything in more detail, or perhaps explore how these pieces fit into a larger picture. What feels most valuable to you right now?"
+        return message
 
     def generate_short_summary(self, text: str) -> str:
         """
@@ -516,39 +757,41 @@ Assistant: Love it—so quick wins and low friction matter. We could brainstorm 
 
         user_prompt_parts.append("\n--- Your Task ---")
         user_prompt_parts.append("""Based on all the information above (intake, scratchpad, phase, and recent history):
-1. Scan all intake responses and scratchpad fields.
-2. Identify 2–3 elements with the most potential, novelty, or relevance to valuable business ideas (considering excitement, user impact, originality, etc.).
-3. Briefly express enthusiasm about 1–2 of these elements (e.g., "I love how you mentioned X…" or "It’s cool that you’re interested in Y…").
-4. Ask the user if they want to brainstorm more about any of these identified elements, OR suggest a related angle.
-5. If previous responses were bland, “no”, or unclear, gently pivot with curiosity, encouragement, or by surfacing something previously mentioned.
-6. Never repeat the same phrase or get stuck on a single answer. Never just restate a prior user reply as a question.
-7. Always keep the conversation moving naturally, with a friendly, peer-like tone, using mild humor and warmth when appropriate.
+1.  **Scan** all intake responses, scratchpad fields (paying attention to which are filled and how detailed they are), and recent conversation history.
+2.  **Identify the single strongest or most developed element** from the scratchpad (e.g., 'problem', 'target_user', 'solution') that appears to be the **least vetted or explored in the recent conversation history**. "Least vetted" means it hasn't been the focus of recent questions or detailed discussion. If multiple elements are strong but not fully vetted, choose the one that seems most foundational or pivotal for the user's idea.
+3.  **Briefly recap relevant details** already provided by the user for this chosen element, drawing from the scratchpad and conversation history. This sets context.
+4.  **Express enthusiasm or acknowledge the user's current thinking** on this specific element in a natural, peer-like way.
+5.  **Ask a single, focused, open-ended question** to further vet, develop, or deepen the understanding of *this specific element*. The question should encourage the user to elaborate, clarify, consider implications, or think about next steps for that element. Examples: "That's an interesting point about [element X]. Could you tell me more about [specific aspect of X]?" or "Building on your idea for [element Y], what's one challenge you foresee in that area?" or "You've got a good start on [element Z]. What feels like the most important next thought to explore for it?"
+6.  **Ensure your entire response culminates in this single, focused question.** Do not ask multiple questions or offer a list of options to choose from.
+7.  If previous user responses were very brief, negative ("no"), or indicated uncertainty ("I don't know"), gently pivot. You can do this by acknowledging their response, then perhaps revisiting the chosen "strongest, least vetted element" with a slightly different angle or by offering to break it down further.
+8.  Maintain a friendly, peer-like tone, using mild humor and warmth when appropriate. Always aim to move the conversation forward constructively on the chosen element.
 
---- Example Scenarios ---
+--- Example Scenarios (Revised Focus) ---
 
-Scenario 1: Surfacing multiple elements, peer excitement
+Scenario 1: Focusing on a strong, less-vetted element
 Context:
-  Intake: "I'm passionate about mental wellness for students." "I think technology can make support more accessible." "Maybe something with AI."
-  Scratchpad: Problem_Statement: "Students lack accessible mental wellness resources."
-Your Output: "This is great! I'm really picking up on your passion for student mental wellness and the idea of using tech, especially AI, to make support more accessible. That's a super relevant area. Would you like to brainstorm some specific ways AI could play a role here, or perhaps explore different student populations that might see the main benefit most?"
+  Scratchpad: Problem: "Students lack accessible mental wellness resources." Target_User: "University undergraduates." Solution: (empty)
+  Recent History: User just finished defining Target_User.
+Your Output: "Okay, focusing on university undergraduates as the target user for the problem of lacking accessible mental wellness resources is a solid direction. We haven't really dug into what a solution might look like yet. What are your initial thoughts on how we could start to solve that accessibility issue for them?"
 
-Scenario 2: Handling "no" gracefully, suggesting new angle
+Scenario 2: Handling "no" and refocusing on a developed but unvetted element
 Context:
+  Scratchpad: Problem: "High stress for nurses." Solution: "AI tool for scheduling." Differentiator: (empty)
   Recent History:
-    Assistant: "...Want to explore AI for personalized coaching or for early detection?"
+    Assistant: "...Want to explore how the AI tool's interface might look?"
     User: "No."
-Your Output: "No worries at all! Sometimes an idea just doesn't click. How about we pivot a bit? You also mentioned making support 'more accessible' earlier (from intake/scratchpad). That's a big one. We could think about what 'accessible' really means – is it about cost, time, overcoming stigma, or something else? Or, is there another aspect of student mental wellness that's on your mind?"
+Your Output: "No problem at all! We can set aside the interface for now. We have a clear problem (high stress for nurses) and a potential solution (AI tool for scheduling). I'm curious, what do you think makes this AI scheduling tool different or better than other approaches nurses might currently use or other tools out there? Exploring that could really highlight its unique value."
 
-Scenario 3: Handling bland reply ("Dunno"), encouraging revisit
+Scenario 3: User is uncertain, guide towards a developed element
 Context:
+  Scratchpad: Problem: "Patients forget medication." Target_User: "Elderly patients with multiple prescriptions." Solution: "Smart pillbox." Main_Benefit: (empty)
   Recent History:
-    Assistant: "...Interested in brainstorming around gamification for engagement, or focusing on data privacy?"
-    User: "Dunno."
-  Intake/Scratchpad contains: "User mentioned unique pressures faced by graduate students."
-Your Output: "Hey, it's totally fine to feel a bit unsure – sometimes the best ideas take a little while to surface! You know, earlier you had a really interesting thought about the unique pressures faced by graduate students. Maybe we could circle back to that for a moment? Or, if you're feeling like a completely fresh angle, we can totally do that too!"
+    Assistant: "What's the main benefit of the smart pillbox?"
+    User: "I'm not sure yet."
+Your Output: "That's perfectly okay, figuring out the main benefit can take some thought! We know the smart pillbox is for elderly patients with multiple prescriptions who tend to forget their medication. Thinking about that specific group and problem, what's the most significant positive change or outcome they would experience from using the smart pillbox consistently?"
 
---- Now, generate your response for the current user based on their information. ---
-What is your proposed next conversational turn?
+--- Now, generate your response for the current user based on their information, focusing on one key element. ---
+What is your proposed next conversational turn? (Ensure it's a single, focused question)
 """)
 
         full_user_prompt = "\n".join(user_prompt_parts)
