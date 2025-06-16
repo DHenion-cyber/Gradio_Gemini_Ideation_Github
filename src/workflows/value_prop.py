@@ -258,69 +258,64 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                 st.session_state["scratchpad"] = self.scratchpad
                 st.session_state["vp_ideation_started"] = True # Mark that ideation has received some input
 
-                user_cue = self.persona.detect_user_cues(user_input_stripped, self.current_ideation_step)
-                # assess_input_clarity_depth will be used within coach_on_decision and paraphrase_user_input
+                # Check for explicit brainstorming request
+                brainstorm_keywords = ["generate ideas", "brainstorm ideas", "help me with ideas", "need ideas", "some ideas"]
+                is_brainstorm_request = any(keyword in user_input_stripped.lower() for keyword in brainstorm_keywords)
 
-                # Mark current step intro as "handled" because we have input for it now.
-                st.session_state[f"vp_intro_{self.current_ideation_step}"] = True
-
-                if user_cue == "decided" or \
-                   (self.current_ideation_step == "differentiator" and self.scratchpad.get("main_benefit")) or \
-                   (self.current_ideation_step == "use_case" and self.scratchpad.get("differentiator")):
-                    # If user is decided, or if we can auto-progress based on previous fields being filled
-                    if user_cue == "decided": # Ensure the current step is updated if user was decisive
-                         self.scratchpad[self.current_ideation_step] = user_input_stripped # Explicitly save decided input
-
-                    core_response = self.persona.coach_on_decision(
-                        self.current_ideation_step, user_input_stripped, self.scratchpad, user_cue
+                if is_brainstorm_request and hasattr(self.persona, 'assist_with_brainstorming'):
+                    core_response = self.persona.assist_with_brainstorming(
+                        user_input_stripped,
+                        self.scratchpad,
+                        st.session_state.get("intake_answers", [])
                     )
-                    
-                    next_ideation_step_candidate = self.suggest_next_step(user_input_stripped)
-                    
-                    if self._are_ideation_fields_filled():
-                        # All ideation fields are filled, transition to recommendation
-                        if not preliminary_message: # Ensure transition message is only added once if already set by other logic
-                             preliminary_message = self.persona.offer_reflective_summary(self.scratchpad)
-                        preliminary_message += " " + self.persona.communicate_next_step(self.current_phase, "recommendation", self.scratchpad)
+                    preliminary_message = "" # Ensure no other intro messages interfere
+                else:
+                    # Proceed with normal cue detection and processing if not a brainstorm request
+                    user_cue = self.persona.detect_user_cues(user_input_stripped, self.current_ideation_step)
+                    # assess_input_clarity_depth will be used within coach_on_decision and paraphrase_user_input
+
+                    # Mark current step intro as "handled" because we have input for it now.
+                    st.session_state[f"vp_intro_{self.current_ideation_step}"] = True
+
+                    if user_cue == "decided" or \
+                       (self.current_ideation_step == "differentiator" and self.scratchpad.get("main_benefit")) or \
+                       (self.current_ideation_step == "use_case" and self.scratchpad.get("differentiator")):
+                        # If user is decided, or if we can auto-progress based on previous fields being filled
+                        if user_cue == "decided": # Ensure the current step is updated if user was decisive
+                             self.scratchpad[self.current_ideation_step] = user_input_stripped # Explicitly save decided input
+
+                        core_response = self.persona.coach_on_decision(
+                            self.current_ideation_step, user_input_stripped, self.scratchpad, user_cue
+                        )
                         
-                        # Ensure 'recommendation' is the correct next phase sequentially from 'ideation'
-                        # This assertion might be too strict if other transitions from ideation are ever allowed.
-                        # For now, value_prop workflow is linear from ideation to recommendation.
-                        if self.PHASES.index("recommendation") != self.PHASES.index(self.current_phase) + 1:
-                             # This case should ideally not be hit if _are_ideation_fields_filled is true
-                             # and we are in 'ideation'. Adding a log for safety.
-                             st.error(f"Unexpected phase state before transitioning from ideation. Current: {self.current_phase}")
+                        next_ideation_step_candidate = self.suggest_next_step(user_input_stripped)
                         
-                        self._transition_phase("recommendation")
-                        self.current_ideation_step = "" # Clear ideation step as we are leaving the phase
-                        core_response = "" # Persona messages for transition are in preliminary_message
-                    
-                    elif next_ideation_step_candidate and next_ideation_step_candidate != "review_ideation":
-                        # A valid next step (or a jump to a specific step) is suggested.
-                        if next_ideation_step_candidate != self.current_ideation_step:
-                            # This is a progression to a new step or a jump.
-                            # The core_response from coach_on_decision was for the *old* current_ideation_step.
-                            # The persona's response (e.g., from coach_on_decision) might have already
-                            # textually handled the transition/jump.
-                            self.current_ideation_step = next_ideation_step_candidate
-                            # Ensure the intro for this new step can be shown if the user sends empty input next
-                            st.session_state.pop(f"vp_intro_{self.current_ideation_step}", None)
-                            # The core_response (from coach_on_decision on the *previous* step) is used for this turn.
-                            # The next turn, if user_input is empty, will trigger the intro for the new current_ideation_step.
-                        # else: next_ideation_step_candidate is the same as current_ideation_step.
-                        # This implies the user is decided on the current step, but suggest_next_step didn't find
-                        # a different, valid, incomplete step to move to automatically.
-                        # The core_response from coach_on_decision (for the current step) is appropriate.
-                    
-                    # else (next_ideation_step_candidate is "review_ideation" or empty):
-                        # This means either all steps are filled (handled by _are_ideation_fields_filled),
-                        # or suggest_next_step couldn't find a clear next step (e.g., current step is last, or an issue).
-                        # The core_response from coach_on_decision (for the current step) is generally appropriate.
-                        # If it's "review_ideation", the persona's response should guide the user.
-                else: # uncertain, open, curious, neutral
-                    core_response = self.persona.paraphrase_user_input(
-                        user_input_stripped, user_cue, self.current_ideation_step, self.scratchpad
-                    )
+                        if self._are_ideation_fields_filled():
+                            # All ideation fields are filled, transition to recommendation
+                            if not preliminary_message: # Ensure transition message is only added once if already set by other logic
+                                 preliminary_message = self.persona.offer_reflective_summary(self.scratchpad)
+                            preliminary_message += " " + self.persona.communicate_next_step(self.current_phase, "recommendation", self.scratchpad)
+                            
+                            # Ensure 'recommendation' is the correct next phase sequentially from 'ideation'
+                            if self.PHASES.index("recommendation") != self.PHASES.index(self.current_phase) + 1:
+                                 st.error(f"Unexpected phase state before transitioning from ideation. Current: {self.current_phase}")
+                            
+                            self._transition_phase("recommendation")
+                            self.current_ideation_step = "" # Clear ideation step as we are leaving the phase
+                            core_response = "" # Persona messages for transition are in preliminary_message
+                        
+                        elif next_ideation_step_candidate and next_ideation_step_candidate != "review_ideation":
+                            # A valid next step (or a jump to a specific step) is suggested.
+                            if next_ideation_step_candidate != self.current_ideation_step:
+                                self.current_ideation_step = next_ideation_step_candidate
+                                st.session_state.pop(f"vp_intro_{self.current_ideation_step}", None)
+                            # core_response from coach_on_decision for the *previous* or current step is used.
+                        # else (next_ideation_step_candidate is "review_ideation" or empty):
+                            # core_response from coach_on_decision is generally appropriate.
+                    else: # uncertain, open, curious, neutral
+                        core_response = self.persona.paraphrase_user_input(
+                            user_input_stripped, user_cue, self.current_ideation_step, self.scratchpad
+                        )
             else: # No user input stripped, and not the first intro for the step
                 if not self.scratchpad.get(self.current_ideation_step):
                     core_response = self.persona.get_prompt_for_empty_input(self.current_ideation_step)

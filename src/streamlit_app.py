@@ -201,17 +201,18 @@ async def main():
                         scratchpad_for_coach = workflow_instance.scratchpad
                         
                         try:
-                            # Pass an empty list for conversation_history as this is the start of ideation
-                            generated_message = coach.propose_next_conversation_turn(
-                                intake_answers=intake_answers_for_coach,
-                                scratchpad=scratchpad_for_coach,
-                                phase="ideation", # Explicitly pass current phase
-                                conversation_history=[]
-                            )
-                            if generated_message and isinstance(generated_message, str) and generated_message.strip():
-                                initial_message = generated_message
-                            else:
-                                logging.warning("CoachPersona.propose_next_conversation_turn did not return a valid message. Using default.")
+                            with st.spinner("One minute while I process this information."):
+                                # Pass an empty list for conversation_history as this is the start of ideation
+                                generated_message = coach.propose_next_conversation_turn(
+                                    intake_answers=intake_answers_for_coach,
+                                    scratchpad=scratchpad_for_coach,
+                                    phase="ideation", # Explicitly pass current phase
+                                    conversation_history=[]
+                                )
+                                if generated_message and isinstance(generated_message, str) and generated_message.strip():
+                                    initial_message = generated_message
+                                else:
+                                    logging.warning("CoachPersona.propose_next_conversation_turn did not return a valid message. Using default.")
                         except Exception as e:
                             logging.error(f"Error calling CoachPersona.propose_next_conversation_turn: {e}. Using default message.")
                     

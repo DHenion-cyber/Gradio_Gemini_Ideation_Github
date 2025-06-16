@@ -15,6 +15,7 @@ Core Enhancements Summary (June 2025):
 - Permission-Based Tips: Asks for permission before offering unsolicited tips/examples.
 """
 import re
+import logging # Added import
 from src.llm_utils import query_openai # Updated import
 
 class CoachPersona: # Renamed from BehaviorEngine
@@ -748,17 +749,21 @@ Your response should have two parts:
         Aims for peer coaching, brainstorming, and conversational EQ.
         """
         # client is available via from ..llm_utils import client
-        system_prompt_content = """You are a peer coach brainstorming new digital health innovations with the user. You help them surface promising business ideas by building on any aspect of their prior answers that shows potential, creativity, or relevance.
+        system_prompt_content = """You are a peer coach, and I am helping the user brainstorm new digital health innovations. My goal is to help them surface promising business ideas. I should build on any aspect of their prior answers (from intake) that shows potential, creativity, or relevance, but for the *very first question of the 'ideation' phase*, I need to be particularly open-ended.
 
-You are not a therapist, but you are very emotionally intelligent and always bring conversational energy and warmth.
+Specifically for the first turn of 'ideation':
+- Acknowledge key themes from their intake answers briefly.
+- Ask a broad, inviting question to explore initial thoughts for their value proposition. Avoid making specific assumptions about the direction they want to take, even if their background suggests a particular area. For example, instead of asking "Given your nursing background, how about an app for X?", ask something like "Drawing from your experiences, what initial thoughts or areas are you most excited to explore for your value proposition?" or "What kind of problems are you most passionate about solving right now?"
+- Use "I" and "you" pronouns to make the conversation direct and personal. For example, "I can help you explore..." or "What are you thinking about...". Avoid "we" unless it's about a shared, immediate action like "Let's brainstorm."
 
-Never just repeat the user’s last answer. Always move the conversation forward, build excitement, and keep things open-ended.
+For all other interactions (and subsequent turns in 'ideation'):
+- I am not a therapist, but I am very emotionally intelligent and always bring conversational energy and warmth.
+- I should never just repeat the user’s last answer. I always move the conversation forward, build excitement, and keep things open-ended.
+- If the user says ‘no’, ‘I don’t know’, or gives a one-word answer, I should gently prompt them to revisit an earlier idea, suggest a new direction, or validate that it’s normal to feel stuck.
 
-If the user says ‘no’, ‘I don’t know’, or gives a one-word answer, gently prompt them to revisit an earlier idea, suggest a new direction, or validate that it’s normal to feel stuck.
-
-Example interaction:
+Example interaction (general, not first ideation turn):
 User: I care about cost savings and rapid deployment.
-Assistant: Love it—so quick wins and low friction matter. We could brainstorm ideas for settings where speed makes a huge difference, or dive into ways to get to value quickly. Want to riff on those, or is there another angle you’re curious about?"""
+Assistant: I hear you - so quick wins and low friction matter. I could help you brainstorm ideas for settings where speed makes a huge difference, or we could dive into ways to get to value quickly. Would you like to explore those, or is there another angle you’re curious about?"""
 
         user_prompt_parts = []
         user_prompt_parts.append(f"Current Conversation Phase: {phase}")
@@ -841,4 +846,54 @@ What is your proposed next conversational turn? (Ensure it's a single, focused q
             max_tokens=250
         )
         return response # query_openai already strips
+
+    def assist_with_brainstorming(self, user_input: str, scratchpad: dict, intake_answers: list) -> str:
+        """
+        Helps the user brainstorm ideas when they explicitly ask for help.
+        Uses an LLM to generate 2-3 diverse ideas or a clarifying question.
+        """
+        system_prompt = """You are a helpful brainstorming assistant. I am helping the user develop a value proposition.
+The user has asked for help generating some ideas.
+Your goal is to provide 2-3 diverse, high-level ideas or approaches they could consider, or if their request and context are too vague, ask one clarifying question to help narrow down the area of interest before generating ideas.
+Use "I" and "you" pronouns. For example, "I can help you think about..." or "Have you considered...?".
+Keep the tone encouraging and collaborative.
+"""
+
+        user_prompt_parts = ["--- User's Request for Brainstorming ---", user_input]
+
+        if intake_answers:
+            user_prompt_parts.append("\n--- Context from Intake ---")
+            for answer_item in intake_answers:
+                if isinstance(answer_item, dict) and 'text' in answer_item and answer_item['text']:
+                    user_prompt_parts.append(f"- {answer_item['text']}")
+                elif isinstance(answer_item, str) and answer_item:
+                    user_prompt_parts.append(f"- {answer_item}")
+            user_prompt_parts.append("--------------------------")
+
+        if scratchpad and any(scratchpad.values()):
+            user_prompt_parts.append("\n--- Current Scratchpad ---")
+            for key, value in scratchpad.items():
+                if value: # Only include filled scratchpad items
+                    user_prompt_parts.append(f"{key.replace('_', ' ').title()}: {value}")
+            user_prompt_parts.append("--------------------------")
+        
+        user_prompt_parts.append("\n--- Your Task ---")
+        user_prompt_parts.append("Based on the user's request and any available context, please generate 2-3 diverse, high-level ideas or approaches for their value proposition, OR if the request is too vague, ask a single clarifying question to help them focus. Frame your response directly to the user.")
+
+        full_user_prompt = "\n".join(user_prompt_parts)
+
+        try:
+            response = query_openai(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": full_user_prompt}
+                ],
+                temperature=0.8, # Higher temperature for more creative brainstorming
+                max_tokens=200
+            )
+            return response
+        except Exception as e:
+            logging.error(f"Error in assist_with_brainstorming LLM call: {e}")
+            return "I'm having a little trouble generating ideas right now. Could you perhaps tell me a bit more about what general area you're interested in?" # Fallback
+
     # TODO: add behavior methods (paraphrase, feedback, etc.) - These seem to be well covered above.
