@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from src.personas.coach import CoachPersona
-from src.workflows.value_prop import ValuePropWorkflow # Corrected import
+from src.workflows.value_prop import ValuePropWorkflow, IdeationState # Corrected import
 
 SKIP_REASON = "obsolete after state-machine refactor"
 SKIP_PHASE_REASON = "obsolete after state-machine; will be rewritten"
@@ -50,10 +50,50 @@ def workflow_components():
         # ValuePropWorkflow.__init__ will interact with mock_st_session_state_dict.
         # Any changes the workflow makes to st.session_state will be reflected in mock_st_session_state_dict.
         # Any reads the workflow does from st.session_state will come from mock_st_session_state_dict.
+
         yield workflow, mock_persona, mock_st_session_state_dict
 
 @patch('src.utils.scratchpad_extractor.update_scratchpad') # Corrected patch target
 class TestValuePropositionWorkflow:
+
+    def test_recommendation_flow(self, mock_update_scratchpad, workflow_components): # Added mock_update_scratchpad
+        """
+        Tests the recommendation flow:
+        - Pre-fills scratchpad so ideation is done.
+        - Forces workflow.state = workflow.states["recommendation"].
+        - Calls workflow.state.enter(workflow) and asserts "top recommendations".
+        - Calls workflow.state.handle("iterate", workflow) and asserts
+          workflow.state.name == "revise".
+        """
+        workflow, mock_persona, mock_session_state = workflow_components
+
+        # Pre-fill scratchpad so ideation is considered done
+        for step in workflow.IDEATION_STEPS:
+            workflow.scratchpad[step] = f"Content for {step}"
+            workflow.states[step].completed = True # Mark individual ideation states as completed
+
+        # Force workflow to recommendation state
+        assert "recommendation" in workflow.states, "RecommendationState not found in workflow states"
+        workflow.state = workflow.states["recommendation"]
+        workflow.current_phase = "recommendation" # Also set the phase
+
+        # Call workflow.state.enter(workflow) and assert "top recommendations"
+        enter_messages = workflow.state.enter(workflow)
+        assert isinstance(enter_messages, list)
+        assert len(enter_messages) > 0
+        assert "top recommendations" in enter_messages[0].lower()
+        assert workflow.cached_recommendations is not None # Check that recommendations were cached
+
+        # Call workflow.state.handle("iterate", workflow)
+        handle_messages = workflow.state.handle("iterate", workflow)
+        assert isinstance(handle_messages, list)
+        assert "moving to the iteration phase" in handle_messages[0].lower()
+        
+        # Assert workflow.state.name == "revise" (since workflow.states["iteration"] is ReviseState)
+        assert workflow.state is not None, "Workflow state became None after handle"
+        assert workflow.state.name == "revise", \
+            f"Workflow state name is {workflow.state.name}, expected 'revise'"
+
 
     @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON)
     def test_initialization(self, workflow_components):
@@ -424,21 +464,86 @@ class TestValuePropositionWorkflow:
         assert msgs == [expected_response]
         mock_update_scratchpad.assert_not_called()
 
-    @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON)
-    def test_iteration_phase_initial_intro(self, mock_update_scratchpad, workflow_components): # Corrected mock name
-        """Test the introductory message for the iteration phase."""
+    # @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON) # Un-skipping
+    def test_iteration_initial_intro(self, mock_update_scratchpad, workflow_components):
+        """Test the introductory message for the iteration phase (ReviseState)."""
         workflow, mock_persona, mock_session_state = workflow_components
-        workflow.current_phase = PHASES[3] # "iteration"
-        workflow.scratchpad = {step: f"Content for {step}" for step in IDEATION_STEPS}
-        
-        mock_persona.introduce_iteration_phase.return_value = "We're in iteration. Revise, re-run, or summarize?"
-        
-        msgs = workflow.process_user_input("")
 
-        mock_persona.introduce_iteration_phase.assert_called_once_with(workflow.scratchpad)
-        expected_response = "We're in iteration. Revise, re-run, or summarize?"
-        assert msgs == [expected_response]
+        # Simulate transition to iteration phase, which should set state to ReviseState
+        workflow.current_phase = "recommendation" # Start from recommendation
+        for step in workflow.IDEATION_STEPS: # Ensure ideation is complete
+            workflow.scratchpad[step] = f"Content for {step}"
+            workflow.states[step].completed = True
+        
+        workflow.state = workflow.states["recommendation"] # Set current state to recommendation
+        
+        # User input "iterate" from recommendation state should transition to iteration (ReviseState)
+        # The RecommendationState.handle method sets workflow.state = workflow.states["iteration"]
+        # which is an instance of ReviseState.
+        # Then, process_user_input for the new phase/state should call its enter() method.
+        
+        # To directly test ReviseState.enter(), we can set the state and call enter.
+        # However, the prompt implies testing the flow.
+        # Let's simulate the transition from RecommendationState.handle("iterate", workflow)
+        
+        # Manually set to recommendation state first
+        recommendation_state = workflow.states["recommendation"]
+        recommendation_state.handle("iterate", workflow) # This should change workflow.state to ReviseState
+
+        assert workflow.state.name == "revise", f"Expected state 'revise', got '{workflow.state.name}'"
+        
+        # Now, the ReviseState's enter method should be called by the workflow logic
+        # if we were to call process_user_input with an empty string in this new state.
+        # For a direct test of the enter message:
+        enter_messages = workflow.state.enter(workflow)
+        
+        assert isinstance(enter_messages, list)
+        assert len(enter_messages) == 1
+        expected_message_part = "Which part to revise"
+        assert expected_message_part.lower() in enter_messages[0].lower()
+        assert enter_messages[0].endswith("(e.g. problem, solution, differentiator)?")
         mock_update_scratchpad.assert_not_called()
+
+    # @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON) # Un-skipping
+    def test_iteration_revise_flow(self, mock_update_scratchpad, workflow_components):
+        """Test the revise flow: update a field and assert scratchpad updated."""
+        workflow, mock_persona, mock_session_state = workflow_components
+
+        # Setup: Ensure scratchpad has some initial content and workflow is in ReviseState
+        field_to_revise = "problem"
+        original_content = "Original problem statement."
+        new_content = "Revised problem statement."
+        workflow.scratchpad[field_to_revise] = original_content
+        for step in workflow.IDEATION_STEPS: # Fill other fields for completeness
+            if step != field_to_revise:
+                workflow.scratchpad[step] = f"Content for {step}"
+        
+        # Manually set state to ReviseState (which is workflow.states["iteration"])
+        workflow.state = workflow.states["iteration"] # This is ReviseState
+        assert workflow.state.name == "revise"
+
+        # 1. User specifies the field to revise
+        revise_state = workflow.state
+        handle_messages_1 = revise_state.handle(field_to_revise, workflow)
+        
+        assert isinstance(handle_messages_1, list)
+        assert f"let's revise {field_to_revise}" in handle_messages_1[0].lower()
+        assert workflow.state.name == "revise_detail", "State should transition to ReviseDetailState"
+        assert workflow.state.target == field_to_revise, "Target not set in ReviseDetailState"
+
+        # 2. User provides the new text for the field
+        revise_detail_state = workflow.state
+        handle_messages_2 = revise_detail_state.handle(new_content, workflow)
+
+        assert isinstance(handle_messages_2, list)
+        assert f"{field_to_revise} updated" in handle_messages_2[0].lower()
+        assert "'re-run' to regenerate" in handle_messages_2[1].lower()
+        
+        # Assert scratchpad is updated
+        assert workflow.scratchpad[field_to_revise] == new_content
+        assert revise_detail_state.completed is True, "ReviseDetailState should be marked as completed"
+        
+        mock_update_scratchpad.assert_not_called() # update_scratchpad is not used by these states
 
     @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON)
     def test_iteration_phase_revise_specific_step(self, mock_update_scratchpad, workflow_components): # Corrected mock name
@@ -489,30 +594,38 @@ class TestValuePropositionWorkflow:
         assert workflow.current_phase == PHASES[3] # Stays in iteration
         mock_update_scratchpad.assert_not_called()
 
-    @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON)
-    def test_iteration_phase_rerun_recommendations(self, mock_update_scratchpad, workflow_components): # Corrected mock name
-        """Test transitioning back to recommendation phase to re-run."""
+    # @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON) # Un-skipping
+    def test_iteration_rerun_flow(self, mock_update_scratchpad, workflow_components):
+        """Test sending 're-run' and assert state becomes 'recommendation'."""
         workflow, mock_persona, mock_session_state = workflow_components
-        workflow.current_phase = PHASES[3] # "iteration"
-        workflow.scratchpad = {step: f"Content for {step}" for step in IDEATION_STEPS}
-        
-        user_input = "Let's re-run the recommendations."
-        mock_persona.detect_user_cues.return_value = "decided"
-        mock_persona.communicate_next_step.return_value = "Okay, re-running recommendations."
-        mock_persona.get_reflection_prompt.return_value = "Let's see the new recommendations."
 
-        mock_session_state["vp_recommendation_fully_generated_once"] = True # Was true
-        msgs = workflow.process_user_input(user_input)
-
-        mock_persona.detect_user_cues.assert_called_once_with(user_input, PHASES[3])
-        mock_persona.communicate_next_step.assert_called_once_with(
-            PHASES[3], PHASES[2], workflow.scratchpad
-        )
+        # Setup: Start in ReviseDetailState (simulating after a revision)
+        # or any state from which 're-run' is a valid next logical step.
+        # For simplicity, let's assume we are in ReviseDetailState and it has just completed.
+        field_revised = "problem"
+        workflow.scratchpad[field_revised] = "Revised problem statement."
         
-        assert workflow.current_phase == PHASES[2] # "recommendation"
-        assert mock_session_state.get("vp_recommendation_fully_generated_once") is False # Reset for re-generation
-        # expected_response = "Okay, re-running recommendations. Let's see the new recommendations."
-        assert any("re-running recommendations" in m for m in msgs)
+        # Manually set state to ReviseDetailState and mark as completed
+        # This state doesn't have an explicit 're-run' handling,
+        # The user types 're-run' which is then processed by the main workflow loop.
+        # The RerunState is entered if the user input is 're-run' *after* a ReviseDetailState.
+        # For this test, we'll directly set the state to RerunState and call its enter method.
+
+        # To test the RerunState directly:
+        rerun_state = workflow.states["rerun"]
+        assert rerun_state.name == "rerun"
+        
+        # Call enter on RerunState
+        enter_messages = rerun_state.enter(workflow)
+        
+        assert isinstance(enter_messages, list)
+        assert "re-running recommendations" in enter_messages[0].lower()
+        
+        # Assert workflow state transitions to recommendation
+        assert workflow.state is not None, "Workflow state became None after RerunState.enter"
+        assert workflow.state.name == "recommendation", \
+            f"Workflow state name is {workflow.state.name}, expected 'recommendation'"
+        
         mock_update_scratchpad.assert_not_called()
 
     @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON)
@@ -574,40 +687,82 @@ class TestValuePropositionWorkflow:
         assert any("or summarize?" in m for m in msgs)
         assert workflow.current_phase == PHASES[3] # Stays in iteration
 
-    @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON)
-    def test_summary_phase_initial_generation(self, mock_update_scratchpad, workflow_components): # Corrected mock name
-        """Test the initial generation of the summary when entering the phase."""
+    # @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON) # Un-skipping and renaming
+    def test_summary_initial(self, mock_update_scratchpad, workflow_components):
+        """Test the initial generation of summary when entering SummaryState."""
         workflow, mock_persona, mock_session_state = workflow_components
-        workflow.current_phase = PHASES[4] # "summary"
-        workflow.scratchpad = {step: f"Content for {step}" for step in IDEATION_STEPS}
+
+        key_problem_text = "Unique problem XYZ for testing summary"
+        workflow.scratchpad["problem"] = key_problem_text
+        workflow.scratchpad["solution"] = "A brilliant solution for XYZ"
+        # Fill other essential fields for a more complete summary
+        for step in workflow.IDEATION_STEPS:
+            if not workflow.scratchpad.get(step): # Ensure all ideation steps have some content
+                workflow.scratchpad[step] = f"Details for {step}"
         
-        generated_summary_text = "This is your final summary."
-        with patch.object(workflow, 'generate_summary', return_value=generated_summary_text) as mock_generate_summary:
-            msgs = workflow.process_user_input("")
-            mock_generate_summary.assert_called_once()
+        # Configure persona's summary generation to include key text
+        # The SummaryState.enter() calls workflow.generate_summary() which uses the persona.
+        expected_summary_fragment = f"summary about the {key_problem_text}"
+        mock_persona.generate_value_prop_summary.return_value = f"This is a detailed {expected_summary_fragment} and other vital information."
 
-        assert msgs == [generated_summary_text]
-        assert workflow.completed is True
-        assert mock_session_state.get("vp_summary_generated_once") is True
-        mock_update_scratchpad.assert_not_called()
+        # Manually set workflow to SummaryState
+        workflow.current_phase = "summary" # Set phase
+        summary_state = workflow.states.get("summary")
+        assert summary_state is not None, "SummaryState not found in workflow states"
+        workflow.state = summary_state # Set state object
+        
+        # Call SummaryState.enter()
+        enter_messages = workflow.state.enter(workflow)
 
-    @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON)
-    def test_summary_phase_user_requests_summary_again(self, mock_update_scratchpad, workflow_components): # Corrected mock name
-        """Test user explicitly requesting summary again after it's generated."""
+        # Assertions
+        # SummaryState.enter calls workflow.generate_summary(), which should use the persona's method
+        mock_persona.generate_value_prop_summary.assert_called_once_with(workflow.scratchpad, workflow.cached_recommendations)
+        
+        assert workflow.final_summary is not None
+        assert key_problem_text in workflow.final_summary, "Key scratchpad text not in final_summary"
+        assert expected_summary_fragment.lower() in workflow.final_summary.lower()
+
+        assert isinstance(enter_messages, list)
+        assert len(enter_messages) == 2
+        assert f"Here is your final summary:\n{workflow.final_summary}" == enter_messages[0]
+        assert "Let me know if you'd like it repeated." == enter_messages[1]
+        
+        assert not summary_state.completed, "SummaryState should not be completed just by entering"
+        assert not workflow.completed, "Workflow should not be completed just by entering SummaryState"
+
+    # @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON) # Un-skipping and renaming
+    def test_summary_repeat(self, mock_update_scratchpad, workflow_components):
+        """Test repeating the summary in SummaryState."""
         workflow, mock_persona, mock_session_state = workflow_components
-        workflow.current_phase = PHASES[4] # "summary"
-        workflow.scratchpad = {step: f"Content for {step}" for step in IDEATION_STEPS}
-        mock_session_state["vp_summary_generated_once"] = True
-        
-        generated_summary_text = "This is your final summary, requested again."
-        with patch.object(workflow, 'generate_summary', return_value=generated_summary_text) as mock_generate_summary:
-            mock_session_state["vp_summary_generated_once"] = True # Ensure it's set within this context too
-            msgs = workflow.process_user_input("Can I see the summary again?")
-            mock_generate_summary.assert_called_once()
 
-        assert msgs == [generated_summary_text]
-        assert workflow.completed is True
-        mock_update_scratchpad.assert_not_called()
+        initial_summary_text = "This is the initial summary for repeating."
+        workflow.scratchpad["problem"] = "Repeatable problem"
+        mock_persona.generate_value_prop_summary.return_value = initial_summary_text
+
+        # Manually set workflow to SummaryState and call enter to set final_summary
+        workflow.current_phase = "summary"
+        summary_state = workflow.states.get("summary")
+        assert summary_state is not None, "SummaryState not found"
+        workflow.state = summary_state
+        
+        # Call enter to populate workflow.final_summary
+        workflow.state.enter(workflow)
+        mock_persona.generate_value_prop_summary.assert_called_once() # Called during enter
+        assert workflow.final_summary == initial_summary_text
+
+        # Call handle with "repeat"
+        handle_messages = workflow.state.handle("repeat please", workflow)
+
+        # Assertions
+        assert isinstance(handle_messages, list)
+        assert len(handle_messages) == 1
+        assert handle_messages[0] == initial_summary_text, "Repeated summary does not match initial summary"
+        
+        # Ensure generate_summary was not called again during handle("repeat")
+        mock_persona.generate_value_prop_summary.assert_called_once()
+        
+        assert not summary_state.completed, "SummaryState should not be completed after 'repeat'"
+        assert not workflow.completed, "Workflow should not be completed after 'repeat' in SummaryState"
 
     @pytest.mark.skip(reason=SKIP_REFRACTOR_REASON)
     def test_summary_phase_no_input_after_generation_presents_existing(self, mock_update_scratchpad, workflow_components): # Corrected mock name
