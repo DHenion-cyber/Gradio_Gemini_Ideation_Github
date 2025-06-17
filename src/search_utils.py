@@ -21,7 +21,7 @@ except ImportError:
 
 # Import cache functions from persistence_utils
 try:
-    from persistence_utils import get_cached_search_response, store_search_response
+    from .persistence_utils import get_cached_search_response, store_search_response
 except ImportError:
     # Fallback for standalone execution or if persistence_utils is not in the same relative path
     print("Warning: Could not import persistence_utils. Caching will be non-functional or use a mock.")

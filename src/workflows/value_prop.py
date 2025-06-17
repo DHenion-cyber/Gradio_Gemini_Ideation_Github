@@ -30,6 +30,7 @@ ALL workflow phases are required and must occur in order. Skipping phases based 
 """
 """Defines the ValuePropWorkflow class, managing the value proposition coaching process with CoachPersona integration."""
 import streamlit as st
+import logging
 from typing import TYPE_CHECKING, List, Dict, Any
 from .base import WorkflowBase
 
@@ -58,9 +59,14 @@ class UseCaseState(IdeationState):
         super().__init__("use_case")
 
     def enter(self, workflow: 'ValuePropWorkflow') -> str:
+        logging.debug(f"UseCaseState.enter: Called. Scratchpad for '{self.name}': {workflow.scratchpad.get(self.name)}")
+        message_to_return = ""
         if workflow.scratchpad.get(self.name):
-            return f"We previously discussed the use case: {workflow.scratchpad[self.name]}. Would you like to explore this now? (yes/no)"
-        return "Let's start by defining the primary use case for your idea. What specific scenario or situation will your product/service address? Would you like to explore this now? (yes/no)"
+            message_to_return = f"We previously discussed the use case: {workflow.scratchpad[self.name]}. Would you like to explore this now? (yes/no)"
+        else:
+            message_to_return = "Let's start by defining the primary use case for your idea. What specific scenario or situation will your product/service address? Would you like to explore this now? (yes/no)"
+        logging.debug(f"UseCaseState.enter: Returning message: '{message_to_return}'")
+        return message_to_return
 
     def handle(self, user_input: str, workflow: 'ValuePropWorkflow') -> List[str] | None:
         if user_input.lower() != "no":
@@ -511,6 +517,7 @@ class ValuePropWorkflow(WorkflowBase):
         # from src.llm_utils import query_openai, build_conversation_messages # Not directly used now
 
         user_input_stripped = user_input.strip()
+        logging.debug(f"ValuePropWorkflow.process_user_input: Called with user_input='{user_input_stripped}', current_phase='{self.current_phase}'")
         accumulated_messages: List[str] = []
 
         if self.current_phase == "intake":
@@ -525,6 +532,7 @@ class ValuePropWorkflow(WorkflowBase):
                 accumulated_messages.append(ack)
 
                 explanation = self.persona.get_intake_to_ideation_transition_message()
+                logging.debug(f"ValuePropWorkflow.process_user_input (intake with input): Got explanation_msg='{explanation}'")
                 accumulated_messages.append(explanation)
 
                 # Determine the correct starting state for ideation based on current scratchpad
@@ -546,12 +554,44 @@ class ValuePropWorkflow(WorkflowBase):
                 # Now, call enter() on the (potentially new) self.state.
                 if self.state:
                     # self.current_ideation_step = self.state.name # Already handled by set_phase
-                    accumulated_messages.append(self.state.enter(self))
+                    enter_msg = self.state.enter(self)
+                    logging.debug(f"ValuePropWorkflow.process_user_input (intake with input): Got state.enter_msg='{enter_msg}' from state {self.state.name}")
+                    accumulated_messages.append(enter_msg)
                 else: # Should not happen if IDEATION_STEPS and states are populated
-                    accumulated_messages.append("Error: Ideation state not properly initialized after intake. Please check workflow logic.")
+                    error_msg = "Error: Ideation state not properly initialized after intake. Please check workflow logic."
+                    logging.error(f"ValuePropWorkflow.process_user_input (intake with input): {error_msg}")
+                    accumulated_messages.append(error_msg)
             else:
                 # First time in intake, no user input yet
-                accumulated_messages.append(self.persona.greet_and_explain_value_prop_process())
+                greeting_msg = self.persona.greet_and_explain_value_prop_process()
+                logging.debug(f"ValuePropWorkflow.process_user_input: Got greeting_msg='{greeting_msg}'")
+                accumulated_messages.append(greeting_msg)
+
+                # This message was already being added after the greeting in the original logic
+                # Ensure it's logged if it's part of the sequence.
+                # From original lines 527-528:
+                # explanation = self.persona.get_intake_to_ideation_transition_message()
+                # accumulated_messages.append(explanation)
+                # Adding logging for it here:
+                if hasattr(self.persona, 'get_intake_to_ideation_transition_message'):
+                    transition_msg = self.persona.get_intake_to_ideation_transition_message()
+                    logging.debug(f"ValuePropWorkflow.process_user_input: Got intake_to_ideation_transition_msg='{transition_msg}'")
+                    # The original code at line 528 already appends this, so we don't append it again here
+                    # We are just logging what would be appended by line 528.
+                    # However, to be safe and ensure it's part of this block if the original logic changes,
+                    # let's ensure it's added if not already handled by lines 527-528.
+                    # Re-checking original: line 527 gets it, 528 appends it.
+                    # The greeting is at 554. The transition message is earlier.
+                    # Let's adjust the logging placement for the transition message to be where it's actually called.
+                    # The greeting at 554 is for *empty user input*.
+                    # If user_input_stripped is NOT empty (lines 517+), the transition message is at 527.
+
+                    # Corrected logic for logging:
+                    # The greeting at line 554 is for the "else" branch (empty input).
+                    # The transition message is in the "if user_input_stripped:" branch (lines 527-528).
+                    # So, the logging for greeting_msg is correct for its context.
+                    # The logging for transition_msg needs to be in its respective block.
+                    # The logging for state.enter() also needs to be in its respective block.
 
         elif self.current_phase == "ideation":
             if self.state is None: # All ideation states completed or error
@@ -767,7 +807,9 @@ class ValuePropWorkflow(WorkflowBase):
             reflection_prompt = self.persona.get_reflection_prompt()
             accumulated_messages.append(f"{fallback_prompt} {reflection_prompt}".strip())
 
-        return " ".join(filter(None, accumulated_messages)).strip()
+        final_message_str = " ".join(filter(None, accumulated_messages)).strip()
+        logging.debug(f"ValuePropWorkflow.process_user_input: Returning final combined messages: '{final_message_str}' (Accumulated: {accumulated_messages})")
+        return final_message_str
 
 
     def add_research_request(self, step: str, details: str = ""):

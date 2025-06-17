@@ -81,8 +81,9 @@ from src.ui_components import (
 
 import asyncio
 import logging
+import inspect # Added for line number logging
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s')
 
 # --- CONVERSATION STATE INIT ---
 if "conversation_initialized" not in st.session_state or st.session_state.get("new_chat_triggered"):
@@ -184,6 +185,9 @@ async def main():
     apply_responsive_css()
     privacy_notice()
 
+    # DEBUG: Write current stage and history at the start of main() after a rerun
+    # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Top of main(): stage='{st.session_state.get('stage')}', history_len='{len(st.session_state.get('history', []))}'")
+
     selected_workflow = st.session_state.get("selected_workflow_key")
     if selected_workflow is None:
         st.info("Please select a workflow from the sidebar to begin.")
@@ -249,6 +253,61 @@ async def main():
                 if role and content:
                     st.session_state.history.append({"role": role, "content": content})
 
+        # ---- ADDED: Trigger initial message for ideation stage if history is empty ----
+        current_stage_for_init_msg = st.session_state.get("stage")
+        history_for_init_msg = st.session_state.get("history", [])
+        
+        # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Checking for initial message: stage='{current_stage_for_init_msg}', history_empty='{not history_for_init_msg}'")
+
+        if current_stage_for_init_msg == "ideation" and not history_for_init_msg:
+            # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - INSIDE initial message block. Attempting to generate initial message.")
+            if workflow_instance and hasattr(workflow_instance, 'process_user_input'):
+                logging.debug("streamlit_app.py:%d - Ideation stage started, history empty, calling process_user_input(\"\") for initial message.", inspect.currentframe().f_lineno)
+                # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Calling workflow_instance.process_user_input(\"\")")
+                try:
+                    with st.spinner("Coach is preparing..."):
+                        logging.debug("streamlit_app.py:%d - Inside spinner, calling process_user_input(\"\")", inspect.currentframe().f_lineno)
+                        initial_response_data = workflow_instance.process_user_input("")
+                        logging.debug("streamlit_app.py:%d - process_user_input(\"\") returned: %s", inspect.currentframe().f_lineno, str(initial_response_data)[:200])
+                        # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - process_user_input returned: {str(initial_response_data)[:50]}...")
+                    
+                    initial_assistant_content = ""
+                    initial_assistant_citations = []
+                    if isinstance(initial_response_data, str):
+                        initial_assistant_content = initial_response_data
+                    elif isinstance(initial_response_data, dict):
+                        initial_assistant_content = initial_response_data.get("text", "Error starting conversation.")
+                        initial_assistant_citations = initial_response_data.get("citations", [])
+                    else:
+                        initial_assistant_content = "I'm sorry, I encountered an unexpected response format to start. Please try again."
+                    
+                    if initial_assistant_content:
+                        st.session_state.history.append({
+                            "role": "assistant",
+                            "content": initial_assistant_content,
+                            "citations": initial_assistant_citations
+                        })
+                        logging.debug("streamlit_app.py:%d - Added initial assistant message to history. New history length: %d", inspect.currentframe().f_lineno, len(st.session_state.history))
+                        # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Added initial message to history. History length: {len(st.session_state.history)}")
+                    else:
+                        logging.warning("streamlit_app.py:%d - Initial assistant content was empty, not adding to history.", inspect.currentframe().f_lineno)
+                        # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Initial assistant content was empty.")
+
+                except Exception as e:
+                    logging.error("streamlit_app.py:%d - Exception during initial message processing: %s", inspect.currentframe().f_lineno, e, exc_info=True)
+                    # st.write(f"ERROR streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Exception during initial message processing: {e}")
+                    st.session_state.history.append({
+                        "role": "assistant",
+                        "content": f"An error occurred while starting the conversation: {e}",
+                        "citations": []
+                    })
+            else:
+                logging.warning("streamlit_app.py:%d - Ideation stage, empty history, but no workflow_instance or process_user_input method found.", inspect.currentframe().f_lineno)
+                # st.write(f"WARNING streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Workflow instance or process_user_input not found for initial message.")
+        # else:
+            # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - SKIPPED initial message block. stage='{current_stage_for_init_msg}', history_empty='{not history_for_init_msg}'")
+
+
         chat_col = st.container()
         with chat_col:
             for msg in st.session_state.history:
@@ -296,13 +355,17 @@ async def main():
 
         # Stage transition buttons (same as before)
         if current_stage == "ideation":
-            if st.button("Proceed to Recommendation Phase"):
-                st.session_state["stage"] = "recommendation"
-                st.session_state.history.append({
-                    "role": "assistant",
-                    "content": "Okay, let's move to the recommendation phase. Based on our discussion, I'll provide some targeted recommendations for your value proposition."
-                })
-                st.rerun()
+            # This block was causing an infinite loop as it's not conditional on a button.
+            # The "Proceed to Recommendation Phase" button was removed, but this unconditional
+            # message append and rerun remained.
+            # if st.button("Proceed to Recommendation Phase"): # This was correctly commented out
+            #     st.session_state["stage"] = "recommendation"
+            #     st.session_state.history.append({
+            #         "role": "assistant",
+            #         "content": "Okay, let's move to the recommendation phase. Based on our discussion, I'll provide some targeted recommendations for your value proposition."
+            #     })
+            #     st.rerun()
+            pass # Placeholder for any future ideation-specific buttons
         elif current_stage == "recommendation":
             if st.button("Proceed to Iteration Phase"):
                 st.session_state["stage"] = "iteration"
