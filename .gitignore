@@ -45,3 +45,4 @@ Thumbs.db
 
 #Ignore ouptut folder
 out 
+.roo/mcp.json
