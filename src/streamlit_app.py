@@ -1,399 +1,343 @@
 """
 Main Streamlit application file for the Digital Health Innovation Chatbot UI.
-This file is responsible for managing the overall UI flow and specifically handles
-the detailed stage transitions for workflows like Value Proposition. It updates
-st.session_state['stage'] to reflect granular phases such as 'intake', 'ideation',
-'recommendation', 'iteration', and 'summary' for the Value Proposition workflow,
-ensuring the UI syncs with the current phase of user interaction.
+Handles UI flow, workflow selection, and chat rendering.
 """
 import os
 import sys
 import streamlit as st
-import datetime
-import logging
-import asyncio
 
-# Remove if not needed; can break if cleanup.py is missing or faulty
-# import cleanup
-
-# Add the project root to the Python path to enable absolute imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# --- PAGE CONFIG & HEADER ---
+st.set_page_config(page_title="Chatbot UI", layout="wide")
+st.markdown("""
+<style>
+#page-title {
+    color: #007BFF;
+    font-size: 2rem;
+    font-weight: 400;
+    text-align: center;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+}
+</style>
+""", unsafe_allow_html=True)
+st.markdown('<div id="page-title">Digital Innovation Chats</div>', unsafe_allow_html=True)
+
+# --- FEEDBACK BUTTON (unchanged) ---
+st.markdown("""
+<style>
+    #fb-button {position: fixed; bottom: 16px; right: 16px; background: #f1f1f1; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em; z-index: 1001;}
+    #fb-panel {position: fixed; bottom: 48px; right: 16px; width: 320px; max-width: 90%; display: none; background: white; border: 1px solid #ddd; border-radius: 4px; padding: 8px; z-index: 1000; box-shadow: 0px 0px 10px rgba(0,0,0,0.1);}
+</style>
+""", unsafe_allow_html=True)
+st.markdown("<div id='fb-button'>💬 Feedback</div>", unsafe_allow_html=True)
+st.markdown(
+    "<div id='fb-panel'>"
+    "<textarea id='fb-textarea' placeholder='Share feedback…' style='width:100%;height:80px;border:1px solid #ccc;border-radius:4px;padding:4px;'></textarea>"
+    "<button id='fb-submit' style='margin-top:4px;padding:4px 8px;font-size:0.9em;'>Send</button>"
+    "</div>",
+    unsafe_allow_html=True
+)
+st.components.v1.html("""
+<script>
+    const fbButton = document.getElementById('fb-button');
+    const fbPanel = document.getElementById('fb-panel');
+    const fbTextarea = document.getElementById('fb-textarea');
+    const fbSubmit = document.getElementById('fb-submit');
+    if (fbButton && fbPanel) {
+        fbButton.onclick = function() {
+            fbPanel.style.display = (fbPanel.style.display === 'block') ? 'none' : 'block';
+        };
+    }
+    if (fbSubmit && fbTextarea && fbPanel) {
+        fbSubmit.onclick = function() {
+            const feedbackText = fbTextarea.value;
+            if (feedbackText.trim() !== "") {
+                console.log("Feedback submitted:", feedbackText);
+                alert("Feedback submitted (logged to console for now). Thank you!");
+                fbTextarea.value = "";
+                fbPanel.style.display = 'none';
+            } else {
+                alert("Please enter some feedback before sending.");
+            }
+        };
+    }
+</script>
+""", height=0)
+
+# --- IMPORTS ---
+from src.workflows.registry import WORKFLOWS
 from src.persistence_utils import ensure_db, save_session
 from src.conversation_manager import (
     initialize_conversation_state, run_intake_flow, get_intake_questions,
     is_out_of_scope, generate_assistant_response,
 )
-from src.workflows.value_prop import ValuePropWorkflow # Keep this one
-from src.personas.coach import CoachPersona # Keep this one
+from src.workflows.value_prop import ValuePropWorkflow
+from src.personas.coach import CoachPersona
 from src.ui_components import (
-    apply_responsive_css, privacy_notice, render_response_with_citations,
-    progress_bar, render_general_feedback_trigger, render_final_session_feedback_prompt
+    apply_responsive_css, privacy_notice, render_response_with_citations
 )
-from src.ui.sidebar import create_sidebar # Corrected path
-# from persona_simulation import get_persona_response # Assuming this is not used based on current context
-# from src.workflows.value_prop import render_value_prop_workflow # Removed incorrect import
-# Removed duplicate imports for ValuePropWorkflow and CoachPersona
 
-# Configure logging
+import asyncio
+import logging
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Initialize conversation state (this runs once per session unless new_chat is triggered)
+# --- CONVERSATION STATE INIT ---
 if "conversation_initialized" not in st.session_state or st.session_state.get("new_chat_triggered"):
     try:
         initialize_conversation_state(new_chat=True)
         st.session_state["conversation_initialized"] = True
         st.session_state["new_chat_triggered"] = False
-        logging.info("Conversation state initialized successfully (new chat).")
     except Exception as e:
-        logging.error(f"Error initializing conversation state: {e}", exc_info=True)
-        st.error(f"An error occurred during initialization: {e}")
+        st.error(f"Initialization error: {e}")
         st.stop()
-else:
-    logging.info("Conversation state already initialized.")
 
-# SECTIONS = ["Intake questions", "Value Proposition", "Actionable Recommendations", "Session Summary"] # Removed old hardcoded SECTIONS
+# --- WORKFLOW NAME FORMATTER ---
+def format_workflow_name(name_key):
+    if name_key == "value_prop":
+        return "Value Proposition"
+    return ' '.join(word.capitalize() for word in name_key.split('_'))
 
-def render_horizontal_header(current_stage, selected_workflow): # Changed signature
-    if selected_workflow != "value_prop":
-        return # Only render for value_prop workflow
+# --- SIDEBAR: WORKFLOW SELECTOR & PHASES ---
+with st.sidebar:
+    # Map user-friendly names → workflow keys
+    formatted_workflow_options = {
+        format_workflow_name(k): k
+        for k in WORKFLOWS.keys()
+    }
+    placeholder = "Select"
+    options = [placeholder] + list(formatted_workflow_options.keys())
 
-    phases_to_display = ValuePropWorkflow.PHASES # Use phases from ValuePropWorkflow
-
-    st.markdown(
-        """
-        <style>
-        .horizontal-header {
-            display: flex;
-            justify-content: space-around; /* Consider space-between or flex-start for many items */
-            padding: 10px 0;
-            border-bottom: 1px solid #eee;
-            margin-bottom: 20px;
-            overflow-x: auto; /* Allow horizontal scrolling if phases exceed width */
-            white-space: nowrap; /* Prevent phase names from wrapping */
-        }
-        .header-item {
-            font-size: 1.0em; /* Adjusted for potentially more items */
-            font-weight: bold;
-            color: darkgrey;
-            cursor: default; /* Not clickable for now */
-            padding: 5px 8px; /* Adjusted padding */
-            margin-right: 5px; /* Add some space between items */
-        }
-        .header-item.active {
-            color: black;
-            border-bottom: 2px solid black; /* Highlight active phase more clearly */
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
+    selected_display = st.selectbox(
+        "Workflow",
+        options,
+        index=0,
+        key="selected_workflow_display_name"
     )
 
-    st.markdown('<div class="horizontal-header">', unsafe_allow_html=True)
-    for phase in phases_to_display:
-        display_phase_name = phase.replace("_", " ").title()
-        is_active = (current_stage == phase)
-        st.markdown(
-            f'<div class="header-item {"active" if is_active else ""}">{display_phase_name}</div>',
-            unsafe_allow_html=True
-        )
-    st.markdown('</div>', unsafe_allow_html=True)
+    if selected_display != placeholder:
+        st.session_state.selected_workflow_key = formatted_workflow_options[selected_display]
+    else:
+        st.session_state.selected_workflow_key = None
 
+    st.markdown("---")
+
+    # ---- PHASE DISPLAY SECTION ----
+    key = st.session_state.get("selected_workflow_key")
+    logging.info(f"SIDEBAR: Selected workflow key: {key}")
+
+    if key:
+        # Ensure workflow instance exists (extend for new workflows)
+        workflow_instance_key = f"{key}_workflow_instance"
+        persona_instance_key = "coach_persona_instance"  # For value_prop only
+        logging.info(f"SIDEBAR: Workflow instance key: {workflow_instance_key}")
+
+        if workflow_instance_key not in st.session_state:
+            logging.info(f"SIDEBAR: Creating new workflow instance for {key}")
+            # Only create if missing (supports value_prop, extend for more)
+            if key == "value_prop":
+                if persona_instance_key not in st.session_state:
+                    st.session_state[persona_instance_key] = CoachPersona()
+                    logging.info(f"SIDEBAR: Created new CoachPersona instance.")
+                st.session_state[workflow_instance_key] = ValuePropWorkflow(
+                    context={"persona_instance": st.session_state[persona_instance_key]}
+                )
+                logging.info(f"SIDEBAR: ValuePropWorkflow instance created.")
+            else:
+                st.session_state[workflow_instance_key] = None  # Placeholder for future workflows
+                logging.info(f"SIDEBAR: Placeholder for {key} workflow instance set to None.")
+        else:
+            logging.info(f"SIDEBAR: Workflow instance for {key} already exists in session_state.")
+
+        workflow_instance = st.session_state.get(workflow_instance_key)
+        logging.info(f"SIDEBAR: Retrieved workflow_instance: {workflow_instance}")
+
+        # Only render if workflow has phases
+        if workflow_instance and hasattr(workflow_instance, "get_all_phases"):
+            logging.info(f"SIDEBAR: workflow_instance has get_all_phases method.")
+            phases = workflow_instance.get_all_phases()
+            logging.info(f"SIDEBAR: Phases from get_all_phases(): {phases}")
+            current_phase = getattr(workflow_instance, "current_phase", None)
+            logging.info(f"SIDEBAR: Current phase: {current_phase}")
+            if phases:
+                for phase in phases:
+                    logging.info(f"SIDEBAR: Displaying phase: {phase}")
+                    is_current = (phase == current_phase)
+                    style = "font-weight:bold; color:#007BFF;" if is_current else "color:#888;"
+                    st.markdown(
+                        f"- <span style='{style}'>{format_workflow_name(phase)}</span>",
+                        unsafe_allow_html=True
+                    )
+            else:
+                logging.info(f"SIDEBAR: No phases to display for {key}.")
+        elif workflow_instance:
+            logging.warning(f"SIDEBAR: workflow_instance for {key} does NOT have get_all_phases method.")
+        else:
+            logging.warning(f"SIDEBAR: workflow_instance for {key} is None, cannot display phases.")
+    else:
+        logging.info("SIDEBAR: No workflow key selected, not displaying phases.")
+
+# --- MAIN APP LOGIC ---
 async def main():
-    st.set_page_config(page_title="Chatbot UI", layout="wide")
-    st.title("Digital Health Innovation Chats")
     apply_responsive_css()
     privacy_notice()
-    create_sidebar()
 
     selected_workflow = st.session_state.get("selected_workflow_key")
-    current_stage_before_logic = st.session_state.get("stage")
-
-    # If no workflow is selected, ensure stage is None and UI is minimal
     if selected_workflow is None:
-        if st.session_state.get("stage") is not None:
-            st.session_state.stage = None
-            # Clear other relevant states if needed
-            st.session_state.pop("conversation_history", None)
-            st.session_state.pop("intake_answers", None)
-            st.session_state.pop("intake_index", None) # Cleared here
-            logging.info(f"No workflow selected. Stage explicitly set to None. Cleared related states.")
-            st.rerun() # Rerun to clear UI
-    elif selected_workflow == "value_prop":
-        current_stage = st.session_state.get("stage")
-        # Valid post-intake stages for value_prop.
-        valid_post_intake_stages = ["ideation", "recommendation", "iteration", "summary"]
+        st.info("Please select a workflow from the sidebar to begin.")
+        return
 
-        # If value_prop is selected, and we are NOT in a valid post-intake stage for it,
-        # then we should be in 'intake'. Initialize intake_index if needed.
-        if current_stage not in valid_post_intake_stages:
-            if current_stage != "intake" or "intake_index" not in st.session_state:
-                st.session_state.stage = "intake"
-                st.session_state.intake_index = 0 # Initialize/Reset intake index
-                logging.info(f"Workflow '{selected_workflow}': Stage set to 'intake'. Intake index initialized/reset to 0.")
-                st.rerun() # Rerun if we made a change to stage or intake_index
-        # If current_stage IS one of valid_post_intake_stages, this block is skipped,
-        # preventing the intake from restarting.
-    # For other workflows (not value_prop and not None), we might not need a stage or a different logic.
-    # For now, if a non-value-prop workflow is selected, and stage was previously set (e.g. from value_prop), clear it.
-    elif selected_workflow is not None and selected_workflow != "value_prop":
-        if st.session_state.get("stage") is not None:
-            st.session_state.stage = None
-            logging.info(f"Workflow '{selected_workflow}': Stage was '{current_stage_before_logic}'. Stage explicitly set to None.")
+    # Ensure workflow instance exists (value_prop example)
+    if selected_workflow == "value_prop":
+        if "value_prop_workflow_instance" not in st.session_state:
+            st.session_state.coach_persona_instance = CoachPersona()
+            st.session_state.value_prop_workflow_instance = ValuePropWorkflow(
+                context={"persona_instance": st.session_state.coach_persona_instance}
+            )
+        workflow_instance = st.session_state.value_prop_workflow_instance
+    else:
+        workflow_instance = None  # Extend logic for other workflows
+
+    # Intake phase logic (for value_prop workflow)
+    if selected_workflow == "value_prop" and st.session_state.get("stage") not in ["ideation", "recommendation", "iteration", "summary"]:
+        st.session_state.stage = "intake"
+        st.session_state.intake_index = st.session_state.get("intake_index", 0)
+
+    # -- Intake logic --
+    if selected_workflow == "value_prop" and st.session_state.get("stage") == "intake":
+        intake_questions = get_intake_questions()
+        idx = st.session_state.get("intake_index", 0)
+        if idx < len(intake_questions):
+            question = intake_questions[idx]
+            form_key = f"intake_form_{selected_workflow}_{idx}"
+            with st.form(key=form_key):
+                st.markdown(question)
+                user_response_input = st.text_area(
+                    label="",
+                    placeholder="Please provide your detailed response here...",
+                    key=f"intake_q_{selected_workflow}_{idx}_input",
+                    height=100
+                )
+                col1, col2 = st.columns([9, 1])
+                with col2:
+                    submitted = st.form_submit_button(label="➤")
+            if submitted:
+                if user_response_input:
+                    run_intake_flow(user_response_input)
+                    st.rerun()
+                else:
+                    st.warning("Please enter a response to proceed.")
+            return  # Prevent further UI rendering
+        else:
+            # Intake complete, transition
+            st.session_state.stage = "ideation"
             st.rerun()
 
+    # --- Chat stages ---
+    if selected_workflow == "value_prop" and st.session_state.get("stage") in ["ideation", "recommendation", "iteration", "summary"]:
+        workflow_instance = st.session_state.value_prop_workflow_instance
+        # Chat message history
+        if "history" not in st.session_state:
+            st.session_state.history = []
+        if "conversation_history" in st.session_state and st.session_state.conversation_history and not st.session_state.history:
+            # Migrate old to new format if needed
+            for msg_old in st.session_state.conversation_history:
+                role = msg_old.get("role")
+                content = msg_old.get("text")
+                if role and content:
+                    st.session_state.history.append({"role": role, "content": content})
 
-    st.sidebar.subheader("Session Metrics")
-    st.sidebar.write(f"Tokens Used (Session): {st.session_state.get('token_usage', {}).get('session', 0)}")
-    st.sidebar.write(f"Tokens Used (Daily): {st.session_state.get('token_usage', {}).get('daily', 0)}")
-    progress_bar(st.session_state.get("turn_count", 0))
-
-    try:
-        # Only render header and workflow specific UI if a workflow is selected
-        if selected_workflow:
-            current_stage_for_header = st.session_state.get("stage")
-            # The 'selected_workflow' variable here is already the key, e.g., "value_prop"
-            render_horizontal_header(current_stage_for_header, selected_workflow)
-
-            # --- Intake Stage Logic (Common for workflows that use it) ---
-            if st.session_state.get("stage") == "intake":
-                logging.info(f"DEBUG: Entering intake stage for workflow: {selected_workflow}.")
-                # Assuming get_intake_questions might be workflow-specific in the future,
-                # but for now, it's generic.
-                intake_questions = get_intake_questions() # Removed workflow_key
-                current_intake_index = st.session_state.get("intake_index", 0)
-
-                if current_intake_index < len(intake_questions):
-                    current_question = intake_questions[current_intake_index]
-                    # Use selected_workflow in form key to ensure unique keys if multiple workflows use this intake
-                    form_key_suffix = selected_workflow if selected_workflow else "default"
-                    with st.form(key=f"intake_form_{form_key_suffix}_{current_intake_index}"):
-                        st.markdown(current_question)
-                        user_response_input = st.text_input("Your response:", key=f"intake_q_{form_key_suffix}_{current_intake_index}_input")
-                        submitted = st.form_submit_button(label="Submit")
-                    if submitted:
-                        if user_response_input:
-                            # run_intake_flow might also need to be workflow-aware
-                            run_intake_flow(user_response_input) # Removed workflow_key
-                            st.rerun()
+        chat_col = st.container()
+        with chat_col:
+            for msg in st.session_state.history:
+                role = msg.get("role")
+                content = msg.get("content")
+                if role and content:
+                    with st.chat_message(role):
+                        citations = msg.get("citations", [])
+                        if citations:
+                            render_response_with_citations(content, citations)
                         else:
-                            st.warning("Please enter a response to proceed.")
-                else: # Intake complete
-                    logging.info(f"Intake complete for {selected_workflow}. Transitioning to ideation stage.")
-                    # Enforce: Intake MUST transition to ideation.
-                    assert st.session_state.get("stage") == "intake", "Stage must be 'intake' before transitioning to 'ideation'."
-                    st.session_state["stage"] = "ideation"
-                    initial_message = "Great! We've completed the intake. Now, let's move on to crafting your Value Proposition. What are your initial thoughts or ideas for the value proposition?" # Default message
+                            st.write(content)
 
-                    if selected_workflow == "value_prop":
-                        # Ensure workflow instance exists and is of the correct type
-                        if "value_prop_workflow_instance" not in st.session_state or not isinstance(st.session_state.value_prop_workflow_instance, ValuePropWorkflow):
-                            if "coach_persona_instance" not in st.session_state: # Ensure coach persona exists
-                                st.session_state.coach_persona_instance = CoachPersona() # Initialize if not present
-                            st.session_state.value_prop_workflow_instance = ValuePropWorkflow(
-                                context={"persona_instance": st.session_state.coach_persona_instance}
-                            )
-                        
-                        workflow_instance = st.session_state.value_prop_workflow_instance
-                        
-                        # Transition workflow to ideation phase internally
-                        workflow_instance._transition_phase("ideation") # Use the internal method to set phase
+        # Chat input logic
+        current_stage = st.session_state.get("stage")
+        chat_input_placeholder = {
+            "ideation": "What are your thoughts on the value proposition?",
+            "recommendation": "What do you think of these recommendations? Or ask for more.",
+            "iteration": "How would you like to refine the value proposition?",
+        }.get(current_stage, "Type your message...")
 
-                        coach = workflow_instance.persona
-                        intake_answers_for_coach = st.session_state.get("intake_answers", [])
-                        scratchpad_for_coach = workflow_instance.scratchpad
-                        
-                        try:
-                            with st.spinner("One minute while I process this information."):
-                                # Pass an empty list for conversation_history as this is the start of ideation
-                                generated_message = coach.propose_next_conversation_turn(
-                                    intake_answers=intake_answers_for_coach,
-                                    scratchpad=scratchpad_for_coach,
-                                    phase="ideation", # Explicitly pass current phase
-                                    conversation_history=[]
-                                )
-                                if generated_message and isinstance(generated_message, str) and generated_message.strip():
-                                    initial_message = generated_message
-                                else:
-                                    logging.warning("CoachPersona.propose_next_conversation_turn did not return a valid message. Using default.")
-                        except Exception as e:
-                            logging.error(f"Error calling CoachPersona.propose_next_conversation_turn: {e}. Using default message.")
-                    
-                    st.session_state["conversation_history"] = [
-                        {"role": "assistant", "text": initial_message}
-                    ]
-                    # We keep intake_answers for the coach to use, it will be cleared later if needed or naturally overwritten.
-                    # st.session_state.pop("intake_answers", None)
-                    if "user_id" in st.session_state:
-                        save_session(st.session_state["user_id"], dict(st.session_state))
+        user_input = st.chat_input(chat_input_placeholder)
+        if user_input:
+            st.session_state.history.append({"role": "user", "content": user_input})
+            if workflow_instance and hasattr(workflow_instance, 'process_user_input'):
+                with st.spinner("Coach is thinking..."):
+                    response_data = workflow_instance.process_user_input(user_input)
+                    assistant_content = ""
+                    assistant_citations = []
+                    if isinstance(response_data, str):
+                        assistant_content = response_data
+                    elif isinstance(response_data, dict):
+                        assistant_content = response_data.get("text", "I'm sorry, I encountered an issue processing that.")
+                        assistant_citations = response_data.get("citations", [])
+                    else:
+                        assistant_content = "I'm sorry, I encountered an unexpected response format. Please try again."
+                    st.session_state.history.append({
+                        "role": "assistant",
+                        "content": assistant_content,
+                        "citations": assistant_citations
+                    })
+            else:
+                st.session_state.history.append({"role": "assistant", "content": "Error: Workflow not available to process input."})
+            st.rerun()
+
+        # Stage transition buttons (same as before)
+        if current_stage == "ideation":
+            if st.button("Proceed to Recommendation Phase"):
+                st.session_state["stage"] = "recommendation"
+                st.session_state.history.append({
+                    "role": "assistant",
+                    "content": "Okay, let's move to the recommendation phase. Based on our discussion, I'll provide some targeted recommendations for your value proposition."
+                })
+                st.rerun()
+        elif current_stage == "recommendation":
+            if st.button("Proceed to Iteration Phase"):
+                st.session_state["stage"] = "iteration"
+                st.session_state.history.append({
+                    "role": "assistant",
+                    "content": "Great! Now let's iterate on these ideas. Feel free to suggest changes, ask for refinements, or explore alternatives."
+                })
+                st.rerun()
+        elif current_stage == "iteration":
+            if st.button("Finalize and Proceed to Summary"):
+                st.session_state["stage"] = "summary"
+                st.session_state.history.append({
+                    "role": "assistant",
+                    "content": "Excellent! We've iterated on the value proposition. Let's now move to the summary of our work."
+                })
+                st.rerun()
+        elif current_stage == "summary":
+            st.subheader("Value Proposition Summary")
+            # You may want to add your summary report logic here
+            st.markdown("Summary generation not yet implemented.")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Restart Value Proposition Workflow"):
+                    st.session_state.stage = "intake"
+                    st.session_state.intake_index = 0
+                    st.session_state.history = []
+                    st.session_state.pop("value_prop_workflow_instance", None)
                     st.rerun()
-
-            # --- Value Proposition Workflow Stages ---
-            elif selected_workflow == "value_prop" and st.session_state.get("stage") in ["ideation", "recommendation", "iteration", "summary"]:
-                current_vp_stage = st.session_state.get("stage")
-                logging.info(f"DEBUG: Entering Value Proposition workflow, stage: {current_vp_stage}.")
-
-                # Initialize Persona and Workflow if not already done
-                if "coach_persona_instance" not in st.session_state:
-                    st.session_state.coach_persona_instance = CoachPersona()
-                
-                if "value_prop_workflow_instance" not in st.session_state or st.session_state.get("current_workflow_type") != "value_prop":
-                    st.session_state.value_prop_workflow_instance = ValuePropWorkflow(
-                        context={"persona_instance": st.session_state.coach_persona_instance}
-                    )
-                    st.session_state.current_workflow_type = "value_prop"
-                    # Ensure conversation history is clean for a new workflow instance start, unless already populated by intake transition
-                    if not st.session_state.get("conversation_history"):
-                        st.session_state.conversation_history = []
-                    logging.info("ValuePropWorkflow instance created/verified.")
-
-                workflow_instance = st.session_state.value_prop_workflow_instance
-
-                # Display conversation history (common for ideation, recommendation, iteration)
-                if current_vp_stage in ["ideation", "recommendation", "iteration"]:
-                    if "conversation_history" in st.session_state:
-                        for i, message in enumerate(st.session_state["conversation_history"]):
-                            with st.chat_message(message["role"]):
-                                citations_for_render = message.get("citations", [])
-                                render_response_with_citations(message["text"], citations_for_render)
-                
-                # --- Ideation Stage ---
-                if current_vp_stage == "ideation":
-                    user_input = st.chat_input(placeholder="What are your thoughts on the value proposition?")
-                    if user_input:
-                        st.session_state.conversation_history.append({"role": "user", "text": user_input})
-                        with st.chat_message("assistant"):
-                            with st.spinner("Coach is thinking..."):
-                                assistant_response = workflow_instance.process_user_input(user_input)
-                                if assistant_response is None:
-                                    assistant_response = "I'm sorry, I encountered an issue. Please try again."
-                                st.session_state.conversation_history.append({"role": "assistant", "text": assistant_response})
-                                render_response_with_citations(assistant_response, [])
-                        st.rerun()
-                    
-                    if st.button("Proceed to Recommendation Phase"):
-                        # Enforce: Ideation MUST transition to recommendation.
-                        assert st.session_state.get("stage") == "ideation", "Stage must be 'ideation' before transitioning to 'recommendation'."
-                        st.session_state["stage"] = "recommendation"
-                        st.session_state.conversation_history.append({
-                            "role": "assistant",
-                            "text": "Okay, let's move to the recommendation phase. Based on our discussion, I'll provide some targeted recommendations for your value proposition."
-                        })
-                        # Potentially call a workflow method to generate initial recommendations here
-                        # For now, just transition and let the user prompt or workflow handle next steps.
-                        if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
-                        st.rerun()
-
-                # --- Recommendation Stage ---
-                elif current_vp_stage == "recommendation":
-                    user_input = st.chat_input(placeholder="What do you think of these recommendations? Or ask for more.")
-                    if user_input:
-                        st.session_state.conversation_history.append({"role": "user", "text": user_input})
-                        with st.chat_message("assistant"):
-                            with st.spinner("Coach is thinking..."):
-                                # Assuming process_user_input handles being in recommendation phase
-                                assistant_response = workflow_instance.process_user_input(user_input)
-                                if assistant_response is None:
-                                    assistant_response = "I'm sorry, I encountered an issue. Please try again."
-                                st.session_state.conversation_history.append({"role": "assistant", "text": assistant_response})
-                                render_response_with_citations(assistant_response, [])
-                        st.rerun()
-
-                    if st.button("Proceed to Iteration Phase"):
-                        # Enforce: Recommendation MUST transition to iteration.
-                        assert st.session_state.get("stage") == "recommendation", "Stage must be 'recommendation' before transitioning to 'iteration'."
-                        st.session_state["stage"] = "iteration"
-                        st.session_state.conversation_history.append({
-                            "role": "assistant",
-                            "text": "Great! Now let's iterate on these ideas. Feel free to suggest changes, ask for refinements, or explore alternatives."
-                        })
-                        if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
-                        st.rerun()
-                
-                # --- Iteration Stage ---
-                elif current_vp_stage == "iteration":
-                    user_input = st.chat_input(placeholder="How would you like to refine the value proposition?")
-                    if user_input:
-                        st.session_state.conversation_history.append({"role": "user", "text": user_input})
-                        with st.chat_message("assistant"):
-                            with st.spinner("Coach is thinking..."):
-                                assistant_response = workflow_instance.process_user_input(user_input)
-                                if assistant_response is None:
-                                    assistant_response = "I'm sorry, I encountered an issue. Please try again."
-                                st.session_state.conversation_history.append({"role": "assistant", "text": assistant_response})
-                                render_response_with_citations(assistant_response, [])
-                        st.rerun()
-
-                    if st.button("Finalize and Proceed to Summary"):
-                        # Enforce: Iteration MUST transition to summary.
-                        assert st.session_state.get("stage") == "iteration", "Stage must be 'iteration' before transitioning to 'summary'."
-                        st.session_state["stage"] = "summary"
-                        # Generate a pre-summary message or let the summary stage handle it.
-                        st.session_state.conversation_history.append({
-                            "role": "assistant",
-                            "text": "Excellent! We've iterated on the value proposition. Let's now move to the summary of our work."
-                        })
-                        if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
-                        st.rerun()
-
-                # --- Summary Stage ---
-                elif current_vp_stage == "summary":
-                    st.subheader("Value Proposition Summary")
-                    # final_summary = workflow_instance.generate_final_summary() # Assuming this method exists
-                    # For now, let's use a placeholder or a generic summary from conversation_manager
-                    from conversation_manager import generate_final_summary_report # Import if not already
-                    final_summary_text = generate_final_summary_report() # Uses scratchpad
-                    
-                    st.markdown(final_summary_text if final_summary_text else "No summary could be generated at this time.")
-                    
-                    # Display conversation history for context if desired, or just the summary.
-                    # For brevity, we'll omit full history here but it could be an option.
-
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("Restart Value Proposition Workflow"):
-                            st.session_state.stage = "intake"
-                            st.session_state.intake_index = 0
-                            st.session_state.conversation_history = [] # Clear history for restart
-                            # Potentially clear value_prop_workflow_instance or re-initialize
-                            st.session_state.pop("value_prop_workflow_instance", None)
-                            st.session_state.pop("current_workflow_type", None)
-                            logging.info("Value Proposition workflow restarted by user.")
-                            if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
-                            st.rerun()
-                    with col2:
-                        if st.button("Choose Another Workflow / Exit"):
-                            st.session_state.selected_workflow_key = None # This will trigger sidebar selection
-                            st.session_state.stage = None # Clear stage
-                            st.session_state.conversation_history = []
-                            st.session_state.pop("value_prop_workflow_instance", None)
-                            st.session_state.pop("current_workflow_type", None)
-                            logging.info("User opted to choose another workflow or exit after summary.")
-                            if "user_id" in st.session_state: save_session(st.session_state["user_id"], dict(st.session_state))
-                            st.rerun()
-            
-            # Placeholder for other workflows if they have an "ideation" or other stages
-            elif selected_workflow != "value_prop" and st.session_state.get("stage") == "ideation":
-                st.info(f"Ideation stage for '{selected_workflow}' workflow is not yet implemented.")
-                # Potentially render a generic chat interface or workflow-specific UI here
-
-            elif st.session_state.get("stage") is not None: # Some other stage for a selected workflow
-                 st.info(f"Workflow '{selected_workflow}' is at stage '{st.session_state.get('stage')}'. UI for this stage is not yet fully implemented.")
-
-        else: # No workflow selected
-            st.info("Please select a topic from the sidebar to begin.")
-    except Exception as e:
-        logging.error(f"Error in main application logic: {e}", exc_info=True)
-        st.error(f"A critical error occurred: {e}")
-        st.stop()
-    finally:
-        st.markdown("---")
-        general_feedback_text = render_general_feedback_trigger()
-        if general_feedback_text:
-            st.session_state["general_session_feedback"] = general_feedback_text
-            st.session_state["general_session_feedback_timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            if "user_id" in st.session_state:
-                save_session(st.session_state["user_id"], dict(st.session_state))
+            with col2:
+                if st.button("Choose Another Workflow / Exit"):
+                    st.session_state.selected_workflow_key = None
+                    st.session_state.stage = None
+                    st.session_state.history = []
+                    st.session_state.pop("value_prop_workflow_instance", None)
+                    st.rerun()
 
 if __name__ == "__main__":
     asyncio.run(main())

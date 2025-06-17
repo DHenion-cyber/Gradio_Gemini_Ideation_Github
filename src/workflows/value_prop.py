@@ -451,6 +451,10 @@ class ValuePropWorkflow(WorkflowBase):
     def get_phase(self) -> str:
         return self.current_phase
 
+    def get_all_phases(self) -> List[str]:
+        """Returns a list of all defined phases for this workflow."""
+        return self.PHASES
+
     def _transition_phase(self, next_phase: str) -> None:
         current_phase_index = self.PHASES.index(self.current_phase)
         next_phase_index = self.PHASES.index(next_phase)
