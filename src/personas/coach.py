@@ -571,25 +571,9 @@ Your response should have two parts:
             "I'm here to help you brainstorm and develop your ideas."
         )
 
-    def get_step_intro_message(self, current_step: str, scratchpad: dict) -> str:
-        """
-        Returns a step-specific introduction message if appropriate, otherwise empty string.
-        """
-        if current_step == "differentiator" and \
-           scratchpad.get("main_benefit") and \
-           not scratchpad.get("differentiator"):
-            return (
-                "Let's define what makes your solution unique. "
-                "This helps clarify your competitive advantage and will later help to position your idea effectively.\n"
-                "What specific aspects set your solution apart from alternatives?"
-            )
-        elif current_step == "use_case" and \
-             scratchpad.get("differentiator") and \
-             not scratchpad.get("use_case"):
-            return (
-                "Now let's think about specific use cases. "
-                "How do you envision people using your solution in real-world scenarios?"
-            )
+    def get_step_intro_message(self, step, scratch):
+        summary = scratch.get(step,"")
+        if summary: return f"In brief, you said: {summary}. "
         return ""
 
     def get_prompt_for_empty_input(self, current_step: str) -> str:
