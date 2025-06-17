@@ -205,12 +205,17 @@ class ValuePropWorkflow(WorkflowBase): # Inherit from WorkflowBase
                 st.session_state["scratchpad"] = self.scratchpad
                 
                 # Persona handles recap of initial input and explains process
-                # For simplicity, assume first input moves to ideation.
-                # A more robust intake might have multiple turns.
-                ack_message = self.persona.active_listening(user_input_stripped) # Acknowledge input
-                transition_explanation = self.persona.get_intake_to_ideation_transition_message() # Get transition message
-                
-                preliminary_message = f"{ack_message} {transition_explanation}".strip() # Combine them
+                ack_message = self.persona.active_listening(user_input_stripped).strip()
+
+                # Safety-net: if the LLM returns a fragment (≤2 words) or no closing punctuation,
+                # swap in a deterministic fallback and/or add a period.
+                if len(ack_message.split()) < 3:
+                    ack_message = "Thanks for sharing that."
+                if ack_message and ack_message[-1] not in ".!?":
+                    ack_message += "."
+
+                transition_explanation = self.persona.get_intake_to_ideation_transition_message()
+                preliminary_message = f"{ack_message} {transition_explanation}".strip()
 
                 assert self.PHASES.index("ideation") == self.PHASES.index(self.current_phase) + 1, \
                     "Intake phase must transition directly to ideation."
