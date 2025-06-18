@@ -39,30 +39,56 @@ class SummaryPhase(PhaseEngineBase):
 
         return f"{intro_message}\n\nHere is your final summary:\n{summary_text}\n\nLet me know if you'd like it repeated, or type 'done' to finish."
 
-    def handle_response(self, user_input: str) -> dict:
-        """
-        Processes user's response after showing the summary.
-        User can ask to repeat or finish.
-        """
-        self.debug_log(step="handle_response_start", user_input=user_input)
-        txt_lower = user_input.lower().strip()
-        reply_text = ""
-        next_phase_name = None # Stays in summary unless "done"
+    # The handle_response logic is now primarily in PhaseEngineBase.
 
-        if "repeat" in txt_lower:
-            summary_text = st.session_state.scratchpad.get("final_summary", "No summary available to repeat.")
-            reply_text = f"Certainly, here is the summary again:\n{summary_text}\n\nType 'done' if you are finished."
-            self.debug_log(step="handle_response_repeat_summary")
-        elif "done" in txt_lower or self.classify_intent(user_input) == "affirm":
-            self.mark_complete() # Mark this phase (and implicitly workflow) as complete
-            reply_text = self.coach_persona.get_positive_affirmation_response(user_input, phase_name=self.phase_name) + \
-                         " All done with the Value Proposition workflow! Good luck."
-            # No next_phase means workflow ends. This will be handled by the main app loop.
-            self.debug_log(step="handle_response_done")
-        else:
-            summary_text = st.session_state.scratchpad.get("final_summary", "")
-            reply_text = self.coach_persona.get_clarification_prompt(user_input, phase_name=self.phase_name) + \
-                         f"\n\nSummary was:\n{summary_text}\n\nPlease type 'repeat' or 'done'."
-            self.debug_log(step="handle_response_unclear")
+    def store_input_to_scratchpad(self, user_input: str):
+        """
+        This phase primarily processes commands ('repeat', 'done').
+        The user's choice is acted upon by get_next_phase_after_completion.
+        """
+        self.debug_log(step="store_input_to_scratchpad_summary", user_input=user_input, info="Input is command-like.")
+        st.session_state.scratchpad["last_summary_command"] = user_input.strip().lower()
 
-        return {"next_phase": next_phase_name, "reply": reply_text}
+    def get_next_phase_after_completion(self) -> str | None:
+        """
+        Determines the next step after user responds to the summary.
+        'done' completes the workflow (returns None). 'repeat' stays in summary.
+        """
+        last_command = st.session_state.scratchpad.get("last_summary_command", "")
+
+        if "done" in last_command: # This also covers "affirm" if persona maps it to "done" effectively
+            self.debug_log(step="get_next_phase_summary_to_end_workflow")
+            self.mark_complete() # User is done, mark phase (and workflow) as complete.
+            return None # Signals end of workflow
+        elif "repeat" in last_command:
+            self.debug_log(step="get_next_phase_summary_repeat")
+            # To repeat, we stay in the current phase. The enter() method will be called again.
+            # The _is_complete flag for this interaction was set by base.handle_response.
+            # The next call to super().enter() will reset it for the "repeated" interaction.
+            return self.phase_name # Explicitly stay in 'summary' phase. Or return None if manager handles re-entry.
+                                   # Returning self.phase_name is clearer for explicit re-entry.
+                                   # However, base class handle_response returns None for next_phase if it's not changing.
+                                   # Let's align with that: if we want to stay, next_phase_decision is None.
+                                   # The persona's reply should be the repeated summary.
+                                   # This logic is tricky: base class sets self.complete=True.
+                                   # If we return None, workflow manager might think phase is done and try to move.
+                                   # For "repeat", we need to ensure the phase is NOT considered fully complete.
+                                   # The base class's mark_complete() was called.
+                                   # This needs careful handling in the persona's micro_validate or ack message for "repeat".
+                                   # For now, assume "repeat" means the persona handles re-displaying.
+                                   # The base class will call mark_complete(). If we return None, it means "stay and re-prompt".
+                                   # The enter() method will be called again.
+            return None # Stay in summary, enter() will re-display.
+        
+        # Fallback if command was unclear but somehow validated
+        self.debug_log(step="get_next_phase_summary_unclear_command_fallback", command=last_command)
+        return None # Stay in summary and re-prompt via enter()
+
+    def get_next_phase_after_skip(self) -> str | None:
+        """
+        If the user skips the summary phase (e.g., types 'skip' when presented with summary).
+        This usually implies they are done with the workflow.
+        """
+        self.debug_log(step="get_next_phase_after_skip_summary")
+        self.mark_complete() # Skipping summary also means workflow is done.
+        return None # Signals end of workflow

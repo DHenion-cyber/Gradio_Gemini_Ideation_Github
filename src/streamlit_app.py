@@ -9,21 +9,10 @@ import importlib # For dynamic module loading
 import asyncio
 import inspect # Added for line number logging
 
-# --- BEGIN DIAGNOSTIC ---
-print(f"Original sys.path: {sys.path}")
+# Ensure project root is in sys.path for consistent imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, project_root)
-print(f"Modified sys.path[0]: {sys.path[0]}")
-print(f"Attempting to import 'src.workflows.value_prop.phases.intake' directly...")
-try:
-    import workflows.value_prop.phases.intake
-    print("SUCCESS: 'src.workflows.value_prop.phases.intake' imported directly.")
-except ModuleNotFoundError as e:
-    print(f"ERROR: Failed to import 'src.workflows.value_prop.phases.intake' directly: {e}")
-except Exception as e:
-    print(f"ERROR: An unexpected error occurred during direct import test: {e}")
-print("--- END DIAGNOSTIC ---")
-# --- END DIAGNOSTIC ---
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from src.core.logger import get_logger # Roo: Added
 from src.workflow_manager import WORKFLOW_REGISTRY, reset_workflow, get_workflow_display_name, get_workflow_names # Roo: Modified
@@ -114,16 +103,10 @@ if "workflow" not in st.session_state:
     st.session_state.scratchpad = {}
     st.session_state.current_phase_engine = None
     st.session_state.coach_persona_instance = None
+    st.session_state["_force_re_enter_current_phase"] = False # Initialize flag
     logger.info("Initial session state initialized.")
 
 if "conversation_initialized" not in st.session_state or st.session_state.get("new_chat_triggered"): # Roo: This block might be redundant now
-    # try: # Roo: initialize_conversation_state was removed
-    #     # initialize_conversation_state(new_chat=True) # Roo: Removed
-    #     st.session_state["conversation_initialized"] = True # Roo: This flag's utility needs review
-    #     st.session_state["new_chat_triggered"] = False
-    # except Exception as e:
-    #     st.error(f"Initialization error: {e}")
-    #     st.stop()
     pass # Roo: Placeholder, review if this entire block is needed. reset_workflow handles init.
 
 # --- WORKFLOW NAME FORMATTER (can be simplified if display names are in WORKFLOW_REGISTRY) ---
@@ -264,21 +247,39 @@ async def main():
         st.error(f"Could not load phase engine for {active_workflow_slug} / {active_phase_slug}. Please check logs.")
         return
 
-    # --- Initial message for the phase if history is empty or last message was user ---
-    if not st.session_state.history or st.session_state.history[-1]["role"] == "user":
-        if not st.session_state.history: # Absolutely first message for this phase
-            logger.info(f"Entering phase '{active_phase_slug}' for workflow '{active_workflow_slug}'. Getting intro message.")
+    # --- Phase Entry Logic: Call enter() if new phase or if phase needs to re-prompt ---
+    if not st.session_state.history or st.session_state.get("_force_re_enter_current_phase", False):
+        if st.session_state.get("_force_re_enter_current_phase", False):
+            logger.info(f"Force re-entering phase '{active_phase_slug}' for new prompt.")
+        else: # History is empty, meaning it's a new phase entry
+            logger.info(f"Entering new phase '{active_phase_slug}'. Getting intro message.")
+        
+        st.session_state["_force_re_enter_current_phase"] = False # Consume the flag
+
+        if current_phase_engine: # Ensure engine is loaded
             log_event("phase_engine_enter_start", workflow=active_workflow_slug, phase=active_phase_slug)
             try:
                 with st.spinner("Coach is preparing..."):
                     intro_message = current_phase_engine.enter()
+                
                 st.session_state.history.append({"role": "assistant", "content": intro_message, "citations": []})
                 log_event("phase_engine_enter_success", workflow=active_workflow_slug, phase=active_phase_slug, message_length=len(intro_message))
-                st.rerun() # Rerun to display the intro message immediately
+                st.rerun() 
             except Exception as e:
                 logger.error(f"Error during phase_engine.enter(): {e}", exc_info=True)
                 st.session_state.history.append({"role": "assistant", "content": f"Error entering phase: {e}", "citations": []})
                 log_event("phase_engine_enter_failed", workflow=active_workflow_slug, phase=active_phase_slug, error=str(e))
+                st.rerun() # Rerun even on error to display the error message
+        else:
+            logger.error(f"Attempted to call enter() but current_phase_engine for '{active_phase_slug}' is None.")
+
+
+    # --- Display Intake Header (if applicable) ---
+    # This needs to be before the chat history container to appear above all conversational elements.
+    if active_phase_slug == "intake":
+        intake_header_text = st.session_state.get("current_phase_header")
+        if intake_header_text:
+            st.markdown(f"### {intake_header_text}")
 
     # --- Display chat history ---
     chat_col = st.container()
@@ -295,9 +296,19 @@ async def main():
                         st.write(content) # Use st.markdown for better formatting if content has markdown
 
     # --- Chat input ---
-    # Placeholder can be dynamic based on phase engine if desired
-    # current_phase_engine.get_input_placeholder() or similar
-    chat_input_placeholder = f"Your response for {format_phase_name(active_phase_slug)}..."
+    chat_input_placeholder_default = f"Your response for {format_phase_name(active_phase_slug)}..."
+    chat_input_placeholder = chat_input_placeholder_default
+
+    # Intake UI Enhancements (Placeholder part)
+    if active_phase_slug == "intake":
+        # Header is handled above. Placeholder is handled here.
+        intake_placeholder = st.session_state.get("current_phase_placeholder")
+        if intake_placeholder:
+            chat_input_placeholder = intake_placeholder
+        else:
+            # Fallback if placeholder not set for some reason during intake
+            chat_input_placeholder = "Please provide your input for the current question..."
+            logger.warning("Intake phase active, but 'current_phase_placeholder' not found in session_state.")
     
     user_input = st.chat_input(chat_input_placeholder, key=f"chat_input_{active_workflow_slug}_{active_phase_slug}")
 
@@ -316,39 +327,47 @@ async def main():
                 log_event("phase_engine_response", workflow=active_workflow_slug, phase=active_phase_slug, reply_length=len(assistant_reply), next_phase_suggestion=next_phase_candidate)
 
                 # --- Phase Transition Logic ---
-                if current_phase_engine.complete: # Check if the phase marked itself as complete
-                    log_event("phase_marked_complete", workflow=active_workflow_slug, phase=active_phase_slug)
-                    if next_phase_candidate: # If engine explicitly stated next phase
-                        st.session_state.phase = next_phase_candidate
-                        logger.info(f"Phase transition: Current phase '{active_phase_slug}' completed. Engine suggested next phase: '{next_phase_candidate}'.")
-                    else: # Auto-advance to next phase in sequence
-                        workflow_config = WORKFLOW_REGISTRY.get(active_workflow_slug)
-                        phases_in_order = workflow_config.get("phases_definition", [])
-                        try:
-                            current_idx = phases_in_order.index(active_phase_slug)
-                            if current_idx + 1 < len(phases_in_order):
-                                st.session_state.phase = phases_in_order[current_idx + 1]
-                                logger.info(f"Phase transition: Current phase '{active_phase_slug}' completed. Auto-advancing to next phase: '{st.session_state.phase}'.")
-                            else: # Last phase completed
-                                logger.info(f"Workflow '{active_workflow_slug}' completed (last phase '{active_phase_slug}' finished).")
-                                # Potentially display a workflow completion message or offer to restart/switch.
-                                # For now, it will just stay on the last phase's screen.
-                                st.success(f"Workflow '{get_workflow_display_name(active_workflow_slug)}' completed!")
-                                log_event("workflow_completed", workflow=active_workflow_slug)
-                        except ValueError:
-                            logger.error(f"Current phase '{active_phase_slug}' not found in its workflow's phase order. Cannot auto-advance.")
+                should_transition_to_new_phase = False
+                new_phase_target = None
+
+                if next_phase_candidate and next_phase_candidate != active_phase_slug:
+                    # Case 1: Engine explicitly suggests a *different* next phase.
+                    new_phase_target = next_phase_candidate
+                    should_transition_to_new_phase = True
+                    logger.info(f"Engine suggested transition from '{active_phase_slug}' to '{new_phase_target}'. Phase complete status from engine: {current_phase_engine.complete}")
+                
+                elif current_phase_engine.complete: # current_phase_engine.complete is True
+                    # Case 2: Current phase marked itself complete.
+                    # If next_phase_candidate was None (engine wants to stay or has no opinion for next), auto-advance.
+                    # If next_phase_candidate was current phase (engine wants to stay), also auto-advance because it's complete.
+                    log_event("phase_marked_complete", workflow=active_workflow_slug, phase=active_phase_slug, next_candidate_from_engine=next_phase_candidate)
                     
+                    workflow_config = WORKFLOW_REGISTRY.get(active_workflow_slug)
+                    phases_in_order = workflow_config.get("phases_definition", [])
+                    try:
+                        current_idx = phases_in_order.index(active_phase_slug)
+                        if current_idx + 1 < len(phases_in_order):
+                            new_phase_target = phases_in_order[current_idx + 1]
+                            should_transition_to_new_phase = True
+                            logger.info(f"Phase '{active_phase_slug}' completed. Auto-advancing to: '{new_phase_target}'.")
+                        else: # Last phase completed
+                            logger.info(f"Workflow '{active_workflow_slug}' completed (last phase '{active_phase_slug}' finished).")
+                            st.success(f"Workflow '{get_workflow_display_name(active_workflow_slug)}' completed!")
+                            log_event("workflow_completed", workflow=active_workflow_slug)
+                            # No actual phase transition, workflow ends.
+                    except ValueError:
+                        logger.error(f"Current phase '{active_phase_slug}' not found in its workflow's phase order. Cannot auto-advance after completion.")
+                
+                # If we decided to transition:
+                if should_transition_to_new_phase and new_phase_target:
+                    st.session_state.phase = new_phase_target
                     st.session_state.history = [] # Clear history for the new phase
-                    # current_phase_engine.debug_log("phase_transition_auto_or_suggested", new_phase=st.session_state.phase)
-
-
-                elif next_phase_candidate and next_phase_candidate != active_phase_slug:
-                    # Engine wants to transition without marking current as complete (e.g. jump)
-                    st.session_state.phase = next_phase_candidate
-                    st.session_state.history = [] # Clear history for the new phase
-                    logger.info(f"Phase transition: Engine explicitly set next phase to '{next_phase_candidate}' from '{active_phase_slug}'.")
-                    # current_phase_engine.debug_log("phase_transition_explicit_jump", new_phase=st.session_state.phase)
-
+                    st.session_state["_force_re_enter_current_phase"] = False # New phase will trigger enter via empty history
+                elif next_phase_candidate is None and not current_phase_engine.complete:
+                    # Case 3: Engine wants to stay (None) AND current phase is NOT complete (e.g., Intake has more questions).
+                    st.session_state["_force_re_enter_current_phase"] = True
+                    logger.info(f"Phase '{active_phase_slug}' is not complete and wants to stay (returned None). Setting _force_re_enter_current_phase = True.")
+                # Else: No transition, no forced re-entry.
 
             except Exception as e:
                 logger.error(f"Error during phase_engine.handle_response(): {e}", exc_info=True)

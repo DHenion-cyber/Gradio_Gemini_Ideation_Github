@@ -188,3 +188,56 @@
 {"utc_ts": "2025-06-18T05:27:51.852544", "workflow": "value_prop", "phase": "use_case", "event": "use_case_ask_help", "phase_name": "use_case", "workflow_name": "value_prop"}
 {"utc_ts": "2025-06-18T05:27:51.854236", "workflow": "value_prop", "phase": "use_case", "event": "use_case_suggestions_provided", "phase_name": "use_case", "workflow_name": "value_prop", "count": 2}
 {"utc_ts": "2025-06-18T05:27:51.855344", "workflow": "value_prop", "phase": "use_case", "event": "phase_engine_response", "reply_length": 565, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:52:43.805122", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T05:52:43.818878", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T05:52:43.950294", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:52:43.956881", "workflow": "value_prop", "phase": "intake", "event": "phase_enter", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:52:43.960793", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "question_idx": 0}
+{"utc_ts": "2025-06-18T05:52:43.966696", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_success", "message_length": 57}
+{"utc_ts": "2025-06-18T05:53:24.290561", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 4}
+{"utc_ts": "2025-06-18T05:53:24.296504", "workflow": "value_prop", "phase": "intake", "event": "intent_classified", "phase_name": "intake", "workflow_name": "value_prop", "user_input": "skip", "intent": "skip"}
+{"utc_ts": "2025-06-18T05:53:24.298807", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_stored", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "answer_length": 0, "question_idx": 0}
+{"utc_ts": "2025-06-18T05:53:24.309736", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response_failed", "error": "'ValuePropCoachPersona' object has no attribute 'get_skip_confirmation_message'"}
+{"utc_ts": "2025-06-18T05:53:44.755669", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 4}
+{"utc_ts": "2025-06-18T05:53:44.759756", "workflow": "value_prop", "phase": "intake", "event": "intent_classified", "phase_name": "intake", "workflow_name": "value_prop", "user_input": "skip", "intent": "skip"}
+{"utc_ts": "2025-06-18T05:53:44.762048", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_stored", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "answer_length": 0, "question_idx": 0}
+{"utc_ts": "2025-06-18T05:53:44.771318", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response_failed", "error": "'ValuePropCoachPersona' object has no attribute 'get_skip_confirmation_message'"}
+{"utc_ts": "2025-06-18T05:57:40.313260", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T05:57:40.317747", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T05:57:40.411417", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:57:40.416599", "workflow": "value_prop", "phase": "intake", "event": "phase_enter", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:57:40.425791", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "question_idx": 0}
+{"utc_ts": "2025-06-18T05:57:40.429496", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_success", "message_length": 57}
+{"utc_ts": "2025-06-18T05:57:54.372830", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 15}
+{"utc_ts": "2025-06-18T05:57:54.377520", "workflow": "value_prop", "phase": "intake", "event": "intent_classified", "phase_name": "intake", "workflow_name": "value_prop", "user_input": "medical imaging", "intent": "provide_detail"}
+{"utc_ts": "2025-06-18T05:57:54.379828", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_stored", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "answer_length": 15, "question_idx": 0}
+{"utc_ts": "2025-06-18T05:57:54.382083", "workflow": "value_prop", "phase": "intake", "event": "phase_complete", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:57:54.386776", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 66, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:57:54.390921", "workflow": "value_prop", "phase": "intake", "event": "phase_marked_complete"}
+{"utc_ts": "2025-06-18T05:57:54.496571", "workflow": "value_prop", "phase": "problem", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:57:54.501246", "workflow": "value_prop", "phase": "problem", "event": "phase_enter", "phase_name": "problem", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:57:54.506794", "workflow": "value_prop", "phase": "problem", "event": "phase_engine_enter_success", "message_length": 160}
+{"utc_ts": "2025-06-18T06:06:53.543610", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T06:06:53.549464", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T06:06:53.663961", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T06:06:53.673867", "workflow": "value_prop", "phase": "intake", "event": "phase_enter", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T06:06:53.679435", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "question_idx": 0}
+{"utc_ts": "2025-06-18T06:06:53.686133", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_success", "message_length": 57}
+{"utc_ts": "2025-06-18T06:07:00.038878", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 14}
+{"utc_ts": "2025-06-18T06:07:00.042081", "workflow": "value_prop", "phase": "intake", "event": "intent_classified", "phase_name": "intake", "workflow_name": "value_prop", "user_input": "hospital admin", "intent": "provide_detail"}
+{"utc_ts": "2025-06-18T06:07:00.044825", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_stored", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "answer_length": 14, "question_idx": 0}
+{"utc_ts": "2025-06-18T06:07:00.054683", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 65, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T06:14:06.253324", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T06:14:06.258241", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T06:14:06.344897", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T06:14:06.351513", "workflow": "value_prop", "phase": "intake", "event": "phase_enter", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T06:14:06.355474", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "question_idx": 0}
+{"utc_ts": "2025-06-18T06:14:06.358831", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_success", "message_length": 57}
+{"utc_ts": "2025-06-18T06:14:13.946402", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 15}
+{"utc_ts": "2025-06-18T06:14:13.955450", "workflow": "value_prop", "phase": "intake", "event": "intent_classified", "phase_name": "intake", "workflow_name": "value_prop", "user_input": "medical imaging", "intent": "provide_detail"}
+{"utc_ts": "2025-06-18T06:14:13.962194", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_stored", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "answer_length": 15, "question_idx": 0}
+{"utc_ts": "2025-06-18T06:14:13.973807", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 66, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T06:14:14.047362", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T06:14:14.059067", "workflow": "value_prop", "phase": "intake", "event": "phase_enter", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T06:14:14.063506", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_interests", "question_idx": 1}
+{"utc_ts": "2025-06-18T06:14:14.078266", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_success", "message_length": 112}

@@ -33,16 +33,82 @@ class PhaseEngineBase(ABC):
         self._is_complete = False # Reset completion status on entry
         return self.coach_persona.get_step_intro_message(phase_name=self.phase_name)
 
-    @abstractmethod
     def handle_response(self, user_input: str) -> dict:
         """
-        Processes the user's response.
-        Classifies intent, calls persona methods, and determines the next step.
+        Processes the user's response based on classified intent.
+        Handles content validation, phase completion, and persona interactions.
         Returns a dictionary: {"next_phase": str | None, "reply": str}
-        "next_phase" is the name of the next phase, or None to stay in the current phase.
-        "reply" is the bot's response to the user.
         """
-        raise NotImplementedError("Subclasses must implement handle_response.")
+        self.debug_log(step="handle_response_start", user_input=user_input)
+        intent = self.classify_intent(user_input)
+        log_event("intent_classified", phase_name=self.phase_name, workflow_name=self.workflow_name, user_input=user_input, intent=intent)
+
+        reply: str = ""
+        next_phase_decision: str | None = None
+        user_input_stripped = user_input.strip()
+        
+        # Store for potential use by subclass logic in get_next_phase_... methods
+        st.session_state["last_user_input"] = user_input_stripped
+        st.session_state["last_intent_classified"] = intent
+
+        if not user_input_stripped and intent != "unclear": # Ensure genuinely empty strings are treated as unclear
+            intent = "unclear" # Reclassify
+            st.session_state["last_intent_classified"] = intent # Update stored intent
+            log_event("intent_reclassified_empty", phase_name=self.phase_name, original_intent=st.session_state["last_intent_classified"])
+
+
+        if intent in ["provide_detail", "affirm"]:
+            # For "affirm", micro_validate will check if it's a standalone vague affirmation (e.g. "ok")
+            # or part of actual content.
+            is_valid_content = self.coach_persona.micro_validate(user_input_stripped, phase_name=self.phase_name)
+            if is_valid_content:
+                self.store_input_to_scratchpad(user_input_stripped)
+                # self.mark_complete() # Removed: Subclass's get_next_phase_after_completion will decide if phase is fully done.
+                reply = self.coach_persona.get_acknowledgement_message(phase_name=self.phase_name, user_input=user_input_stripped)
+                next_phase_decision = self.get_next_phase_after_completion() # This method might call self.mark_complete()
+            else:
+                # micro_validate returned False (e.g., "ok", "sure" alone, too short, or not specific enough)
+                reply = self.coach_persona.get_clarification_prompt(user_input=user_input_stripped, phase_name=self.phase_name, reason="validation_failed")
+                # Do not complete
+        elif intent == "unclear":
+            reply = self.coach_persona.get_clarification_prompt(user_input=user_input_stripped, phase_name=self.phase_name, reason="unclear_input")
+            # Do not complete
+        elif intent == "ask_suggestion":
+            reply = self.coach_persona.suggest_examples(phase_name=self.phase_name, user_input=user_input_stripped)
+            # Do not complete
+        elif intent == "skip":
+            self.store_input_to_scratchpad("") # Store empty string for this phase
+            reply = self.coach_persona.get_skip_confirmation_message(phase_name=self.phase_name)
+            # This phase is skipped (self.complete remains False), but we allow progression.
+            next_phase_decision = self.get_next_phase_after_skip()
+            log_event("phase_skipped", phase_name=self.phase_name, workflow_name=self.workflow_name)
+        elif intent == "negative":
+            reply = self.coach_persona.handle_negative_feedback(user_input=user_input_stripped, phase_name=self.phase_name)
+            # Do not complete
+        else: # Should not happen if classify_intent is comprehensive
+            logger.warning(f"Unhandled intent '{intent}' for input '{user_input_stripped}' in phase '{self.phase_name}'. Falling back to unexpected input.")
+            reply = self._handle_unexpected_input(user_input_stripped) # Uses persona's get_clarification_prompt
+
+        self.debug_log(step="handle_response_end", reply_len=len(reply), next_phase=next_phase_decision, completed=self.complete)
+        return {"next_phase": next_phase_decision, "reply": reply}
+
+    @abstractmethod
+    def store_input_to_scratchpad(self, user_input: str):
+        """Stores the validated user input to the session scratchpad.
+        Subclasses must implement this to define the scratchpad key and storage logic."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_next_phase_after_completion(self) -> str | None:
+        """Determines the next phase name after successful completion.
+        Subclasses must implement this. Return None if this is the last phase."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_next_phase_after_skip(self) -> str | None:
+        """Determines the next phase name after skipping the current phase.
+        Subclasses must implement this. Return None if this is the last phase or skipping is not allowed to progress."""
+        raise NotImplementedError
 
     @property
     def complete(self) -> bool:
@@ -68,34 +134,60 @@ class PhaseEngineBase(ABC):
 
     def classify_intent(self, user_input: str) -> str:
         """
-        Basic intent classification.
-        Subclasses can override for more sophisticated intent parsing.
+        Classifies user input into predefined intents.
+        Order of checks matters.
         """
         user_input_lower = user_input.lower().strip()
 
-        if not user_input_lower or user_input_lower == "?":
+        # 1. Handle empty or blank input first
+        if not user_input_lower:
             return "unclear"
-        if user_input_lower in ["skip", "not sure", "notsure", "not applicable", "n/a", "na"]:
+
+        # 2. Specific keywords for "skip" (explicit skip terms)
+        skip_keywords = ["skip", "not applicable", "n/a", "na"]
+        if user_input_lower in skip_keywords:
             return "skip"
-        if user_input_lower in ["yes", "yep", "yeah", "correct", "ok", "okay", "sure", "sounds good", "affirmative"]:
-            return "affirm"
-        if user_input_lower in ["no", "nope", "incorrect", "not really", "negative"]:
-            return "negative"
-        if "example" in user_input_lower or "suggestion" in user_input_lower or "help" in user_input_lower or "idea" in user_input_lower or "suggest" in user_input_lower:
-            return "ask_suggestion"
+
+        # 3. Specific keywords for "ask_suggestion"
+        # Includes "not sure" as per task requirements.
+        suggestion_keywords_exact = ["not sure", "notsure", "help me", "any ideas", "give me an example", "what should i write", "can you suggest"]
+        suggestion_keywords_contain = ["example", "suggestion", "help", "idea", "suggest", "ideas for"]
+        if user_input_lower in suggestion_keywords_exact or \
+           any(keyword in user_input_lower for keyword in suggestion_keywords_contain):
+            # Avoid classifying "no help needed" as ask_suggestion
+            if "no help" in user_input_lower or "don't need help" in user_input_lower:
+                 pass # Let it fall through to other classifications
+            else:
+                return "ask_suggestion"
+
+        # 4. Specific keywords for "unclear" (beyond blank)
+        # Includes "idk" as per task requirements.
+        unclear_keywords = ["?", "idk", "i don't know", "i dont know", "dunno", "huh", "what"]
+        if user_input_lower in unclear_keywords:
+            return "unclear"
         
-        # Default to unclear if no other intent is matched.
-        # More sophisticated NLU could be added here.
-        # For now, any other input that is not empty or a special keyword will be treated as "provide_detail"
-        # or could be contextually interpreted by the specific phase's handle_response.
-        # The base `classify_intent` aims to catch common cross-phase intents.
-        # If a phase expects free text, it will likely not rely solely on this classification for that text.
-        if user_input_lower: # If it's not empty and not caught by specific keywords above
-             return "provide_detail" # A generic intent for providing information
+        # 5. Specific keywords for "affirm"
+        # "ok", "sure" are included here for intent. micro_validate will check if they are sufficient as content.
+        affirm_keywords = [
+            "yes", "yep", "yeah", "correct", "ok", "okay", "sure", "sounds good",
+            "affirmative", "agree", "exactly", "precisely", "fine", "alright", "got it"
+        ]
+        if user_input_lower in affirm_keywords:
+            return "affirm"
 
-        return "unclear" # Fallback for empty or truly unclassifiable input
+        # 6. Specific keywords for "negative"
+        negative_keywords = [
+            "no", "nope", "incorrect", "not really", "negative", "disagree",
+            "wrong", "not correct", "don't agree"
+        ]
+        if user_input_lower in negative_keywords:
+            return "negative"
 
-    def _handle_unexpected_input(self, user_input: str) -> dict:
+        # 7. If non-empty and not matched above, it's "provide_detail"
+        # This is the primary intent for user providing substantive content.
+        return "provide_detail"
+
+    def _handle_unexpected_input(self, user_input: str) -> str:
         """
         Handles unexpected or unclear user input.
         """

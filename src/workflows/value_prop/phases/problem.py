@@ -8,31 +8,24 @@ class ProblemPhase(PhaseEngineBase):
     def __init__(self, coach_persona: CoachPersonaBase, workflow_name: str = "value_prop"):
         super().__init__(coach_persona, workflow_name)
 
-    def handle_response(self, user_input: str) -> dict:
-        """
-        Processes the user's response for the problem phase.
-        """
-        self.debug_log(step="handle_response_start", user_input=user_input)
-        intent = self.classify_intent(user_input)
-        reply_text = ""
-        next_phase_name = None
+    # The handle_response logic is now primarily in PhaseEngineBase.
+    # Subclasses like this one mainly need to implement the storage and transition logic.
 
-        current_scratchpad_value = st.session_state.scratchpad.get(self.phase_name, "")
+    def store_input_to_scratchpad(self, user_input: str):
+        """Stores the validated user input (problem description) to the session scratchpad."""
+        self.debug_log(step="store_input_to_scratchpad_problem", user_input_len=len(user_input))
+        st.session_state.scratchpad[self.phase_name] = user_input.strip()
+        # Potentially log an event here if more detailed tracking per phase is needed beyond base class
 
-        if intent == "negative" and current_scratchpad_value:
-            reply_text = self.coach_persona.get_negative_affirmation_response(user_input, phase_name=self.phase_name) + \
-                         " Please tell me about the problem you are addressing."
-            self.debug_log(step="handle_response_negative_intent_with_existing_value")
-        elif user_input.strip() and user_input.lower() != "no":
-            st.session_state.scratchpad[self.phase_name] = user_input.strip()
-            self.mark_complete()
-            reply_text = self.coach_persona.micro_validate(user_input, phase_name=self.phase_name) + \
-                         " Problem statement updated."
-            # next_phase_name = "target_customer" # To be handled by workflow runner
-            self.debug_log(step="handle_response_input_provided_and_complete", next_phase_suggestion=next_phase_name)
-        else:
-            reply_text = self.coach_persona.get_clarification_prompt(user_input, phase_name=self.phase_name) + \
-                         " Please describe the problem your idea solves."
-            self.debug_log(step="handle_response_unclear_or_no_new_input")
+    def get_next_phase_after_completion(self) -> str | None:
+        """Determines the next phase name after successful completion of the problem phase."""
+        self.debug_log(step="get_next_phase_after_completion_problem")
+        self.mark_complete() # Mark this single-step phase as complete
+        return "target_customer" # Or dynamically determine based on workflow logic if needed
 
-        return {"next_phase": next_phase_name, "reply": reply_text}
+    def get_next_phase_after_skip(self) -> str | None:
+        """Determines the next phase name after skipping the problem phase."""
+        self.debug_log(step="get_next_phase_after_skip_problem")
+        # Skipping problem might still lead to target customer, or a different path.
+        # For now, assume linear progression.
+        return "target_customer"

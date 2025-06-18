@@ -38,34 +38,56 @@ class RecommendationPhase(PhaseEngineBase):
         return f"{intro_message}\n\n{recs_text}\n\nWhat would you like to do next? (Type 'iterate' to refine, or 'summary' to wrap up.)"
 
 
-    def handle_response(self, user_input: str) -> dict:
-        """
-        Processes user's response after showing recommendations.
-        User can choose to iterate or go to summary.
-        """
-        self.debug_log(step="handle_response_start", user_input=user_input)
-        intent = self.classify_intent(user_input) # Basic intent
-        txt_lower = user_input.lower().strip()
-        reply_text = ""
-        next_phase_name = None
+    # The handle_response logic is now primarily in PhaseEngineBase.
 
-        if "iterate" in txt_lower or intent == "ask_suggestion": # Treat "help" or "suggestion" as wanting to iterate for now
-            self.mark_complete() # This phase is complete, moving to iteration
-            next_phase_name = "iteration"
-            reply_text = self.coach_persona.get_positive_affirmation_response(user_input, phase_name=self.phase_name) + \
-                         " Moving to the iteration phase."
-            self.debug_log(step="handle_response_iterate", next_phase_suggestion=next_phase_name)
-        elif "summary" in txt_lower:
-            self.mark_complete() # This phase is complete, moving to summary
-            next_phase_name = "summary"
-            reply_text = self.coach_persona.get_positive_affirmation_response(user_input, phase_name=self.phase_name) + \
-                         " Proceeding to summary."
-            self.debug_log(step="handle_response_summary", next_phase_suggestion=next_phase_name)
-        else:
-            # If input is unclear, re-iterate options.
-            cached_recs = st.session_state.scratchpad.get("cached_recommendations", "Recommendations were shown.")
-            reply_text = self.coach_persona.get_clarification_prompt(user_input, phase_name=self.phase_name) + \
-                         f"\n\n{cached_recs}\n\nPlease type 'iterate' to refine your inputs, or 'summary' to proceed to the final summary."
-            self.debug_log(step="handle_response_unclear")
+    def store_input_to_scratchpad(self, user_input: str):
+        """
+        This phase primarily processes commands ('iterate', 'summary') rather than storing free text.
+        The user's choice is acted upon by get_next_phase_after_completion.
+        """
+        self.debug_log(step="store_input_to_scratchpad_recommendation", user_input=user_input, info="Input is command-like, not stored in scratchpad field.")
+        # No direct storage into a specific scratchpad field for this phase's input.
+        # The input (e.g. "iterate", "summary") drives the next phase decision.
+        # We can store the last command if needed for analytics or complex logic.
+        st.session_state.scratchpad["last_recommendation_command"] = user_input.strip().lower()
 
-        return {"next_phase": next_phase_name, "reply": reply_text}
+
+    def get_next_phase_after_completion(self) -> str | None:
+        """
+        Determines the next phase based on the user's command after seeing recommendations.
+        The base class's handle_response would have validated the input.
+        """
+        # The user_input that led to completion is implicitly "iterate" or "summary"
+        # (or something the persona validated as such).
+        # We can retrieve the last input if necessary, or rely on intent.
+        last_command = st.session_state.scratchpad.get("last_recommendation_command", "")
+        
+        # A more robust way might be to check an intent set by the base class's micro_validate
+        # if we had specific intents for "chose_iterate" vs "chose_summary".
+        # For now, simple string check on the stored command.
+
+        if "iterate" in last_command:
+            self.debug_log(step="get_next_phase_recommendation_to_iteration")
+            self.mark_complete() # User chose to iterate, this phase's interaction is done.
+            return "iteration"
+        elif "summary" in last_command:
+            self.debug_log(step="get_next_phase_recommendation_to_summary")
+            self.mark_complete() # User chose summary, this phase's interaction is done.
+            return "summary"
+        
+        # Fallback if the command wasn't clear, though micro_validate should prevent this.
+        # If micro_validate allowed an ambiguous input (e.g. "ok") that wasn't "iterate" or "summary"
+        # the phase should not complete and should re-prompt.
+        # Returning None here means "stay in phase", and since self.mark_complete() wasn't called,
+        # the workflow manager won't auto-advance. The persona's clarification prompt will be shown.
+        self.debug_log(step="get_next_phase_recommendation_unclear_command_stay", command=last_command)
+        return None # Stay in phase to re-prompt if command was not iterate/summary but passed micro_validate.
+
+    def get_next_phase_after_skip(self) -> str | None:
+        """
+        Determines the next phase if the user skips recommendations.
+        Typically, this might lead to summary or allow re-evaluation.
+        """
+        self.debug_log(step="get_next_phase_after_skip_recommendation")
+        # If recommendations are skipped, perhaps proceed to summary.
+        return "summary"
