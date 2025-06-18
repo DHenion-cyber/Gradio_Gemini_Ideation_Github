@@ -82,3 +82,109 @@
 {"utc_ts": "2025-06-18T03:16:16.285999", "workflow": "value_prop", "phase": "summary", "event": "phase_engine_enter_start"}
 {"utc_ts": "2025-06-18T03:16:16.292600", "workflow": "value_prop", "phase": "summary", "event": "phase_enter", "phase_name": "summary", "workflow_name": "value_prop"}
 {"utc_ts": "2025-06-18T03:16:16.296764", "workflow": "value_prop", "phase": "summary", "event": "phase_engine_enter_success", "message_length": 321}
+{"utc_ts": "2025-06-18T04:50:06.175069", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T04:50:06.178549", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T04:52:22.596689", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T04:52:22.600440", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T04:55:44.237847", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T04:55:44.242045", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T04:58:12.603853", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T04:58:12.607925", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T05:05:26.195787", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T05:05:26.200095", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T05:05:26.281498", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:05:26.291122", "workflow": "value_prop", "phase": "intake", "event": "phase_enter", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:05:26.294112", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background"}
+{"utc_ts": "2025-06-18T05:05:26.298370", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_success", "message_length": 57}
+{"utc_ts": "2025-06-18T05:05:49.092515", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 14}
+{"utc_ts": "2025-06-18T05:05:49.096165", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_received", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "answer_length": 14}
+{"utc_ts": "2025-06-18T05:05:49.099489", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_interests"}
+{"utc_ts": "2025-06-18T05:05:49.102044", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 173, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:07:29.438045", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 134}
+{"utc_ts": "2025-06-18T05:07:29.442142", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_received", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_interests", "answer_length": 134}
+{"utc_ts": "2025-06-18T05:07:29.445948", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_problem_motivation"}
+{"utc_ts": "2025-06-18T05:07:29.449781", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 172, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:08:17.335747", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 114}
+{"utc_ts": "2025-06-18T05:08:17.343147", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_received", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_problem_motivation", "answer_length": 114}
+{"utc_ts": "2025-06-18T05:08:17.346014", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_anything_else"}
+{"utc_ts": "2025-06-18T05:08:17.348565", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 144, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:08:23.756614", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 2}
+{"utc_ts": "2025-06-18T05:08:23.761078", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_received", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_anything_else", "answer_length": 2}
+{"utc_ts": "2025-06-18T05:08:23.765965", "workflow": "value_prop", "phase": "intake", "event": "phase_complete", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:08:23.768191", "workflow": "value_prop", "phase": "intake", "event": "intake_complete", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:08:23.769796", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 119, "next_phase_suggestion": "problem"}
+{"utc_ts": "2025-06-18T05:08:23.771600", "workflow": "value_prop", "phase": "intake", "event": "phase_marked_complete"}
+{"utc_ts": "2025-06-18T05:08:23.850485", "workflow": "value_prop", "phase": "problem", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:08:23.858677", "workflow": "value_prop", "phase": "problem", "event": "phase_enter", "phase_name": "problem", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:08:23.861936", "workflow": "value_prop", "phase": "problem", "event": "phase_engine_enter_success", "message_length": 160}
+{"utc_ts": "2025-06-18T05:08:45.448119", "workflow": "value_prop", "phase": "problem", "event": "user_input_submitted", "input_length": 20}
+{"utc_ts": "2025-06-18T05:08:45.451739", "workflow": "value_prop", "phase": "problem", "event": "phase_complete", "phase_name": "problem", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:08:45.454859", "workflow": "value_prop", "phase": "problem", "event": "phase_engine_response", "reply_length": 76, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:08:45.456742", "workflow": "value_prop", "phase": "problem", "event": "phase_marked_complete"}
+{"utc_ts": "2025-06-18T05:08:45.529523", "workflow": "value_prop", "phase": "target_customer", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:08:45.533320", "workflow": "value_prop", "phase": "target_customer", "event": "phase_enter", "phase_name": "target_customer", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:08:45.542162", "workflow": "value_prop", "phase": "target_customer", "event": "phase_engine_enter_success", "message_length": 125}
+{"utc_ts": "2025-06-18T05:12:03.721362", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T05:12:03.733244", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T05:12:03.813063", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:12:03.816454", "workflow": "value_prop", "phase": "intake", "event": "phase_enter", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:12:03.824911", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background"}
+{"utc_ts": "2025-06-18T05:12:03.828090", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_success", "message_length": 57}
+{"utc_ts": "2025-06-18T05:12:22.840202", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 14}
+{"utc_ts": "2025-06-18T05:12:22.845889", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_received", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "answer_length": 14}
+{"utc_ts": "2025-06-18T05:12:22.848765", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_interests"}
+{"utc_ts": "2025-06-18T05:12:22.850264", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 173, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:12:56.358576", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 24}
+{"utc_ts": "2025-06-18T05:12:56.361901", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_received", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_interests", "answer_length": 24}
+{"utc_ts": "2025-06-18T05:12:56.363676", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_problem_motivation"}
+{"utc_ts": "2025-06-18T05:12:56.365251", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 172, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:13:08.230443", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 16}
+{"utc_ts": "2025-06-18T05:13:08.234675", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_received", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_problem_motivation", "answer_length": 16}
+{"utc_ts": "2025-06-18T05:13:08.238318", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_anything_else"}
+{"utc_ts": "2025-06-18T05:13:08.243374", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 144, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:13:51.932671", "workflow": null, "phase": null, "event": "workflow_reset_start", "selected_workflow": "value_prop"}
+{"utc_ts": "2025-06-18T05:13:51.936703", "workflow": "value_prop", "phase": "intake", "event": "workflow_reset_complete", "active_workflow": "value_prop", "initial_phase": "intake"}
+{"utc_ts": "2025-06-18T05:13:52.012233", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:13:52.023889", "workflow": "value_prop", "phase": "intake", "event": "phase_enter", "phase_name": "intake", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:13:52.030717", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background"}
+{"utc_ts": "2025-06-18T05:13:52.040346", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_enter_success", "message_length": 57}
+{"utc_ts": "2025-06-18T05:17:30.239774", "workflow": "value_prop", "phase": "target_customer", "event": "user_input_submitted", "input_length": 1}
+{"utc_ts": "2025-06-18T05:17:30.243942", "workflow": "value_prop", "phase": "target_customer", "event": "phase_complete", "phase_name": "target_customer", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:17:30.245793", "workflow": "value_prop", "phase": "target_customer", "event": "phase_engine_response", "reply_length": 55, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:17:30.246682", "workflow": "value_prop", "phase": "target_customer", "event": "phase_marked_complete"}
+{"utc_ts": "2025-06-18T05:17:30.296458", "workflow": "value_prop", "phase": "solution", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:17:30.300658", "workflow": "value_prop", "phase": "solution", "event": "phase_enter", "phase_name": "solution", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:17:30.304201", "workflow": "value_prop", "phase": "solution", "event": "phase_engine_enter_success", "message_length": 150}
+{"utc_ts": "2025-06-18T05:18:50.173781", "workflow": "value_prop", "phase": "intake", "event": "user_input_submitted", "input_length": 4}
+{"utc_ts": "2025-06-18T05:18:50.179768", "workflow": "value_prop", "phase": "intake", "event": "intake_answer_received", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_background", "answer_length": 4}
+{"utc_ts": "2025-06-18T05:18:50.182313", "workflow": "value_prop", "phase": "intake", "event": "intake_question_presented", "phase_name": "intake", "workflow_name": "value_prop", "question_key": "vp_interests"}
+{"utc_ts": "2025-06-18T05:18:50.184669", "workflow": "value_prop", "phase": "intake", "event": "phase_engine_response", "reply_length": 173, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:19:22.290664", "workflow": "value_prop", "phase": "solution", "event": "user_input_submitted", "input_length": 4}
+{"utc_ts": "2025-06-18T05:19:22.294614", "workflow": "value_prop", "phase": "solution", "event": "phase_complete", "phase_name": "solution", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:19:22.296530", "workflow": "value_prop", "phase": "solution", "event": "phase_engine_response", "reply_length": 51, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:19:22.297406", "workflow": "value_prop", "phase": "solution", "event": "phase_marked_complete"}
+{"utc_ts": "2025-06-18T05:19:22.351932", "workflow": "value_prop", "phase": "main_benefit", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:19:22.358807", "workflow": "value_prop", "phase": "main_benefit", "event": "phase_enter", "phase_name": "main_benefit", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:19:22.363718", "workflow": "value_prop", "phase": "main_benefit", "event": "phase_engine_enter_success", "message_length": 133}
+{"utc_ts": "2025-06-18T05:19:29.207330", "workflow": "value_prop", "phase": "main_benefit", "event": "user_input_submitted", "input_length": 6}
+{"utc_ts": "2025-06-18T05:19:29.212036", "workflow": "value_prop", "phase": "main_benefit", "event": "phase_complete", "phase_name": "main_benefit", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:19:29.214711", "workflow": "value_prop", "phase": "main_benefit", "event": "phase_engine_response", "reply_length": 57, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:19:29.216384", "workflow": "value_prop", "phase": "main_benefit", "event": "phase_marked_complete"}
+{"utc_ts": "2025-06-18T05:19:29.279569", "workflow": "value_prop", "phase": "differentiator", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:19:29.282699", "workflow": "value_prop", "phase": "differentiator", "event": "phase_enter", "phase_name": "differentiator", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:19:29.284880", "workflow": "value_prop", "phase": "differentiator", "event": "phase_engine_enter_success", "message_length": 155}
+{"utc_ts": "2025-06-18T05:19:34.780745", "workflow": "value_prop", "phase": "differentiator", "event": "user_input_submitted", "input_length": 6}
+{"utc_ts": "2025-06-18T05:19:34.784631", "workflow": "value_prop", "phase": "differentiator", "event": "phase_complete", "phase_name": "differentiator", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:19:34.786735", "workflow": "value_prop", "phase": "differentiator", "event": "phase_engine_response", "reply_length": 59, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:19:34.787763", "workflow": "value_prop", "phase": "differentiator", "event": "phase_marked_complete"}
+{"utc_ts": "2025-06-18T05:19:34.851696", "workflow": "value_prop", "phase": "use_case", "event": "phase_engine_enter_start"}
+{"utc_ts": "2025-06-18T05:19:34.857869", "workflow": "value_prop", "phase": "use_case", "event": "phase_enter", "phase_name": "use_case", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:19:34.859684", "workflow": "value_prop", "phase": "use_case", "event": "use_case_prompted", "phase_name": "use_case", "workflow_name": "value_prop", "story_found": true}
+{"utc_ts": "2025-06-18T05:19:34.861890", "workflow": "value_prop", "phase": "use_case", "event": "phase_engine_enter_success", "message_length": 466}
+{"utc_ts": "2025-06-18T05:27:39.016424", "workflow": "value_prop", "phase": "use_case", "event": "user_input_submitted", "input_length": 3}
+{"utc_ts": "2025-06-18T05:27:39.019599", "workflow": "value_prop", "phase": "use_case", "event": "use_case_unclear_input", "phase_name": "use_case", "workflow_name": "value_prop", "user_input": "ok "}
+{"utc_ts": "2025-06-18T05:27:39.023412", "workflow": "value_prop", "phase": "use_case", "event": "phase_engine_response", "reply_length": 104, "next_phase_suggestion": null}
+{"utc_ts": "2025-06-18T05:27:51.848542", "workflow": "value_prop", "phase": "use_case", "event": "user_input_submitted", "input_length": 14}
+{"utc_ts": "2025-06-18T05:27:51.852544", "workflow": "value_prop", "phase": "use_case", "event": "use_case_ask_help", "phase_name": "use_case", "workflow_name": "value_prop"}
+{"utc_ts": "2025-06-18T05:27:51.854236", "workflow": "value_prop", "phase": "use_case", "event": "use_case_suggestions_provided", "phase_name": "use_case", "workflow_name": "value_prop", "count": 2}
+{"utc_ts": "2025-06-18T05:27:51.855344", "workflow": "value_prop", "phase": "use_case", "event": "phase_engine_response", "reply_length": 565, "next_phase_suggestion": null}

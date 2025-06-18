@@ -112,7 +112,47 @@ class ValuePropCoachPersona(CoachPersonaBase):
     def get_negative_affirmation_response(self, user_input: str, phase_name: str = "", **kwargs) -> str:
         return f"Okay, let's reconsider the {phase_name.replace('_', ' ')} then. What are your thoughts now?"
 
+    def acknowledge_user_input(self, user_input: str, context_description: str = None) -> str:
+        """
+        Provides a simple acknowledgment of the user's input.
+        """
+        if context_description:
+            return f"Thanks for sharing your thoughts on {context_description}."
+        if len(user_input) > 50:
+            return f"Thanks for providing that detail: '{user_input[:50]}...'."
+        elif user_input:
+            return f"Okay, I've noted: '{user_input}'."
+        return "Got it."
+
     # --- Value-Prop Specific Persona Methods (examples, can be expanded) ---
+
+    def create_suggested_use_case(self, scratchpad: dict) -> list[str]:
+        """Return 1–2 short evidence-based scenarios using available intake info."""
+        suggestions = []
+        background = scratchpad.get("vp_background", "")
+        interests = scratchpad.get("vp_interests", "")
+        problem_motivation = scratchpad.get("vp_problem_motivation", "")
+
+        if background:
+            suggestions.append(f"Leveraging your background in {background}, consider a use case where a professional like you addresses [a specific challenge related to your background].")
+        if interests:
+            suggestions.append(f"Inspired by your interest in {interests}, a potential use case could be developing a tool for individuals passionate about [a related aspect of your interest].")
+        if problem_motivation:
+            suggestions.append(f"Focusing on your motivation to solve {problem_motivation}, one use case might be a system that directly tackles [a component of that problem].")
+
+        if not suggestions:
+            suggestions.append("A general use case: A healthcare provider uses a new tool to improve patient communication.")
+            suggestions.append("Another general use case: A patient uses an app to manage their chronic condition more effectively.")
+        
+        # Return 1 or 2 suggestions
+        if len(suggestions) > 2:
+            import random
+            return random.sample(suggestions, 2)
+        elif suggestions:
+            return suggestions
+        else: # Should not happen with fallbacks
+            return ["Could not generate a specific suggestion at this time. Please describe a use case you have in mind."]
+
 
     def generate_value_prop_recommendations(self, scratchpad: dict) -> str:
         """

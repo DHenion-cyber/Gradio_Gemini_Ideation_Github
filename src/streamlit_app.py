@@ -9,7 +9,21 @@ import importlib # For dynamic module loading
 import asyncio
 import inspect # Added for line number logging
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# --- BEGIN DIAGNOSTIC ---
+print(f"Original sys.path: {sys.path}")
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+print(f"Modified sys.path[0]: {sys.path[0]}")
+print(f"Attempting to import 'src.workflows.value_prop.phases.intake' directly...")
+try:
+    import workflows.value_prop.phases.intake
+    print("SUCCESS: 'src.workflows.value_prop.phases.intake' imported directly.")
+except ModuleNotFoundError as e:
+    print(f"ERROR: Failed to import 'src.workflows.value_prop.phases.intake' directly: {e}")
+except Exception as e:
+    print(f"ERROR: An unexpected error occurred during direct import test: {e}")
+print("--- END DIAGNOSTIC ---")
+# --- END DIAGNOSTIC ---
 
 from src.core.logger import get_logger # Roo: Added
 from src.workflow_manager import WORKFLOW_REGISTRY, reset_workflow, get_workflow_display_name, get_workflow_names # Roo: Modified

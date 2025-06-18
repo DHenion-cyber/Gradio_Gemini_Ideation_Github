@@ -4,12 +4,13 @@
 # These names should correspond to the phase_name attribute of the PhaseEngineBase subclasses
 # and the filenames in the src/workflows/value_prop/phases/ directory (e.g., use_case.py).
 PHASE_ORDER = [
-    "use_case",
+    "intake",
     "problem",
     "target_customer",
     "solution",
     "main_benefit",
     "differentiator",
+    "use_case",
     "recommendation", # Handles showing recommendations
     "iteration",      # Top-level iteration phase (might contain sub-phases like revise, rerun)
     "summary"         # Final summary phase
@@ -19,8 +20,12 @@ PHASE_ORDER = [
 # These are the keys that will be initialized in st.session_state.scratchpad
 # when this workflow is started.
 SCRATCHPAD_KEYS = [
-    "use_case",
-    "problem",
+    "vp_background",
+    "vp_interests",
+    "vp_problem_motivation",
+    "vp_anything_else",
+    "vp_use_case", # Renamed from use_case for consistency and to match intake keys
+    "problem", # Assuming this remains unprefixed as per original structure for other phases
     "target_customer",
     "solution",
     "main_benefit",

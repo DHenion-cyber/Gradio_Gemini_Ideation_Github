@@ -72,14 +72,28 @@ class PhaseEngineBase(ABC):
         Subclasses can override for more sophisticated intent parsing.
         """
         user_input_lower = user_input.lower().strip()
-        if user_input_lower in ["yes", "yep", "yeah", "correct", "ok", "okay", "sure", "sounds good"]:
+
+        if not user_input_lower or user_input_lower == "?":
+            return "unclear"
+        if user_input_lower in ["skip", "not sure", "notsure", "not applicable", "n/a", "na"]:
+            return "skip"
+        if user_input_lower in ["yes", "yep", "yeah", "correct", "ok", "okay", "sure", "sounds good", "affirmative"]:
             return "affirm"
-        if user_input_lower in ["no", "nope", "incorrect", "not really"]:
+        if user_input_lower in ["no", "nope", "incorrect", "not really", "negative"]:
             return "negative"
-        if "example" in user_input_lower or "suggestion" in user_input_lower or "help" in user_input_lower or "idea" in user_input_lower:
+        if "example" in user_input_lower or "suggestion" in user_input_lower or "help" in user_input_lower or "idea" in user_input_lower or "suggest" in user_input_lower:
             return "ask_suggestion"
-        # Add more sophisticated intent classification here if needed (e.g., using NLU)
-        return "unclear"
+        
+        # Default to unclear if no other intent is matched.
+        # More sophisticated NLU could be added here.
+        # For now, any other input that is not empty or a special keyword will be treated as "provide_detail"
+        # or could be contextually interpreted by the specific phase's handle_response.
+        # The base `classify_intent` aims to catch common cross-phase intents.
+        # If a phase expects free text, it will likely not rely solely on this classification for that text.
+        if user_input_lower: # If it's not empty and not caught by specific keywords above
+             return "provide_detail" # A generic intent for providing information
+
+        return "unclear" # Fallback for empty or truly unclassifiable input
 
     def _handle_unexpected_input(self, user_input: str) -> dict:
         """
