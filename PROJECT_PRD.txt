@@ -1,0 +1,94 @@
+PRD – PHASE-AWARE COACHING CHATBOT
+───────────────────────────────────
+FILE NAME: PROJECT_PRD.txt (owner: Dale Henion)
+
+PURPOSE & VISION
+
+A single-page Streamlit chatbot that guides students through six digital-innovation topics (Value Proposition, Market Analysis, Business Model, Planning Growth, Beta Testing, Pitch Prep).
+
+At any moment the user sees one focused question; the bot mediates answers with a domain-specific persona and moves the student through clearly-named phases.
+
+IN-SCOPE (v1)
+
+Interactive workflows for Value Proposition (fully working), plus skeletons for the other five topics.
+
+Shared “Summary” and “Iteration” phases reused across all workflows.
+
+Coach personas that validate, probe, and summarise within their domain.
+
+Session state stored in Streamlit st.session_state; persistent session archive via SQLite/jsonl (basic).
+
+Flat analytics log (JSON Lines) with workflow, phase, event, utc_ts.
+
+OUT-OF-SCOPE (v1)
+
+Multi-user authentication, fine-grained role management.
+
+External CMS integrations, advanced UI theming, or heavy BI dashboards.
+
+Full automated test coverage (will arrive after stability).
+
+PRIMARY PERSONAS & USER STORIES
+
+Student: “I choose a topic, answer questions, and receive tailored guidance without the bot losing track.”
+
+Instructor: “I can inspect logs to see where students struggle.”
+
+Developer (you/Roo): “I can add a new workflow by copying a folder template and writing PhaseEngine subclasses.”
+
+FUNCTIONAL REQUIREMENTS (STABILITY CHECKLIST)
+
+Dynamic workflow menu shows all topics; selecting one resets state and lists its phases in the sidebar.
+
+Each PhaseEngine:
+
+accepts free-text, classifies intent (affirm, negative, ask_suggestion, unclear);
+
+calls its CoachPersona methods;
+
+marks itself complete or asks a clarifying question.
+
+Persona replies differ by workflow and phase.
+
+UI always displays banner “🧠 Workflow X | Phase Y | Waiting/User Input/System Thinking”.
+
+On unexpected input the bot responds politely, never stalls.
+
+Summary and Iteration phases are imported, not duplicated.
+
+ARCHITECTURE DECISIONS (ADR-LITE)
+
+PhaseEngineBase (new) implements core behaviour, logging, and intent parsing.
+
+CoachPersonaBase (new) holds common helper methods.
+
+Folder per workflow: workflows/value_prop/, workflows/market_analysis/, … each with persona.py, phases/.
+
+Scratchpad keys prefixed with workflow slug to avoid collisions (vp_problem, ma_tam).
+
+Analytics via log_event(event, **kv) in a shared analytics.py.
+
+SUCCESS METRICS (MANUAL QA FOR v1)
+
+100 % of manual test runs transition through every Value-Prop phase without crashing or echoing nonsense.
+
+Instructor rates bot helpfulness ≥ 4 / 5 in a 5-run sample.
+
+RISKS & MITIGATIONS
+
+Silent failure loops → mitigated by debug banner + log_event.
+
+Scope creep → mitigated by this PRD and milestone roadmap.
+
+LLM latency → keep one question per round; no multi-shot prompts.
+
+MILESTONES & TARGET DATES (relative)
+0 PRD accepted (Day 0)
+1 Infrastructure stabilised for Value Prop (D+3)
+2 Shared Summary & Iteration phases (D+5)
+3 Skeleton workflows for other topics (D+7)
+4 Market Analysis MVP (D+12)
+5 Business Model MVP (D+17)
+6 Analytics hooks (D+19)
+7 Thin test layer (D+22)
+8 Documentation & hand-off (D+24)
