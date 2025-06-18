@@ -5,8 +5,29 @@ Handles UI flow, workflow selection, and chat rendering.
 import os
 import sys
 import streamlit as st
+import importlib # For dynamic module loading
+import asyncio
+import inspect # Added for line number logging
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from src.core.logger import get_logger # Roo: Added
+from src.workflow_manager import WORKFLOW_REGISTRY, reset_workflow, get_workflow_display_name, get_workflow_names # Roo: Modified
+from src.analytics import log_event # Roo: Added
+# from src.workflows.registry import WORKFLOWS # Roo: Replaced by workflow_manager
+from src.persistence_utils import ensure_db, save_session
+# from src.conversation_manager import ( # Roo: Will evaluate if these are still needed or replaced by PhaseEngine logic
+#     initialize_conversation_state, run_intake_flow, get_intake_questions,
+#     is_out_of_scope, generate_assistant_response,
+# )
+# from src.workflows.value_prop import ValuePropWorkflow # Roo: Removed, will use dynamic loading
+# from src.personas.coach import CoachPersona # Roo: Removed, will use workflow-specific personas
+from src.ui_components import (
+    apply_responsive_css, privacy_notice, render_response_with_citations
+)
+# Roo: Specific persona import for now, ideally this becomes dynamic too
+from src.workflows.value_prop.persona import ValuePropCoachPersona
+
 
 # --- PAGE CONFIG & HEADER ---
 st.set_page_config(page_title="Chatbot UI", layout="wide")
@@ -54,7 +75,7 @@ st.components.v1.html("""
         fbSubmit.onclick = function() {
             const feedbackText = fbTextarea.value;
             if (feedbackText.trim() !== "") {
-                console.log("Feedback submitted:", feedbackText);
+                console.log("Feedback submitted:", feedbackText); // Roo: Will change to logger if accessible from JS
                 alert("Feedback submitted (logged to console for now). Thank you!");
                 fbTextarea.value = "";
                 fbPanel.style.display = 'none';
@@ -66,341 +87,266 @@ st.components.v1.html("""
 </script>
 """, height=0)
 
-# --- IMPORTS ---
-from src.workflows.registry import WORKFLOWS
-from src.persistence_utils import ensure_db, save_session
-from src.conversation_manager import (
-    initialize_conversation_state, run_intake_flow, get_intake_questions,
-    is_out_of_scope, generate_assistant_response,
-)
-from src.workflows.value_prop import ValuePropWorkflow
-from src.personas.coach import CoachPersona
-from src.ui_components import (
-    apply_responsive_css, privacy_notice, render_response_with_citations
-)
 
-import asyncio
-import logging
-import inspect # Added for line number logging
-
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s')
+logger = get_logger(__name__) # Roo: Added
 
 # --- CONVERSATION STATE INIT ---
-if "conversation_initialized" not in st.session_state or st.session_state.get("new_chat_triggered"):
-    try:
-        initialize_conversation_state(new_chat=True)
-        st.session_state["conversation_initialized"] = True
-        st.session_state["new_chat_triggered"] = False
-    except Exception as e:
-        st.error(f"Initialization error: {e}")
-        st.stop()
+# Roo: Simplified initialization, reset_workflow will handle detailed setup
+if "workflow" not in st.session_state:
+    st.session_state.workflow = None
+    st.session_state.phase = None
+    st.session_state.history = []
+    st.session_state.messages = [] # For st.chat_message if used
+    st.session_state.scratchpad = {}
+    st.session_state.current_phase_engine = None
+    st.session_state.coach_persona_instance = None
+    logger.info("Initial session state initialized.")
 
-# --- WORKFLOW NAME FORMATTER ---
-def format_workflow_name(name_key):
-    if name_key == "value_prop":
-        return "Value Proposition"
+if "conversation_initialized" not in st.session_state or st.session_state.get("new_chat_triggered"): # Roo: This block might be redundant now
+    # try: # Roo: initialize_conversation_state was removed
+    #     # initialize_conversation_state(new_chat=True) # Roo: Removed
+    #     st.session_state["conversation_initialized"] = True # Roo: This flag's utility needs review
+    #     st.session_state["new_chat_triggered"] = False
+    # except Exception as e:
+    #     st.error(f"Initialization error: {e}")
+    #     st.stop()
+    pass # Roo: Placeholder, review if this entire block is needed. reset_workflow handles init.
+
+# --- WORKFLOW NAME FORMATTER (can be simplified if display names are in WORKFLOW_REGISTRY) ---
+def format_phase_name(name_key: str):
+    """Formats a phase slug into a displayable name."""
     return ' '.join(word.capitalize() for word in name_key.split('_'))
 
 # --- SIDEBAR: WORKFLOW SELECTOR & PHASES ---
 with st.sidebar:
-    # Map user-friendly names → workflow keys
-    formatted_workflow_options = {
-        format_workflow_name(k): k
-        for k in WORKFLOWS.keys()
+    st.header("Workflow Control")
+    available_workflows = get_workflow_names()
+    
+    workflow_display_options = {
+        get_workflow_display_name(k): k for k in available_workflows
     }
-    placeholder = "Select"
-    options = [placeholder] + list(formatted_workflow_options.keys())
+    placeholder_text = "Select a Workflow"
+    options_list = [placeholder_text] + list(workflow_display_options.keys())
 
-    selected_display = st.selectbox(
-        "Workflow",
-        options,
-        index=0,
-        key="selected_workflow_display_name"
+    # Get current workflow display name if one is active
+    current_workflow_slug = st.session_state.get("workflow")
+    current_display_name = None
+    if current_workflow_slug:
+        current_display_name = get_workflow_display_name(current_workflow_slug)
+    
+    # Determine index for selectbox
+    current_selection_index = 0
+    if current_display_name and current_display_name in options_list:
+        current_selection_index = options_list.index(current_display_name)
+
+    selected_display_workflow = st.selectbox(
+        "Choose Workflow:",
+        options_list,
+        index=current_selection_index, # Set index based on current workflow
+        key="sb_selected_workflow_display"
     )
 
-    if selected_display != placeholder:
-        st.session_state.selected_workflow_key = formatted_workflow_options[selected_display]
-    else:
-        st.session_state.selected_workflow_key = None
+    newly_selected_workflow_key = None
+    if selected_display_workflow != placeholder_text:
+        newly_selected_workflow_key = workflow_display_options[selected_display_workflow]
+
+    if newly_selected_workflow_key and newly_selected_workflow_key != st.session_state.get("workflow"):
+        logger.info(f"Workflow selection changed to: {newly_selected_workflow_key}. Resetting workflow state.")
+        reset_workflow(newly_selected_workflow_key)
+        # Initialize persona for the new workflow (example for value_prop)
+        if newly_selected_workflow_key == "value_prop":
+            st.session_state.coach_persona_instance = ValuePropCoachPersona(workflow_name="value_prop")
+            logger.info("ValuePropCoachPersona initialized for value_prop workflow.")
+        else:
+            st.session_state.coach_persona_instance = None # Placeholder for other personas
+            logger.warning(f"No specific coach persona defined for workflow: {newly_selected_workflow_key}")
+        st.rerun() # Rerun to reflect the new workflow state immediately
 
     st.markdown("---")
 
-    # ---- PHASE DISPLAY SECTION ----
-    key = st.session_state.get("selected_workflow_key")
-    logging.info(f"SIDEBAR: Selected workflow key: {key}")
+    # ---- PHASE DISPLAY SECTION & DEBUG BANNER ----
+    active_workflow_slug = st.session_state.get("workflow")
+    active_phase_slug = st.session_state.get("phase")
 
-    if key:
-        # Ensure workflow instance exists (extend for new workflows)
-        workflow_instance_key = f"{key}_workflow_instance"
-        persona_instance_key = "coach_persona_instance"  # For value_prop only
-        logging.info(f"SIDEBAR: Workflow instance key: {workflow_instance_key}")
-
-        if workflow_instance_key not in st.session_state:
-            logging.info(f"SIDEBAR: Creating new workflow instance for {key}")
-            # Only create if missing (supports value_prop, extend for more)
-            if key == "value_prop":
-                if persona_instance_key not in st.session_state:
-                    st.session_state[persona_instance_key] = CoachPersona()
-                    logging.info(f"SIDEBAR: Created new CoachPersona instance.")
-                st.session_state[workflow_instance_key] = ValuePropWorkflow(
-                    context={"persona_instance": st.session_state[persona_instance_key]}
-                )
-                logging.info(f"SIDEBAR: ValuePropWorkflow instance created.")
-            else:
-                st.session_state[workflow_instance_key] = None  # Placeholder for future workflows
-                logging.info(f"SIDEBAR: Placeholder for {key} workflow instance set to None.")
+    if active_workflow_slug and active_phase_slug:
+        wf_display = get_workflow_display_name(active_workflow_slug)
+        ph_display = format_phase_name(active_phase_slug)
+        st.info(f"🧠 Workflow: {wf_display} | Phase: {ph_display}") # PRD Requirement
+        
+        workflow_config = WORKFLOW_REGISTRY.get(active_workflow_slug)
+        if workflow_config:
+            phases_in_order = workflow_config.get("phases_definition", [])
+            st.markdown("**Workflow Phases:**")
+            for phase_item_slug in phases_in_order:
+                is_current = (phase_item_slug == active_phase_slug)
+                style = "font-weight:bold; color:#007BFF;" if is_current else "color:#555;"
+                phase_item_display = format_phase_name(phase_item_slug)
+                st.markdown(f"- <span style='{style}'>{phase_item_display}</span>", unsafe_allow_html=True)
         else:
-            logging.info(f"SIDEBAR: Workflow instance for {key} already exists in session_state.")
-
-        workflow_instance = st.session_state.get(workflow_instance_key)
-        logging.info(f"SIDEBAR: Retrieved workflow_instance: {workflow_instance}")
-
-        # Only render if workflow has phases
-        if workflow_instance and hasattr(workflow_instance, "get_all_phases"):
-            logging.info(f"SIDEBAR: workflow_instance has get_all_phases method.")
-            phases = workflow_instance.get_all_phases()
-            logging.info(f"SIDEBAR: Phases from get_all_phases(): {phases}")
-            current_phase = getattr(workflow_instance, "current_phase", None)
-            logging.info(f"SIDEBAR: Current phase: {current_phase}")
-            if phases:
-                for phase in phases:
-                    logging.info(f"SIDEBAR: Displaying phase: {phase}")
-                    is_current = (phase == current_phase)
-                    style = "font-weight:bold; color:#007BFF;" if is_current else "color:#888;"
-                    st.markdown(
-                        f"- <span style='{style}'>{format_workflow_name(phase)}</span>",
-                        unsafe_allow_html=True
-                    )
-            else:
-                logging.info(f"SIDEBAR: No phases to display for {key}.")
-        elif workflow_instance:
-            logging.warning(f"SIDEBAR: workflow_instance for {key} does NOT have get_all_phases method.")
-        else:
-            logging.warning(f"SIDEBAR: workflow_instance for {key} is None, cannot display phases.")
+            logger.warning(f"No config found for active workflow {active_workflow_slug} in WORKFLOW_REGISTRY")
+    elif active_workflow_slug:
+        st.info(f"Workflow: {get_workflow_display_name(active_workflow_slug)} selected. Initializing...")
     else:
-        logging.info("SIDEBAR: No workflow key selected, not displaying phases.")
+        st.markdown("No workflow selected.")
+        st.info("Please select a workflow from the sidebar to begin.") # Roo: Added info message
+
+# --- Helper to get PhaseEngine class ---
+def get_phase_engine_instance(workflow_slug: str, phase_slug: str, coach_persona_instance):
+    """Dynamically imports and instantiates a PhaseEngine class."""
+    try:
+        # Construct module and class names based on convention
+        # e.g., workflow 'value_prop', phase 'problem' -> src.workflows.value_prop.phases.problem.ProblemPhase
+        module_path = f"src.workflows.{workflow_slug}.phases.{phase_slug}"
+        class_name_parts = [part.capitalize() for part in phase_slug.split('_')]
+        class_name = "".join(class_name_parts) + "Phase"
+        
+        logger.debug(f"Attempting to load PhaseEngine: module='{module_path}', class='{class_name}'")
+        
+        phase_module = importlib.import_module(module_path)
+        phase_class = getattr(phase_module, class_name)
+        
+        # Instantiate with coach_persona and workflow_name
+        return phase_class(coach_persona=coach_persona_instance, workflow_name=workflow_slug)
+    except ModuleNotFoundError:
+        logger.error(f"Phase module not found: {module_path}")
+    except AttributeError:
+        logger.error(f"Phase class '{class_name}' not found in module '{module_path}'")
+    except Exception as e:
+        logger.error(f"Error loading phase engine for {workflow_slug}/{phase_slug}: {e}", exc_info=True)
+    return None
 
 # --- MAIN APP LOGIC ---
 async def main():
     apply_responsive_css()
-    privacy_notice()
+    # privacy_notice() # Roo: Assuming this is still desired, keeping it.
 
-    # DEBUG: Write current stage and history at the start of main() after a rerun
-    # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Top of main(): stage='{st.session_state.get('stage')}', history_len='{len(st.session_state.get('history', []))}'")
+    active_workflow_slug = st.session_state.get("workflow")
+    active_phase_slug = st.session_state.get("phase")
+    coach_persona = st.session_state.get("coach_persona_instance")
 
-    selected_workflow = st.session_state.get("selected_workflow_key")
-    if selected_workflow is None:
-        st.info("Please select a workflow from the sidebar to begin.")
+    if not active_workflow_slug or not active_phase_slug:
+        # This case is handled by the sidebar select info message if no workflow is ever selected.
+        # If a workflow was selected but phase is somehow None, it's an issue reset_workflow should prevent.
+        logger.debug("Main: No active workflow or phase. Waiting for selection.")
         return
 
-    # Ensure workflow instance exists (value_prop example)
-    if selected_workflow == "value_prop":
-        if "value_prop_workflow_instance" not in st.session_state:
-            st.session_state.coach_persona_instance = CoachPersona()
-            st.session_state.value_prop_workflow_instance = ValuePropWorkflow(
-                context={"persona_instance": st.session_state.coach_persona_instance}
-            )
-        workflow_instance = st.session_state.value_prop_workflow_instance
-    else:
-        workflow_instance = None  # Extend logic for other workflows
+    if not coach_persona and active_workflow_slug == "value_prop": # Ensure persona for value_prop
+        logger.warning("Value Proposition workflow active but no coach persona found. Re-initializing.")
+        st.session_state.coach_persona_instance = ValuePropCoachPersona(workflow_name="value_prop")
+        coach_persona = st.session_state.coach_persona_instance
+        # Potentially rerun if this state is critical and was unexpected
+        # st.rerun()
+    
+    if not coach_persona:
+        st.error(f"Coach persona not available for workflow '{active_workflow_slug}'. Cannot proceed.")
+        logger.error(f"Coach persona missing for workflow {active_workflow_slug}.")
+        return
 
-    # Intake phase logic (for value_prop workflow)
-    if selected_workflow == "value_prop" and st.session_state.get("stage") not in ["ideation", "recommendation", "iteration", "summary"]:
-        st.session_state.stage = "intake"
-        st.session_state.intake_index = st.session_state.get("intake_index", 0)
+    # Instantiate current phase engine
+    current_phase_engine = get_phase_engine_instance(active_workflow_slug, active_phase_slug, coach_persona)
+    st.session_state.current_phase_engine = current_phase_engine # Store for access if needed elsewhere
 
-    # -- Intake logic --
-    if selected_workflow == "value_prop" and st.session_state.get("stage") == "intake":
-        intake_questions = get_intake_questions()
-        idx = st.session_state.get("intake_index", 0)
-        if idx < len(intake_questions):
-            question = intake_questions[idx]
-            form_key = f"intake_form_{selected_workflow}_{idx}"
-            with st.form(key=form_key):
-                st.markdown(question)
-                user_response_input = st.text_area(
-                    label="",
-                    placeholder="Please provide your detailed response here...",
-                    key=f"intake_q_{selected_workflow}_{idx}_input",
-                    height=100
-                )
-                col1, col2 = st.columns([9, 1])
-                with col2:
-                    submitted = st.form_submit_button(label="➤")
-            if submitted:
-                if user_response_input:
-                    run_intake_flow(user_response_input)
-                    st.rerun()
-                else:
-                    st.warning("Please enter a response to proceed.")
-            return  # Prevent further UI rendering
-        else:
-            # Intake complete, transition
-            st.session_state.stage = "ideation"
-            st.rerun()
+    if not current_phase_engine:
+        st.error(f"Could not load phase engine for {active_workflow_slug} / {active_phase_slug}. Please check logs.")
+        return
 
-    # --- Chat stages ---
-    if selected_workflow == "value_prop" and st.session_state.get("stage") in ["ideation", "recommendation", "iteration", "summary"]:
-        workflow_instance = st.session_state.value_prop_workflow_instance
-        # Chat message history
-        if "history" not in st.session_state:
-            st.session_state.history = []
-        if "conversation_history" in st.session_state and st.session_state.conversation_history and not st.session_state.history:
-            # Migrate old to new format if needed
-            for msg_old in st.session_state.conversation_history:
-                role = msg_old.get("role")
-                content = msg_old.get("text")
-                if role and content:
-                    st.session_state.history.append({"role": role, "content": content})
+    # --- Initial message for the phase if history is empty or last message was user ---
+    if not st.session_state.history or st.session_state.history[-1]["role"] == "user":
+        if not st.session_state.history: # Absolutely first message for this phase
+            logger.info(f"Entering phase '{active_phase_slug}' for workflow '{active_workflow_slug}'. Getting intro message.")
+            log_event("phase_engine_enter_start", workflow=active_workflow_slug, phase=active_phase_slug)
+            try:
+                with st.spinner("Coach is preparing..."):
+                    intro_message = current_phase_engine.enter()
+                st.session_state.history.append({"role": "assistant", "content": intro_message, "citations": []})
+                log_event("phase_engine_enter_success", workflow=active_workflow_slug, phase=active_phase_slug, message_length=len(intro_message))
+                st.rerun() # Rerun to display the intro message immediately
+            except Exception as e:
+                logger.error(f"Error during phase_engine.enter(): {e}", exc_info=True)
+                st.session_state.history.append({"role": "assistant", "content": f"Error entering phase: {e}", "citations": []})
+                log_event("phase_engine_enter_failed", workflow=active_workflow_slug, phase=active_phase_slug, error=str(e))
 
-        # ---- ADDED: Trigger initial message for ideation stage if history is empty ----
-        current_stage_for_init_msg = st.session_state.get("stage")
-        history_for_init_msg = st.session_state.get("history", [])
+    # --- Display chat history ---
+    chat_col = st.container()
+    with chat_col:
+        for msg in st.session_state.history:
+            role = msg.get("role")
+            content = msg.get("content")
+            if role and content:
+                with st.chat_message(role):
+                    citations = msg.get("citations", [])
+                    if citations:
+                        render_response_with_citations(content, citations)
+                    else:
+                        st.write(content) # Use st.markdown for better formatting if content has markdown
+
+    # --- Chat input ---
+    # Placeholder can be dynamic based on phase engine if desired
+    # current_phase_engine.get_input_placeholder() or similar
+    chat_input_placeholder = f"Your response for {format_phase_name(active_phase_slug)}..."
+    
+    user_input = st.chat_input(chat_input_placeholder, key=f"chat_input_{active_workflow_slug}_{active_phase_slug}")
+
+    if user_input:
+        st.session_state.history.append({"role": "user", "content": user_input})
+        logger.debug(f"User input: {user_input}")
+        log_event("user_input_submitted", workflow=active_workflow_slug, phase=active_phase_slug, input_length=len(user_input))
+
+        with st.spinner("Coach is thinking..."):
+            try:
+                response_dict = current_phase_engine.handle_response(user_input)
+                assistant_reply = response_dict.get("reply", "I'm not sure how to respond to that.")
+                next_phase_candidate = response_dict.get("next_phase") # Phase engine can suggest next phase
+
+                st.session_state.history.append({"role": "assistant", "content": assistant_reply, "citations": []}) # Assuming no citations from phase engines for now
+                log_event("phase_engine_response", workflow=active_workflow_slug, phase=active_phase_slug, reply_length=len(assistant_reply), next_phase_suggestion=next_phase_candidate)
+
+                # --- Phase Transition Logic ---
+                if current_phase_engine.complete: # Check if the phase marked itself as complete
+                    log_event("phase_marked_complete", workflow=active_workflow_slug, phase=active_phase_slug)
+                    if next_phase_candidate: # If engine explicitly stated next phase
+                        st.session_state.phase = next_phase_candidate
+                        logger.info(f"Phase transition: Current phase '{active_phase_slug}' completed. Engine suggested next phase: '{next_phase_candidate}'.")
+                    else: # Auto-advance to next phase in sequence
+                        workflow_config = WORKFLOW_REGISTRY.get(active_workflow_slug)
+                        phases_in_order = workflow_config.get("phases_definition", [])
+                        try:
+                            current_idx = phases_in_order.index(active_phase_slug)
+                            if current_idx + 1 < len(phases_in_order):
+                                st.session_state.phase = phases_in_order[current_idx + 1]
+                                logger.info(f"Phase transition: Current phase '{active_phase_slug}' completed. Auto-advancing to next phase: '{st.session_state.phase}'.")
+                            else: # Last phase completed
+                                logger.info(f"Workflow '{active_workflow_slug}' completed (last phase '{active_phase_slug}' finished).")
+                                # Potentially display a workflow completion message or offer to restart/switch.
+                                # For now, it will just stay on the last phase's screen.
+                                st.success(f"Workflow '{get_workflow_display_name(active_workflow_slug)}' completed!")
+                                log_event("workflow_completed", workflow=active_workflow_slug)
+                        except ValueError:
+                            logger.error(f"Current phase '{active_phase_slug}' not found in its workflow's phase order. Cannot auto-advance.")
+                    
+                    st.session_state.history = [] # Clear history for the new phase
+                    # current_phase_engine.debug_log("phase_transition_auto_or_suggested", new_phase=st.session_state.phase)
+
+
+                elif next_phase_candidate and next_phase_candidate != active_phase_slug:
+                    # Engine wants to transition without marking current as complete (e.g. jump)
+                    st.session_state.phase = next_phase_candidate
+                    st.session_state.history = [] # Clear history for the new phase
+                    logger.info(f"Phase transition: Engine explicitly set next phase to '{next_phase_candidate}' from '{active_phase_slug}'.")
+                    # current_phase_engine.debug_log("phase_transition_explicit_jump", new_phase=st.session_state.phase)
+
+
+            except Exception as e:
+                logger.error(f"Error during phase_engine.handle_response(): {e}", exc_info=True)
+                st.session_state.history.append({"role": "assistant", "content": f"Error processing your response: {e}", "citations": []})
+                log_event("phase_engine_response_failed", workflow=active_workflow_slug, phase=active_phase_slug, error=str(e))
         
-        # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Checking for initial message: stage='{current_stage_for_init_msg}', history_empty='{not history_for_init_msg}'")
+        st.rerun() # Rerun to display new messages and reflect potential phase changes
 
-        if current_stage_for_init_msg == "ideation" and not history_for_init_msg:
-            # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - INSIDE initial message block. Attempting to generate initial message.")
-            if workflow_instance and hasattr(workflow_instance, 'process_user_input'):
-                logging.debug("streamlit_app.py:%d - Ideation stage started, history empty, calling process_user_input(\"\") for initial message.", inspect.currentframe().f_lineno)
-                # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Calling workflow_instance.process_user_input(\"\")")
-                try:
-                    with st.spinner("Coach is preparing..."):
-                        logging.debug("streamlit_app.py:%d - Inside spinner, calling process_user_input(\"\")", inspect.currentframe().f_lineno)
-                        initial_response_data = workflow_instance.process_user_input("")
-                        logging.debug("streamlit_app.py:%d - process_user_input(\"\") returned: %s", inspect.currentframe().f_lineno, str(initial_response_data)[:200])
-                        # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - process_user_input returned: {str(initial_response_data)[:50]}...")
-                    
-                    initial_assistant_content = ""
-                    initial_assistant_citations = []
-                    if isinstance(initial_response_data, str):
-                        initial_assistant_content = initial_response_data
-                    elif isinstance(initial_response_data, dict):
-                        initial_assistant_content = initial_response_data.get("text", "Error starting conversation.")
-                        initial_assistant_citations = initial_response_data.get("citations", [])
-                    else:
-                        initial_assistant_content = "I'm sorry, I encountered an unexpected response format to start. Please try again."
-                    
-                    if initial_assistant_content:
-                        st.session_state.history.append({
-                            "role": "assistant",
-                            "content": initial_assistant_content,
-                            "citations": initial_assistant_citations
-                        })
-                        logging.debug("streamlit_app.py:%d - Added initial assistant message to history. New history length: %d", inspect.currentframe().f_lineno, len(st.session_state.history))
-                        # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Added initial message to history. History length: {len(st.session_state.history)}")
-                    else:
-                        logging.warning("streamlit_app.py:%d - Initial assistant content was empty, not adding to history.", inspect.currentframe().f_lineno)
-                        # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Initial assistant content was empty.")
-
-                except Exception as e:
-                    logging.error("streamlit_app.py:%d - Exception during initial message processing: %s", inspect.currentframe().f_lineno, e, exc_info=True)
-                    # st.write(f"ERROR streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Exception during initial message processing: {e}")
-                    st.session_state.history.append({
-                        "role": "assistant",
-                        "content": f"An error occurred while starting the conversation: {e}",
-                        "citations": []
-                    })
-            else:
-                logging.warning("streamlit_app.py:%d - Ideation stage, empty history, but no workflow_instance or process_user_input method found.", inspect.currentframe().f_lineno)
-                # st.write(f"WARNING streamlit_app.py:{inspect.currentframe().f_lineno + 1} - Workflow instance or process_user_input not found for initial message.")
-        # else:
-            # st.write(f"DEBUG streamlit_app.py:{inspect.currentframe().f_lineno + 1} - SKIPPED initial message block. stage='{current_stage_for_init_msg}', history_empty='{not history_for_init_msg}'")
-
-
-        chat_col = st.container()
-        with chat_col:
-            for msg in st.session_state.history:
-                role = msg.get("role")
-                content = msg.get("content")
-                if role and content:
-                    with st.chat_message(role):
-                        citations = msg.get("citations", [])
-                        if citations:
-                            render_response_with_citations(content, citations)
-                        else:
-                            st.write(content)
-
-        # Chat input logic
-        current_stage = st.session_state.get("stage")
-        chat_input_placeholder = {
-            "ideation": "What are your thoughts on the value proposition?",
-            "recommendation": "What do you think of these recommendations? Or ask for more.",
-            "iteration": "How would you like to refine the value proposition?",
-        }.get(current_stage, "Type your message...")
-
-        user_input = st.chat_input(chat_input_placeholder)
-        if user_input:
-            st.session_state.history.append({"role": "user", "content": user_input})
-            if workflow_instance and hasattr(workflow_instance, 'process_user_input'):
-                with st.spinner("Coach is thinking..."):
-                    response_data = workflow_instance.process_user_input(user_input)
-                    assistant_content = ""
-                    assistant_citations = []
-                    if isinstance(response_data, str):
-                        assistant_content = response_data
-                    elif isinstance(response_data, dict):
-                        assistant_content = response_data.get("text", "I'm sorry, I encountered an issue processing that.")
-                        assistant_citations = response_data.get("citations", [])
-                    else:
-                        assistant_content = "I'm sorry, I encountered an unexpected response format. Please try again."
-                    st.session_state.history.append({
-                        "role": "assistant",
-                        "content": assistant_content,
-                        "citations": assistant_citations
-                    })
-            else:
-                st.session_state.history.append({"role": "assistant", "content": "Error: Workflow not available to process input."})
-            st.rerun()
-
-        # Stage transition buttons (same as before)
-        if current_stage == "ideation":
-            # This block was causing an infinite loop as it's not conditional on a button.
-            # The "Proceed to Recommendation Phase" button was removed, but this unconditional
-            # message append and rerun remained.
-            # if st.button("Proceed to Recommendation Phase"): # This was correctly commented out
-            #     st.session_state["stage"] = "recommendation"
-            #     st.session_state.history.append({
-            #         "role": "assistant",
-            #         "content": "Okay, let's move to the recommendation phase. Based on our discussion, I'll provide some targeted recommendations for your value proposition."
-            #     })
-            #     st.rerun()
-            pass # Placeholder for any future ideation-specific buttons
-        elif current_stage == "recommendation":
-            if st.button("Proceed to Iteration Phase"):
-                st.session_state["stage"] = "iteration"
-                st.session_state.history.append({
-                    "role": "assistant",
-                    "content": "Great! Now let's iterate on these ideas. Feel free to suggest changes, ask for refinements, or explore alternatives."
-                })
-                st.rerun()
-        elif current_stage == "iteration":
-            if st.button("Finalize and Proceed to Summary"):
-                st.session_state["stage"] = "summary"
-                st.session_state.history.append({
-                    "role": "assistant",
-                    "content": "Excellent! We've iterated on the value proposition. Let's now move to the summary of our work."
-                })
-                st.rerun()
-        elif current_stage == "summary":
-            st.subheader("Value Proposition Summary")
-            # You may want to add your summary report logic here
-            st.markdown("Summary generation not yet implemented.")
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Restart Value Proposition Workflow"):
-                    st.session_state.stage = "intake"
-                    st.session_state.intake_index = 0
-                    st.session_state.history = []
-                    st.session_state.pop("value_prop_workflow_instance", None)
-                    st.rerun()
-            with col2:
-                if st.button("Choose Another Workflow / Exit"):
-                    st.session_state.selected_workflow_key = None
-                    st.session_state.stage = None
-                    st.session_state.history = []
-                    st.session_state.pop("value_prop_workflow_instance", None)
-                    st.rerun()
+    # Remove old stage transition buttons as phase engines now control flow.
+    # Workflow completion / restart options can be added based on the final phase's state.
+    # Example: if st.session_state.phase == "summary" and current_phase_engine.complete:
+    #    if st.button("Restart Workflow"): reset_workflow(active_workflow_slug); st.rerun()
 
 if __name__ == "__main__":
     asyncio.run(main())
