@@ -80,7 +80,7 @@ class CoachPersona: # Renamed from BehaviorEngine
         """
         Generates a brief active listening statement using an LLM.
         """
-        system_prompt = "You are a helpful and encouraging assistant. Your task is to acknowledge the user's input by briefly paraphrasing or summarizing its essence in a natural, warm, and conversational way. Avoid direct quotation. Your aim is to make the user feel heard and understood. For example, 'Okay, I'm with you on that...' or 'That's clear, so you're thinking about...'"
+        system_prompt = "You are a helpful and encouraging assistant. Your task is to acknowledge the user's input by briefly paraphrasing or summarizing its essence in a natural, warm, and conversational way. CRITICALLY IMPORTANT: Avoid direct quotation or repeating the user's words verbatim, especially for short inputs. Instead, confirm understanding conceptually. For example, if the user says 'hospital admin', you might say 'Okay, so your background is in hospital administration.' or 'Understood, you work in hospital admin.' Do NOT say 'I've noted: hospital admin'. Your aim is to make the user feel heard and understood through conceptual acknowledgement."
         
         messages = [
             {"role": "system", "content": system_prompt},
@@ -93,7 +93,7 @@ class CoachPersona: # Renamed from BehaviorEngine
         except Exception as e:
             # Log the error e.g., using logging.error(f"Error in active_listening: {e}")
             print(f"Error in active_listening LLM call: {e}") # Basic error printing
-            return "I've noted that." # Fallback response
+            return "DEBUG_COACH_ACTIVE_LISTENING_FALLBACK" # Unique fallback for debugging
 
     def diplomatic_acknowledgement(self, stance: str, user_input: str = "") -> str:
         """
@@ -318,7 +318,7 @@ Your response should be ONLY the question asking if they want a suggestion. Do n
 The current step is '{current_step}'. The user's input for this step is: '{user_input}'.
 The current state of their value proposition development (scratchpad) is: {scratchpad}.
 Your response should have two parts:
-1. First, acknowledge and briefly paraphrase the user's input for '{current_step}'. Do not use direct quotation. Refer to their input conceptually, for example, as 'your idea about {current_step} being {user_input[:30]}...' or 'your thoughts on {current_step} focusing on [paraphrased essence]'.
+1. First, acknowledge and briefly paraphrase the user's input for '{current_step}'. Do not use direct quotation. Refer to their input conceptually, for example, as 'your idea regarding {current_step}, which touches on [paraphrased essence]' or 'your thoughts on {current_step} focusing on [paraphrased essence]'. Avoid using direct snippets of their input.
 2. Second, provide brief, context-aware feedback based on their input's specificity and its relevance to the '{current_step}', potentially drawing context from the scratchpad.
 """
         if search_results:
@@ -382,7 +382,7 @@ Your response should have two parts:
             print(f"Error in paraphrase_user_input LLM call: {e}")
             # Fallback that still tries to reference the input
             if user_input:
-                 return f"I've noted your thoughts on {current_step}: '{user_input[:50]}...'. Let's consider how to refine this. What's one aspect you'd like to focus on next?"
+                 return f"I've noted your thoughts on {current_step}. To help refine this, what's one aspect you'd like to focus on next?"
             return f"I'm processing your thoughts on {current_step}. What's the next point you'd like to discuss?"
 
     def coach_on_decision(self, current_step: str, user_input: str, scratchpad: dict = None, user_cue: str = "decided", search_results: list = None) -> str: # Added search_results

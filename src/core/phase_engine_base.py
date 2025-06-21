@@ -83,7 +83,7 @@ class PhaseEngineBase(ABC):
             next_phase_decision = self.get_next_phase_after_skip()
             log_event("phase_skipped", phase_name=self.phase_name, workflow_name=self.workflow_name)
         elif intent == "negative":
-            reply = self.coach_persona.handle_negative_feedback(user_input=user_input_stripped, phase_name=self.phase_name)
+            reply = self.coach_persona.get_negative_affirmation_response(user_input=user_input_stripped, phase_name=self.phase_name)
             # Do not complete
         else: # Should not happen if classify_intent is comprehensive
             logger.warning(f"Unhandled intent '{intent}' for input '{user_input_stripped}' in phase '{self.phase_name}'. Falling back to unexpected input.")

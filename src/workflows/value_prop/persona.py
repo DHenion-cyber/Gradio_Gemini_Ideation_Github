@@ -122,12 +122,18 @@ class ValuePropCoachPersona(CoachPersonaBase):
         """
         # PhaseEngineBase calls this when micro_validate is True.
         phase_display = phase_name.replace('_', ' ')
+        user_input_length = len(kwargs.get("user_input", "").split()) # Get word count
+
         if phase_name.startswith("vp_"): # For intake sub-questions
-            # Use the header if available from kwargs (IntakePhase might pass it)
             header = kwargs.get("header", phase_display)
-            return f"Thanks for sharing your thoughts on '{header}'. I've noted: '{user_input[:70]}...'."
+            if user_input_length <= 3: # Arbitrary short length
+                return "Got it, thanks."
+            return f"Thanks for sharing your thoughts on '{header}'. I've noted that."
         
-        return f"Thanks for detailing the {phase_display}. I've noted: '{user_input[:70]}...'."
+        # For other phases
+        if user_input_length <= 3: # Arbitrary short length
+            return f"Okay, noted for {phase_display}."
+        return f"Thanks for detailing the {phase_display}. I've noted that."
 
     def suggest_examples(self, phase_name: str, user_input: str = "", **kwargs) -> str:
         """
